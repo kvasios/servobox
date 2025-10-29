@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+export DH_VERBOSE=1
+
+%:
+	dh $@
+
+override_dh_install:
+	dh_install
+	# Ensure runtime scripts are executable
+	chmod 0755 debian/servobox/usr/share/servobox/servobox || true
+	chmod -R 0755 debian/servobox/usr/share/servobox/servobox-lib || true
+

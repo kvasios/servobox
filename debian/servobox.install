@@ -1,0 +1,7 @@
+scripts/servobox usr/share/servobox/
+scripts/servobox-lib usr/share/servobox/
+packages/scripts usr/share/servobox/
+packages/recipes usr/share/servobox/packages/
+packaging/bash_completion/servobox usr/share/bash-completion/completions/
+data/jammy-cloudimg.url usr/share/servobox/base-image.url
+

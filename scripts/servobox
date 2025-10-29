@@ -1,0 +1,225 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ServoBox - Main dispatcher script
+# This script sources library functions and dispatches commands
+
+# Determine script and library paths (works via symlink and when installed)
+SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
+SCRIPT_REALPATH=$(readlink -f "$SCRIPT_PATH" 2>/dev/null || echo "$SCRIPT_PATH")
+SCRIPT_DIR=$(cd "$(dirname "$SCRIPT_REALPATH")" && pwd)
+
+# Prefer lib dir next to the real script path; fall back to system share path
+LIB_DIR="${SCRIPT_DIR}/servobox-lib"
+if [[ ! -d "$LIB_DIR" ]]; then
+  if [[ -d "/usr/share/servobox/servobox-lib" ]]; then
+    LIB_DIR="/usr/share/servobox/servobox-lib"
+  fi
+fi
+
+# Define repository root for both dev-tree and installed layouts
+# Dev tree: LIB_DIR == <repo>/scripts/servobox-lib -> REPO_ROOT == <repo>
+# Installed: LIB_DIR == /usr/share/servobox/servobox-lib -> REPO_ROOT == /usr/share/servobox
+_CANDIDATE_ROOT=$(cd "${LIB_DIR}/.." && pwd)
+if [[ -d "${_CANDIDATE_ROOT}/packages" ]]; then
+  REPO_ROOT="${_CANDIDATE_ROOT}"
+elif [[ -d "${_CANDIDATE_ROOT}/../packages" ]]; then
+  REPO_ROOT=$(cd "${_CANDIDATE_ROOT}/.." && pwd)
+else
+  REPO_ROOT="${_CANDIDATE_ROOT}"
+fi
+
+# Global variables
+CMD=${1:-help}
+# Package manager helper: prefer in-repo if available, then installed
+if [[ -x "${REPO_ROOT}/packages/scripts/package-manager.sh" ]]; then
+  PACKAGES_PM="${REPO_ROOT}/packages/scripts/package-manager.sh"
+elif [[ -x "/usr/share/servobox/scripts/package-manager.sh" ]]; then
+  PACKAGES_PM="/usr/share/servobox/scripts/package-manager.sh"
+else
+  # Fallback relative to lib dir (dev-tree)
+  PACKAGES_PM="${LIB_DIR}/../packages/scripts/package-manager.sh"
+fi
+NAME="servobox-vm"
+VCPUS=4
+MEMORY="8192"       # MiB
+DISK_GB=40
+BRIDGE=""           # empty -> libvirt default NAT
+HOST_NICS=()        # optional: array of host NICs for direct macvtap attachment (max 2)
+ASK_NIC=0           # default: no interactive prompt (use --choose-nic or network-setup for interactive)
+TEST_DURATION=60
+ENABLE_STRESS=0      # default: don't stress host during test (use --stress-ng to enable)
+BASE_OVERRIDE=""    # optional path to local .qcow2 or .qcow2.xz
+LIBVIRT_IMAGES_BASE="/var/lib/libvirt/images"
+OSINFO_OPT="ubuntu22.04"  # OS ID for virt-install (fixed to shipped image)
+DEBUG=0
+FORCE=0             # default: prompt for confirmation on destructive operations
+DEFAULT_NAT_STATIC="192.168.122.100/24"  # default persistent IP for libvirt 'default' NAT
+STATIC_IP_CIDR=""   # optional override via --ip
+
+DOWNLOAD_DIR="${HOME}/.local/share/servobox"
+# Base RT image locations (system cache preferred)
+SYSTEM_BASE_IMG="/var/lib/servobox/base.qcow2"
+BASE_IMG_URL_FILE="/usr/share/servobox/base-image.url"
+IMG="${DOWNLOAD_DIR}/servobox-jammy-rt.qcow2"
+VM_DIR="${LIBVIRT_IMAGES_BASE}/servobox/${NAME}"
+SEED_ISO="${VM_DIR}/seed.iso"
+DISK_QCOW="${VM_DIR}/${NAME}.qcow2"
+MAC_ADDR="52:54:00:$(hexdump -n3 -e '3/1 "%02X"' /dev/urandom | sed 's/../&:/g;s/:$//g' | tr A-Z a-z)"
+MAC_ADDR2=""          # second NIC (direct/macvtap) MAC, precomputed for consistency
+MAC_ADDR3=""          # third NIC (direct/macvtap) MAC, precomputed for consistency
+
+# Source library files
+source "${LIB_DIR}/vm-image.sh"
+source "${LIB_DIR}/vm-network.sh"
+source "${LIB_DIR}/rt-config.sh"
+source "${LIB_DIR}/vm-lifecycle.sh"
+source "${LIB_DIR}/testing.sh"
+source "${LIB_DIR}/pkg-install.sh"
+source "${LIB_DIR}/recipe-run.sh"
+
+# Inlined common utilities (previously in servobox-lib/common.sh)
+have() { command -v "$1" >/dev/null 2>&1; }
+
+deps() {
+  for c in qemu-system-x86_64 virt-install cloud-localds virsh wget xz virt-customize; do
+    if ! have "$c"; then
+      echo "Missing dependency: $c (sudo apt install qemu-kvm libvirt-daemon-system virtinst cloud-image-utils)" >&2
+      exit 1
+    fi
+  done
+}
+
+parse_args() {
+  shift || true
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --name) NAME="$2"; shift 2;;
+      --vcpus) VCPUS="$2"; shift 2;;
+      --mem) MEMORY="$2"; shift 2;;
+      --disk) DISK_GB="$2"; shift 2;;
+      --bridge) BRIDGE="$2"; shift 2;;
+      --host-nic) 
+        # Support multiple --host-nic flags (max 2)
+        if [[ ${#HOST_NICS[@]} -ge 2 ]]; then
+          echo "Error: Maximum 2 host NICs supported" >&2
+          exit 1
+        fi
+        HOST_NICS+=("$2")
+        shift 2;;
+      --choose-nic) ASK_NIC=1; shift 1;;
+      --image) BASE_OVERRIDE="$2"; shift 2;;
+      --ssh-pubkey) SSH_PUBKEY_PATH="$2"; shift 2;;
+      --ssh-key) SSH_PRIVKEY_PATH="$2"; shift 2;;
+      --debug) DEBUG=1; shift 1;;
+      --duration) TEST_DURATION="$2"; shift 2;;
+      --stress-ng) ENABLE_STRESS=1; shift 1;;
+      --ip) STATIC_IP_CIDR="$2"; shift 2;;
+      -f|--force) FORCE=1; shift 1;;
+      *) echo "Unknown arg: $1"; usage; exit 1;;
+    esac
+  done
+  VM_DIR="${HOME}/.local/share/servobox/${NAME}"
+  SEED_ISO="${VM_DIR}/seed.iso"
+  DISK_QCOW="${VM_DIR}/${NAME}.qcow2"
+  # Prefer system libvirt images directory for accessibility by hypervisor
+  VM_DIR="${LIBVIRT_IMAGES_BASE}/servobox/${NAME}"
+  SEED_ISO="${VM_DIR}/seed.iso"
+  DISK_QCOW="${VM_DIR}/${NAME}.qcow2"
+}
+
+ensure_vm_disk() {
+  if [[ ! -f "${DISK_QCOW}" ]]; then
+    echo "Error: VM disk not found at ${DISK_QCOW}. Run 'servobox init --name ${NAME}' first." >&2
+    exit 1
+  fi
+}
+
+
+usage() {
+  cat <<EOF
+ServoBox — launch and tune Ubuntu 22.04 PREEMPT_RT VMs for robotics, fast.
+
+Usage:
+  servobox init [options]              Create/import the VM with RT configuration (no boot)
+  servobox start [--name NAME]         Boot VM and apply RT CPU pinning automatically
+  servobox status [--name NAME]        Show VM status and information
+  servobox ip [--name NAME]            Print VM IPv4 address
+  servobox ssh [--name NAME]           SSH into the VM as user 'servobox-usr'
+  servobox stop [--name NAME]          Gracefully shutdown the VM
+  servobox destroy [--name NAME] [-f|--force]
+                                       Power off and remove the VM and storage
+  servobox network-setup [--name NAME] Interactive wizard to configure network (up to 2 host NICs)
+  servobox test [--name NAME] [--duration SECONDS] [--stress-ng]
+                                       Run cyclictest on the VM (--stress-ng enables host stress)
+  servobox rt-verify [--name NAME]    Verify RT configuration is properly applied
+  servobox pkg-install <pkg|config> [--name NAME] [--verbose|-v] [--list] [--custom PATH]
+                                       Install a package or packages from a config (.conf/.config)
+                                       Use --list to show available configs and packages
+                                       Use --custom to point to:
+                                         - A custom recipe directory (e.g., ~/my-recipes)
+                                         - A config file directly (e.g., ~/my-suite.conf)
+  servobox pkg-installed [--name NAME] Show packages already installed in the VM
+  servobox run <recipe-name> [--name NAME]
+                                       Run a recipe's run.sh script in the VM
+                                       Automatically starts VM if not running
+                                       Keeps terminal open for monitoring
+  servobox run "<command>" [--name NAME]
+                                       Run arbitrary command in the VM
+                                       Automatically starts VM if not running
+                                       Example: servobox run "sudo pkill -9 run_server"
+  servobox -h | --help                 Show this help
+
+Options (for 'init'):
+  --name NAME          VM/domain name (default: servobox-vm)
+  --vcpus N            Number of virtual CPUs (default: 4)
+  --mem MiB            Memory size in MiB (default: 8192)
+  --disk GB            Disk size in GB (resize after import, default: 40)
+  --bridge br0         Use host bridge instead of libvirt default NAT
+  --host-nic DEV       Add direct NIC (macvtap) bound to host DEV (max 2, can be repeated)
+                       Example: --host-nic eth0 --host-nic eth1
+  --choose-nic         Interactively select host NICs during init (max 2)
+  --image PATH         Use local base image (.qcow2 or .qcow2.xz)
+  --ip CIDR            Static IP for the primary NAT NIC (default: 192.168.122.100/24)
+
+Options (for 'destroy'):
+  -f, --force          Skip confirmation prompt (use with caution!)
+
+Notes:
+  - RT configuration (CPU isolation, pinning, IRQ affinity) is automatic on 'init' and 'start'
+  - Base RT image is auto-downloaded or pre-cached at /var/lib/servobox
+  - Images are stored in /var/lib/libvirt/images/servobox/<name> for libvirt
+  - Cloud-init seeds authorize your local SSH keys automatically
+
+Examples:
+  servobox init --vcpus 4 --mem 8192 --disk 40
+  servobox init --host-nic eth0                    # Single device
+  servobox init --host-nic eth0 --host-nic eth1   # Dual robot setup
+  servobox init --choose-nic                       # Interactive selection
+  servobox network-setup                            # Configure network after init
+  servobox start
+  servobox test --duration 60
+  servobox run polymetis                            # Run polymetis recipe
+  servobox run "sudo pkill -9 run_server"           # Kill a process in VM
+EOF
+}
+
+# Command dispatcher
+case "${CMD}" in
+  init) cmd_init "$@";;
+  start) cmd_start "$@";;
+  status) cmd_status "$@";;
+  ip) cmd_ip "$@";;
+  ssh) cmd_ssh "$@";;
+  stop) cmd_stop "$@";;
+  destroy) cmd_destroy "$@";;
+  network-setup) cmd_network_setup "$@";;
+  test) cmd_test "$@";;
+  rt-verify) parse_args "$@"; verify_rt_config;;
+  irqbalance-mask) cmd_irqbalance_mask "$@";;
+  debug) cmd_debug "$@";;
+  pkg-install) cmd_pkg_install "$@";;
+  pkg-installed) cmd_pkg_installed "$@";;
+  run) cmd_recipe_run "$@";;
+  *) usage;;
+esac

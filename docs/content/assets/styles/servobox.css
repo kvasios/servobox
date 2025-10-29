@@ -1,0 +1,138 @@
+/* ServoBox Green Theme Overrides */
+
+/* Main brand colors */
+:root {
+  --servobox-teal: #008B8B;
+  --servobox-light-green: #90EE90;
+  --servobox-dark-green: #006400;
+  --servobox-accent: #20B2AA;
+}
+
+/* Header and navigation */
+.wy-side-nav-search {
+  background-color: var(--servobox-teal) !important;
+}
+
+.wy-side-nav-search input[type="text"] {
+  border-color: var(--servobox-light-green) !important;
+}
+
+.wy-side-nav-search input[type="text"]:focus {
+  border-color: var(--servobox-accent) !important;
+  box-shadow: 0 0 5px var(--servobox-light-green) !important;
+}
+
+/* Navigation links */
+.wy-menu-vertical a {
+  color: var(--servobox-dark-green) !important;
+}
+
+.wy-menu-vertical a:hover {
+  background-color: var(--servobox-light-green) !important;
+  color: var(--servobox-teal) !important;
+}
+
+.wy-menu-vertical .current > a {
+  background-color: var(--servobox-teal) !important;
+  color: white !important;
+}
+
+.wy-menu-vertical .current > a:hover {
+  background-color: var(--servobox-accent) !important;
+}
+
+/* Top navigation */
+.rst-content .section h1,
+.rst-content .section h2,
+.rst-content .section h3,
+.rst-content .section h4,
+.rst-content .section h5,
+.rst-content .section h6 {
+  color: var(--servobox-teal) !important;
+}
+
+/* Links */
+.rst-content a {
+  color: var(--servobox-teal) !important;
+}
+
+.rst-content a:hover {
+  color: var(--servobox-accent) !important;
+}
+
+.rst-content a:visited {
+  color: var(--servobox-dark-green) !important;
+}
+
+/* Code blocks */
+.rst-content .codehilite {
+  background-color: #f8f8f8 !important;
+  border-left: 4px solid var(--servobox-light-green) !important;
+}
+
+/* Admonitions */
+.rst-content .admonition {
+  border-left: 4px solid var(--servobox-teal) !important;
+}
+
+.rst-content .admonition-title {
+  background-color: var(--servobox-light-green) !important;
+  color: var(--servobox-dark-green) !important;
+}
+
+/* Tables */
+.rst-content table.docutils {
+  border: 1px solid var(--servobox-light-green) !important;
+}
+
+.rst-content table.docutils th {
+  background-color: var(--servobox-light-green) !important;
+  color: var(--servobox-dark-green) !important;
+}
+
+.rst-content table.docutils tr:nth-child(even) {
+  background-color: #f8f8f8 !important;
+}
+
+/* Buttons and interactive elements */
+.btn {
+  background-color: var(--servobox-teal) !important;
+  border-color: var(--servobox-teal) !important;
+}
+
+.btn:hover {
+  background-color: var(--servobox-accent) !important;
+  border-color: var(--servobox-accent) !important;
+}
+
+/* Breadcrumbs */
+.wy-breadcrumbs {
+  background-color: var(--servobox-light-green) !important;
+}
+
+.wy-breadcrumbs a {
+  color: var(--servobox-dark-green) !important;
+}
+
+/* Footer */
+.rst-footer-buttons {
+  border-top: 1px solid var(--servobox-light-green) !important;
+}
+
+/* Search results */
+.rst-content .search-results {
+  border: 1px solid var(--servobox-light-green) !important;
+}
+
+.rst-content .search-results .search-result-title {
+  color: var(--servobox-teal) !important;
+}
+
+/* Version selector */
+.rst-versions {
+  background-color: var(--servobox-teal) !important;
+}
+
+.rst-versions .rst-current-version {
+  background-color: var(--servobox-accent) !important;
+}

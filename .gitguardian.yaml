@@ -1,0 +1,14 @@
+version: 2
+
+# ServoBox uses hardcoded default credentials for local development VMs
+# These are intentional and documented:
+# - VMs run locally on user's machine (not exposed to internet)
+# - Default NAT networking isolates VMs
+# - Users can change credentials if needed
+# - These are development/testing VMs, not production servers
+
+paths-ignore:
+  - scripts/image-build-tools/build-image.sh
+  - scripts/servobox-lib/vm-network.sh
+  - scripts/servobox-lib/vm-image.sh
+

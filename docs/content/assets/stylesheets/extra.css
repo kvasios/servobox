@@ -1,0 +1,17 @@
+/* Hide the right sidebar table of contents */
+.md-sidebar--secondary {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* Expand content to fill the space */
+.md-content {
+  max-width: 100%;
+}
+
+@media screen and (min-width: 76.25em) {
+  .md-sidebar--primary {
+    width: 12.1rem;
+  }
+}
+

@@ -1,0 +1,21 @@
+Package: servobox
+Version: 0.1.0
+Architecture: amd64
+Maintainer: Konstantinos Vasios <konstantinos.vasios@gmail.com>
+Installed-Size: 341
+Depends: bash, coreutils, grep, sed, iproute2, net-tools, wget, xz-utils, qemu-kvm, qemu-utils, libvirt-daemon-system, libvirt-clients, virtinst, cloud-image-utils, libguestfs-tools, libosinfo-bin, acl, openssh-client
+Recommends: sshpass, osinfo-db, bridge-utils, ethtool
+Suggests: virt-viewer
+Filename: ./servobox_0.1.0_amd64.deb
+Size: 64962
+MD5sum: 1b0433057d5c8ef911f06a6da4f49577
+SHA1: 03e161504e71ceaed5823711eed3d43b75635c2c
+SHA256: 9c99e54232ce64a154e82ca5b71dff9b58986f60f3180d5843718e5859fcce7a
+Section: utils
+Priority: optional
+Description: One-command launcher for real-time VMs (Ubuntu 22.04 PREEMPT_RT)
+ ServoBox makes it simple to create and run real-time tuned Ubuntu VMs
+ with CPU pinning and IRQ isolation. It automates image handling, libvirt
+ setup, cloud-init seed generation, and RT configuration for robotics and
+ control workloads.
+

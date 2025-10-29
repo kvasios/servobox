@@ -1,0 +1,112 @@
+name: release
+on:
+    push:
+        tags:
+        - 'v*.*.*'        # vX.Y.Z
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: meta
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          ver="${tag#v}"
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+          echo "version=$ver" >> $GITHUB_OUTPUT
+
+      # Kernel/image build variables removed; artifacts built locally
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -y
+          # For Debian packaging of this repo
+          sudo apt-get install -y devscripts debhelper lintian apt-utils
+
+      - name: Build Debian package (-B)
+        run: |
+          # Ensure debian/changelog has matching version stanza without opening an editor
+          export DEBFULLNAME="Servobox CI"
+          export DEBEMAIL="ci@users.noreply.github.com"
+          export DEBCHANGE_EDITOR=true
+          export EDITOR=true
+          ver="${{ steps.meta.outputs.version }}"
+          if grep -qE "^servobox \(${ver}\)" debian/changelog; then
+            echo "debian/changelog already at ${ver}"
+          else
+            dch --newversion "${ver}" -D unstable -m "Release ${{ steps.meta.outputs.version }}" || true
+          fi
+          dpkg-buildpackage -us -uc -B
+          lintian ../*.deb || true
+
+      - name: Extract release notes from CHANGELOG.md
+        id: changelog
+        shell: bash
+        run: |
+          ver="${{ steps.meta.outputs.version }}"
+          if [[ -f CHANGELOG.md ]]; then
+            body=$(awk -v ver="$ver" '
+              BEGIN{in_section=0}
+              # Start capturing at the heading that matches the version (with optional leading v and optional brackets)
+              {
+                if (match($0, "^#+[[:space:]]*\\[?v?" ver "\\]?([[:space:]]|$)")) { in_section=1; next }
+                if (in_section && match($0, "^#+[[:space:]]")) { in_section=0 }
+                if (in_section) { print }
+              }
+            ' CHANGELOG.md)
+          fi
+          if [[ -z "${body:-}" ]]; then
+            body="Release ${ver}"
+          fi
+          {
+            echo "body<<EOF"
+            echo "$body"
+            echo EOF
+          } >> $GITHUB_OUTPUT
+
+      # Artifact path gathering removed; uploads limited to built Debian packages
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.tag }}
+          body: ${{ steps.changelog.outputs.body }}
+          files: |
+            ../*.deb
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update APT Repository
+        run: |
+          # Install required tools for APT repository management
+          sudo apt-get install -y dpkg-dev apt-utils gnupg
+          
+          # Ensure GPG secret key exists in the runner keyring (generate if missing)
+          if ! gpg --list-secret-keys --keyid-format LONG | grep -q "servobox-apt"; then
+            echo "Creating GPG key for APT repository..."
+            ./apt-repo/setup-apt-repo.sh
+          fi
+          
+          # Use the add-package-to-repo.sh script
+          ./apt-repo/add-package-to-repo.sh ../*.deb
+          
+          # Commit and push changes
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Fetch and checkout main branch (we're in detached HEAD from tag checkout)
+          git fetch origin main:main
+          git checkout main
+          
+          git add apt-repo/
+          git commit -m "Update APT repository for ${{ steps.meta.outputs.tag }}" || echo "No changes to commit"
+          git push origin main

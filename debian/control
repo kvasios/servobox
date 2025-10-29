@@ -1,0 +1,18 @@
+Source: servobox
+Section: utils
+Priority: optional
+Maintainer: Konstantinos Vasios <konstantinos.vasios@gmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.7.0
+
+Package: servobox
+Architecture: amd64
+Depends: ${misc:Depends}, bash, coreutils, grep, sed, iproute2, net-tools, wget, xz-utils, qemu-kvm, qemu-utils, libvirt-daemon-system, libvirt-clients, virtinst, cloud-image-utils, libguestfs-tools, libosinfo-bin, acl, openssh-client
+Recommends: sshpass, osinfo-db, bridge-utils, ethtool
+Suggests: virt-viewer
+Description: One-command launcher for real-time VMs (Ubuntu 22.04 PREEMPT_RT)
+ ServoBox makes it simple to create and run real-time tuned Ubuntu VMs
+ with CPU pinning and IRQ isolation. It automates image handling, libvirt
+ setup, cloud-init seed generation, and RT configuration for robotics and
+ control workloads.
+

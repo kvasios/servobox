@@ -1,0 +1,36 @@
+build
+artifacts
+*.img
+*.qcow2
+*.iso
+*.deb
+*.tar
+*.gz
+*.bz2
+*.xz
+*.zip
+*.7z
+
+# Exception: Allow .deb files in apt-repo for GitHub Pages distribution
+!apt-repo/**/*.deb
+
+# VM images
+*.qcow2
+*.qcow2.xz
+ 
+# Debian packaging artifacts
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/tmp/
+debian/servobox/
+debian/files
+debian/*.log
+debian/*.substvars
+*.build
+*.buildinfo
+*.changes
+*.dsc
+*.upload
+*.commands
+
+site/

@@ -1,0 +1,45 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Origin: ServoBox APT Repository
+Label: ServoBox
+Suite: stable
+Codename: stable
+Version: 1.0
+Architectures: amd64
+Components: main
+Description: ServoBox - One-command launcher for real-time VMs
+Date: Tue, 28 Oct 2025 23:23:26 +0000
+MD5Sum:
+ 37e011417ba57871e70cf107f54a6597              231 Release
+ 0e069335516f39747bd9bdab1c8a66eb              993 main/binary-amd64/Packages
+ 1c2b78ff303457ee2ad9e9b4fba9ad12              662 main/binary-amd64/Packages.gz
+SHA1:
+ 2ab8e6cd373d05adcff4ecbeda0a1fff62bb8f31              231 Release
+ 0d4d6d20d51212c5ab377db7453cfe45ab2d238f              993 main/binary-amd64/Packages
+ bde23ba279a3fd22dacf143472396f03c5c25190              662 main/binary-amd64/Packages.gz
+SHA256:
+ 46610e23713dc0b4ecedb5b7db8f9075694d980a66fc7ba0ff961aa3bd88197f              231 Release
+ aaf875044617ea84d95f977516360f4d3facc9d9799b08d9d82198dae9590872              993 main/binary-amd64/Packages
+ 8c2002671fb5b3f475e46355d04dc548187f094029a846a42cc6637e38200a68              662 main/binary-amd64/Packages.gz
+SHA512:
+ dadb87a258cd864f93bb3b93ccc9efd8d954c00afcebff6c66a7a2e21b210c9462f5be5fafc846faac9114a1e84cb03707cbd9b2776023813c7c21fec3169a07              231 Release
+ 1a0f374100852f7f6abe18d2898c4c919a77708b62ace9bc7ef5d01a341d11243bde4588ea82e19a463337cc972d21953d0426557b633ce3895cf5b034c9b02e              993 main/binary-amd64/Packages
+ 33553df72b94b1fd1467280ac51e861f057d29eaac522dbf6726ca9ec1aee8f17b7977e1c296b6ff24a8ca977717c1d84214b143a4998df2f2dc0868c4f50711              662 main/binary-amd64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iQJaBAEBCgBEFiEEMwXAqZcaIou/91DuswlmNS4kTDEFAmkBUG4mHHNlcnZvYm94
+LWFwdEB1c2Vycy5ub3JlcGx5LmdpdGh1Yi5jb20ACgkQswlmNS4kTDErTg/9F84E
+1nrCQrG/WsOTo1fh2WGR+LgqPdIwA+N3PnjgY0Lw0IILPebbrGtzhK7+X2BNBQEr
+jDrUjMcu/62AG1EjNyr2iJa09p50AWP7lv0D1gPFT8RwtHJrGE1LT/A2gdFR3JXz
+F7pmMSdmNtag4/JwHHvsx3cEQGbRAO6TcqyAQDxoqYclmipf/+szW7nv9FwKyzbR
+rEfhL9XLGMsbseBQpBPlJmbqp5D/9HnZ6y3GIZ8Np0hIYwLV4VicugFLwuWXkB4X
+j3pwcK0HawR4MVIL7TtCnbiJSzYPKjY9bkWPgbtK7/x/IlZLQ5XC5w6VSPCB/3u8
+INon4qk0UB4kDM3QFbgbS88edVvNHYna7flxJ2Q5AOdVmxerohDaxN8QsGcVrDd5
+W9s/d+4rsyx0f9I4b1YYic2RnHSqSY1q7EZIiQtUot0R47rtBl+XaZTjtVUfyP2T
+lSyaVsTMTIkUz6uVjdwPj2r0nvi56gMmzslUaHSQC/RFmyU7pym6qBsiYhyV9H/V
+Vu1+Us0toWDgaUi4l3xLWjeb34LA/Uzuekff2v/DGUV3IeSnvVVoxItw1mUxn2OG
+cUQGzRYHUYxoE5Lg0C5TxfkrilsviDJSve3XXkWuP8+hNNTsWMT4nKVBZdw4zx7K
+Pg+PPOgjyXQhzSTGkdQGEHtzKkZa4W+fhML0b+Q=
+=A7uy
+-----END PGP SIGNATURE-----

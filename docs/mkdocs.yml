@@ -1,0 +1,92 @@
+site_name: ServoBox Documentation
+site_description: Launch real-time VMs for robotics in seconds
+site_author: Konstantinos Vasios
+site_url: https://github.com/kvasios/servobox
+
+repo_name: kvasios/servobox
+repo_url: https://github.com/kvasios/servobox
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: teal
+      accent: light green
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: teal
+      accent: light green
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  icon:
+    repo: fontawesome/brands/github
+  logo: assets/images/servobox.png
+  favicon: assets/images/servobox.png
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      pygments_lang_class: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+plugins:
+  - search
+  - tags
+  - mermaid2
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kvasios/servobox
+    - icon: fontawesome/brands/linkedin
+      link: https://www.linkedin.com/in/kvasios/
+  
+copyright: |
+  &copy; 2025 <a href="https://github.com/kvasios" target="_blank" rel="noopener">Konstantinos Vasios</a>
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Overview: getting-started/overview.md
+    - Installation: getting-started/installation.md
+    - Run: getting-started/run.md
+  - User Guide:
+    - Network Configuration: user-guide/networking.md
+    - Package Management: user-guide/package-management.md
+    - Commands Reference: user-guide/commands.md
+
+  - Reference:
+    - Contributing: reference/contributing.md
+    - Troubleshooting: reference/troubleshooting.md
+    - FAQ: reference/faq.md
+    - Changelog: reference/changelog.md
+
+docs_dir: content
+
