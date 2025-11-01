@@ -165,6 +165,75 @@ cmd_init() {
   parse_args "$@"
   deps
   
+  # Check if user is in required groups for libvirt access
+  local user_groups
+  user_groups=$(groups 2>/dev/null || echo "")
+  local needs_relogin=0
+  
+  if ! echo "$user_groups" | grep -qw libvirt; then
+    echo "⚠️  Warning: Current user is not in the 'libvirt' group"
+    echo ""
+    echo "Adding user to libvirt group for persistent VM access..."
+    if sudo usermod -aG libvirt "$USER" 2>/dev/null; then
+      echo "✓ Added $USER to libvirt group"
+      needs_relogin=1
+    else
+      echo "Error: Failed to add user to libvirt group" >&2
+      echo "Please run: sudo usermod -aG libvirt $USER" >&2
+    fi
+  fi
+  
+  if ! echo "$user_groups" | grep -qw kvm; then
+    if ! groups "$USER" 2>/dev/null | grep -qw kvm; then
+      echo "Adding user to kvm group for VM hardware access..."
+      if sudo usermod -aG kvm "$USER" 2>/dev/null; then
+        echo "✓ Added $USER to kvm group"
+        needs_relogin=1
+      else
+        echo "Warning: Could not add user to kvm group (may already be in group)" >&2
+      fi
+    fi
+  fi
+  
+  if [[ $needs_relogin -eq 1 ]]; then
+    echo ""
+    echo "⚠️  IMPORTANT: Group membership changes require a new login session"
+    echo ""
+    echo "To activate group changes, choose one of:"
+    echo "  1. Log out and log back in (recommended)"
+    echo "  2. Reboot your system"
+    echo "  3. Run: newgrp libvirt  (temporary, for current shell only)"
+    echo ""
+    echo "After relogging, you'll be able to use 'servobox start' without issues."
+    echo ""
+  fi
+  
+  # Ensure libvirtd is enabled to start on boot (for VM persistence after reboot)
+  if ! systemctl is-enabled libvirtd >/dev/null 2>&1 && ! systemctl is-enabled libvirtd.service >/dev/null 2>&1; then
+    echo "Enabling libvirtd to start on boot (for VM persistence)..."
+    if sudo systemctl enable libvirtd >/dev/null 2>&1 || sudo systemctl enable libvirtd.service >/dev/null 2>&1; then
+      echo "✓ libvirtd will start automatically on boot"
+    else
+      echo "Warning: Could not enable libvirtd autostart" >&2
+      echo "Your VMs may not be available after reboot" >&2
+      echo "Please run: sudo systemctl enable libvirtd" >&2
+    fi
+  fi
+  
+  # Ensure libvirtd is currently running
+  if ! systemctl is-active libvirtd >/dev/null 2>&1 && ! systemctl is-active libvirtd.service >/dev/null 2>&1; then
+    echo "Starting libvirtd service..."
+    if sudo systemctl start libvirtd >/dev/null 2>&1 || sudo systemctl start libvirtd.service >/dev/null 2>&1; then
+      echo "✓ libvirtd started"
+      # Give it a moment to fully initialize
+      sleep 1
+    else
+      echo "Error: Could not start libvirtd" >&2
+      echo "Please run: sudo systemctl start libvirtd" >&2
+      exit 1
+    fi
+  fi
+  
   # Ensure libvirt's default network is available (unless using custom bridge)
   ensure_default_network
   
@@ -221,9 +290,31 @@ cmd_init() {
 
 cmd_start() {
   parse_args "$@"
+  
+  # Ensure libvirtd is running (in case it wasn't started after reboot)
+  if ! systemctl is-active libvirtd >/dev/null 2>&1 && ! systemctl is-active libvirtd.service >/dev/null 2>&1; then
+    echo "libvirtd is not running. Starting it now..."
+    if sudo systemctl start libvirtd >/dev/null 2>&1 || sudo systemctl start libvirtd.service >/dev/null 2>&1; then
+      echo "✓ libvirtd started"
+      sleep 1
+    else
+      echo "Error: Could not start libvirtd" >&2
+      echo "Please run: sudo systemctl start libvirtd" >&2
+      exit 1
+    fi
+  fi
+  
   # Only start an already-defined domain
   if ! virsh dominfo "${NAME}" >/dev/null 2>&1; then
     echo "Error: VM ${NAME} is not defined. Run 'servobox init --name ${NAME}' first." >&2
+    
+    # If we just started libvirtd, suggest waiting a moment
+    if ! systemctl is-active libvirtd >/dev/null 2>&1; then
+      echo "" >&2
+      echo "Note: If you recently created this VM, you may need to:" >&2
+      echo "  1. Ensure you're in the 'libvirt' group: groups | grep libvirt" >&2
+      echo "  2. If not, log out and log back in to activate group membership" >&2
+    fi
     exit 1
   fi
   
