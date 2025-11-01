@@ -1,3 +1,13 @@
+servobox (0.1.1) unstable; urgency=medium
+
+  * Add stress-ng as required dependency in debian/control
+  * Fix pkg-install permission issues by moving tracking files to user space
+  * Ensure libvirt default network is active before VM operations
+  * Fix VM persistence after reboot (auto-add user to libvirt/kvm groups)
+  * Enable libvirtd autostart for VM persistence across reboots
+
+ -- Konstantinos Vasios <konstantinos.vasios@gmail.com>  Fri, 01 Nov 2025 12:00:00 +0000
+
 servobox (0.1.0) unstable; urgency=medium
 
   * Initial release.
