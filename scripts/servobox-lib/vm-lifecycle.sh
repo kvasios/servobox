@@ -1,6 +1,53 @@
 #!/usr/bin/env bash
 # VM lifecycle management functions
 
+# Ensure libvirt's 'default' network is active (required for NAT networking)
+ensure_default_network() {
+  # Check if we're using a custom bridge (skip default network check)
+  if [[ -n "${BRIDGE}" ]]; then
+    return 0
+  fi
+  
+  # Check if default network exists
+  if ! virsh net-info default >/dev/null 2>&1; then
+    echo "Warning: libvirt 'default' network not found." >&2
+    echo "ServoBox requires libvirt's default NAT network for VM connectivity." >&2
+    echo "This is usually created automatically by libvirt-daemon-system." >&2
+    echo "" >&2
+    echo "Attempting to create it now..." >&2
+    
+    # Try to define the default network (in case it was deleted)
+    if virsh net-define /usr/share/libvirt/networks/default.xml 2>/dev/null; then
+      echo "✓ Created default network" >&2
+    else
+      echo "Error: Failed to create default network." >&2
+      echo "Please run: sudo virsh net-define /usr/share/libvirt/networks/default.xml" >&2
+      exit 1
+    fi
+  fi
+  
+  # Check if default network is active
+  if ! virsh net-info default 2>/dev/null | grep -q "Active:.*yes"; then
+    echo "Starting libvirt 'default' network..." >&2
+    if ! virsh net-start default >/dev/null 2>&1; then
+      echo "Error: Failed to start libvirt 'default' network." >&2
+      echo "Please run: sudo virsh net-start default" >&2
+      exit 1
+    fi
+    echo "✓ Started default network" >&2
+  fi
+  
+  # Ensure it's set to autostart
+  if ! virsh net-info default 2>/dev/null | grep -q "Autostart:.*yes"; then
+    echo "Enabling autostart for libvirt 'default' network..." >&2
+    if ! virsh net-autostart default >/dev/null 2>&1; then
+      echo "Warning: Failed to set autostart for default network" >&2
+    else
+      echo "✓ Enabled autostart for default network" >&2
+    fi
+  fi
+}
+
 virt_install() {
   echo "Creating libvirt domain ${NAME}..."
   if virsh dominfo "${NAME}" >/dev/null 2>&1; then
@@ -118,6 +165,9 @@ cmd_init() {
   parse_args "$@"
   deps
   
+  # Ensure libvirt's default network is available (unless using custom bridge)
+  ensure_default_network
+  
   # Interactive NIC chooser if --choose-nic flag was provided
   if [[ ${ASK_NIC} -eq 1 ]]; then
     if ! choose_host_nic; then
@@ -176,6 +226,9 @@ cmd_start() {
     echo "Error: VM ${NAME} is not defined. Run 'servobox init --name ${NAME}' first." >&2
     exit 1
   fi
+  
+  # Ensure libvirt's default network is available before starting
+  ensure_default_network
   
   # Require sudo credentials upfront for RT configuration
   echo "RT configuration requires elevated privileges..."
