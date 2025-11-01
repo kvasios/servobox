@@ -8,16 +8,16 @@ ensure_default_network() {
     return 0
   fi
   
-  # Check if default network exists
-  if ! virsh net-info default >/dev/null 2>&1; then
+  # Check if default network exists (use sudo in case user group membership isn't active yet)
+  if ! sudo virsh net-info default >/dev/null 2>&1; then
     echo "Warning: libvirt 'default' network not found." >&2
     echo "ServoBox requires libvirt's default NAT network for VM connectivity." >&2
     echo "This is usually created automatically by libvirt-daemon-system." >&2
     echo "" >&2
     echo "Attempting to create it now..." >&2
     
-    # Try to define the default network (in case it was deleted)
-    if virsh net-define /usr/share/libvirt/networks/default.xml 2>/dev/null; then
+    # Define the default network (requires sudo/libvirt group)
+    if sudo virsh net-define /usr/share/libvirt/networks/default.xml >/dev/null 2>&1; then
       echo "✓ Created default network" >&2
     else
       echo "Error: Failed to create default network." >&2
@@ -27,9 +27,9 @@ ensure_default_network() {
   fi
   
   # Check if default network is active
-  if ! virsh net-info default 2>/dev/null | grep -q "Active:.*yes"; then
+  if ! sudo virsh net-info default 2>/dev/null | grep -q "Active:.*yes"; then
     echo "Starting libvirt 'default' network..." >&2
-    if ! virsh net-start default >/dev/null 2>&1; then
+    if ! sudo virsh net-start default >/dev/null 2>&1; then
       echo "Error: Failed to start libvirt 'default' network." >&2
       echo "Please run: sudo virsh net-start default" >&2
       exit 1
@@ -38,9 +38,9 @@ ensure_default_network() {
   fi
   
   # Ensure it's set to autostart
-  if ! virsh net-info default 2>/dev/null | grep -q "Autostart:.*yes"; then
+  if ! sudo virsh net-info default 2>/dev/null | grep -q "Autostart:.*yes"; then
     echo "Enabling autostart for libvirt 'default' network..." >&2
-    if ! virsh net-autostart default >/dev/null 2>&1; then
+    if ! sudo virsh net-autostart default >/dev/null 2>&1; then
       echo "Warning: Failed to set autostart for default network" >&2
     else
       echo "✓ Enabled autostart for default network" >&2
@@ -197,14 +197,21 @@ cmd_init() {
   
   if [[ $needs_relogin -eq 1 ]]; then
     echo ""
-    echo "⚠️  IMPORTANT: Group membership changes require a new login session"
+    echo "⚠️  IMPORTANT: Group membership changes are not active in current shell"
     echo ""
-    echo "To activate group changes, choose one of:"
-    echo "  1. Log out and log back in (recommended)"
-    echo "  2. Reboot your system"
-    echo "  3. Run: newgrp libvirt  (temporary, for current shell only)"
+    echo "ServoBox init will continue using sudo for this session."
     echo ""
-    echo "After relogging, you'll be able to use 'servobox start' without issues."
+    echo "To use 'servobox start' and other commands without sudo prompts,"
+    echo "activate the new group membership:"
+    echo ""
+    echo "  Option 1 (Quick): Run this command in your current terminal:"
+    echo "    exec sg libvirt newgrp"
+    echo ""
+    echo "  Option 2 (Permanent): Log out and log back in"
+    echo ""
+    echo "  Option 3: Reboot your system"
+    echo ""
+    echo "Without activating group membership, you'll need sudo for VM operations."
     echo ""
   fi
   

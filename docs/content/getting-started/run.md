@@ -11,6 +11,14 @@ servobox init
 - Defaults: name `servobox-vm`, 4 vCPUs, 8GB RAM, 40GB disk, NAT `192.168.122.100`.
 - First run downloads the base image (cached afterwards).
 
+!!! note "First Time Setup"
+    If this is your first time running `servobox init`, you'll be added to the `libvirt` group.
+    Activate the group membership in your current shell:
+    ```console
+    exec sg libvirt newgrp
+    ```
+    Or simply log out and log back in (permanent solution).
+
 Start it:
 
 ```console

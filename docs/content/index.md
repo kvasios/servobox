@@ -38,7 +38,7 @@ Modify or add the `GRUB_CMDLINE_LINUX_DEFAULT` line (adjust CPU range based on y
 GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0"
 ```
 
-
+```console
 sudo update-grub
 sudo reboot
 ```
@@ -46,9 +46,15 @@ sudo reboot
 ### 3. Create Your First RT VM
 
 ```console
-# Initialize VM (one-time download ~800mb image with rt-kernel baked in)
 servobox init
 
+# First time only: activate group membership in current shell
+exec sg libvirt newgrp
+```
+
+### 4. Start and Test
+
+```console
 # Configure networking (interactive wizard; optional but recommended)
 servobox network-setup
 

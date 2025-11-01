@@ -50,7 +50,10 @@ sudo apt install -f ./servobox_0.1.1_amd64.deb
 ```bash
 servobox init
 
-# Configure direct device connections
+# IMPORTANT: If this is your first time, activate group membership for your shell:
+exec sg libvirt newgrp
+
+# Configure direct device connections (optional)
 servobox network-setup  # Interactive wizard shows available NICs with IPs
 
 # Or specify directly during init if you know device names:
