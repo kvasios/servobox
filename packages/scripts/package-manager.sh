@@ -355,8 +355,18 @@ cmd_install() {
 # Get the host-side tracking file path for a VM image
 get_image_tracking_file() {
   local image="$1"
-  # Create tracking file next to the image with .servobox-packages extension
-  echo "${image}.servobox-packages"
+  local vm_name
+  local tracking_dir="${HOME}/.local/share/servobox/tracking"
+  
+  # Extract VM name from the directory containing the image
+  # Path pattern: .../servobox/<vm-name>/<vm-name>.qcow2
+  vm_name=$(basename "$(dirname "$image")")
+  
+  # Ensure tracking directory exists (user-writable, no sudo needed)
+  mkdir -p "$tracking_dir"
+  
+  # Store in user space to avoid permission issues
+  echo "${tracking_dir}/${vm_name}.servobox-packages"
 }
 
 # Check if a package is already installed in the image (using host-side tracking)
