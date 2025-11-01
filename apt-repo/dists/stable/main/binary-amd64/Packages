@@ -1,16 +1,37 @@
 Package: servobox
-Version: 0.1.1
+Version: 0.1.0
 Architecture: amd64
 Maintainer: Konstantinos Vasios <konstantinos.vasios@gmail.com>
 Installed-Size: 341
 Depends: bash, coreutils, grep, sed, iproute2, net-tools, wget, xz-utils, qemu-kvm, qemu-utils, libvirt-daemon-system, libvirt-clients, virtinst, cloud-image-utils, libguestfs-tools, libosinfo-bin, acl, openssh-client
 Recommends: sshpass, osinfo-db, bridge-utils, ethtool
 Suggests: virt-viewer
-Filename: dists/stable/main/binary-amd64/servobox_0.1.1_amd64.deb
+Filename: dists/stable/main/binary-amd64/servobox_0.1.0_amd64.deb
 Size: 64962
 MD5sum: 1b0433057d5c8ef911f06a6da4f49577
 SHA1: 03e161504e71ceaed5823711eed3d43b75635c2c
 SHA256: 9c99e54232ce64a154e82ca5b71dff9b58986f60f3180d5843718e5859fcce7a
+Section: utils
+Priority: optional
+Description: One-command launcher for real-time VMs (Ubuntu 22.04 PREEMPT_RT)
+ ServoBox makes it simple to create and run real-time tuned Ubuntu VMs
+ with CPU pinning and IRQ isolation. It automates image handling, libvirt
+ setup, cloud-init seed generation, and RT configuration for robotics and
+ control workloads.
+
+Package: servobox
+Version: 0.1.1
+Architecture: amd64
+Maintainer: Konstantinos Vasios <konstantinos.vasios@gmail.com>
+Installed-Size: 346
+Depends: bash, coreutils, grep, sed, iproute2, net-tools, wget, xz-utils, qemu-kvm, qemu-utils, libvirt-daemon-system, libvirt-clients, virtinst, cloud-image-utils, libguestfs-tools, libosinfo-bin, acl, openssh-client, stress-ng
+Recommends: sshpass, osinfo-db, bridge-utils, ethtool
+Suggests: virt-viewer
+Filename: dists/stable/main/binary-amd64/servobox_0.1.1_amd64.deb
+Size: 66318
+MD5sum: 0c32eddd08b5235a9d0dee8e6e20ffc6
+SHA1: e758e643b8fe9ee4e70b09c8727a4479e15ffb2a
+SHA256: 78ec3929bbea3db6e63a52517f1e2bb3383c46fa992ebf7245abffe59b054558
 Section: utils
 Priority: optional
 Description: One-command launcher for real-time VMs (Ubuntu 22.04 PREEMPT_RT)
