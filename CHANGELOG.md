@@ -3,6 +3,7 @@
 ## 0.1.1 (2025-11-01)
 
 ### Fixed
+- **Fresh Install Support**: Fixed critical issue where `servobox init` failed on fresh Ubuntu installations due to group membership not being active in current shell. Now uses sudo for network operations and provides clear instructions to activate group membership with `exec sg libvirt newgrp`
 - **Dependencies**: Added `stress-ng` as a required dependency in `debian/control` - it will now be automatically installed with the package
 - **Package Management**: Fixed permission issues with `servobox pkg-install` by moving tracking files from `/var/lib/libvirt/images/` to `~/.local/share/servobox/tracking/` (no sudo needed)
 - **Network Setup**: Ensure libvirt's default network is automatically created, started, and enabled for autostart. Fixes "network not found" errors after fresh install or reboot
@@ -14,6 +15,7 @@
 
 ### Changed
 - Improved user experience on fresh installations with automatic group membership and service configuration
+- Updated all documentation (README, docs) with correct first-time setup workflow including group activation step
 
 ## 0.1.0 (2025-10-20)
 
