@@ -1,12 +1,12 @@
 Package: servobox
-Version: 0.1.0
+Version: 0.1.1
 Architecture: amd64
 Maintainer: Konstantinos Vasios <konstantinos.vasios@gmail.com>
 Installed-Size: 341
 Depends: bash, coreutils, grep, sed, iproute2, net-tools, wget, xz-utils, qemu-kvm, qemu-utils, libvirt-daemon-system, libvirt-clients, virtinst, cloud-image-utils, libguestfs-tools, libosinfo-bin, acl, openssh-client
 Recommends: sshpass, osinfo-db, bridge-utils, ethtool
 Suggests: virt-viewer
-Filename: dists/stable/main/binary-amd64/servobox_0.1.0_amd64.deb
+Filename: dists/stable/main/binary-amd64/servobox_0.1.1_amd64.deb
 Size: 64962
 MD5sum: 1b0433057d5c8ef911f06a6da4f49577
 SHA1: 03e161504e71ceaed5823711eed3d43b75635c2c

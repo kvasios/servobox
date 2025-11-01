@@ -37,13 +37,13 @@ Download the latest release:
 
 ```console
 # Check https://github.com/kvasios/servobox/releases for the latest version
-wget https://github.com/kvasios/servobox/releases/download/v0.1.0/servobox_0.1.0_amd64.deb
+wget https://github.com/kvasios/servobox/releases/download/v0.1.1/servobox_0.1.1_amd64.deb
 ```
 
 Install the package:
 
 ```console
-sudo apt install -f ./servobox_0.1.0_amd64.deb
+sudo apt install -f ./servobox_0.1.1_amd64.deb
 ```
 
 ### Option C: From Source
@@ -75,7 +75,7 @@ sudo dpkg -i ../servobox_*.deb
 Edit your GRUB configuration:
 
 ```console
-sudo nano /etc/default/grub
+sudo vim /etc/default/grub
 ```
 
 Modify or add the `GRUB_CMDLINE_LINUX_DEFAULT` line (adjust CPU range based on your system):

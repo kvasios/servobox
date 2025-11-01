@@ -30,8 +30,14 @@ sudo apt install servobox
 
 ```console
 # Edit GRUB for CPU isolation
-sudo nano /etc/default/grub
-# Add: isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0
+sudo vim /etc/default/grub
+```
+Modify or add the `GRUB_CMDLINE_LINUX_DEFAULT` line (adjust CPU range based on your system):
+
+```text
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0"
+```
+
 
 sudo update-grub
 sudo reboot

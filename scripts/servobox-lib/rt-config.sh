@@ -84,7 +84,7 @@ cmd_irqbalance_mask() {
   echo "How to apply this configuration:"
   echo ""
   echo "1. Edit the irqbalance configuration file:"
-  echo "   sudo nano /etc/default/irqbalance"
+  echo "   sudo vim /etc/default/irqbalance"
   echo ""
   echo "2. Add this line (simple format recommended):"
   echo "   IRQBALANCE_BANNED_CPULIST=${cpulist}"
