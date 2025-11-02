@@ -44,7 +44,7 @@ jobs:
             dch --newversion "${ver}" -D unstable -m "Release ${{ steps.meta.outputs.version }}" || true
           fi
           dpkg-buildpackage -us -uc -B
-          lintian ../*.deb || true
+          lintian ../*.deb
 
       - name: Extract release notes from CHANGELOG.md
         id: changelog
