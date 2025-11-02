@@ -52,6 +52,54 @@ ensure_default_network() {
   fi
 }
 
+# Add DHCP reservation for VM's MAC address to ensure consistent IP assignment
+ensure_dhcp_reservation() {
+  # Skip if using custom bridge
+  if [[ -n "${BRIDGE}" ]]; then
+    return 0
+  fi
+  
+  local target_mac="${MAC_ADDR}"
+  local effective_cidr="${STATIC_IP_CIDR:-${DEFAULT_NAT_STATIC}}"
+  local vm_ip="${effective_cidr%/*}"
+  local vm_name="${NAME}"
+  
+  # Check if reservation already exists for this MAC address
+  local existing_reservation
+  existing_reservation=$(virsh_cmd net-dumpxml default 2>/dev/null | grep -i "mac='${target_mac}'" || true)
+  
+  if [[ -n "${existing_reservation}" ]]; then
+    # Check if the existing reservation has the correct IP
+    if echo "${existing_reservation}" | grep -q "ip='${vm_ip}'"; then
+      echo "DHCP reservation already exists for ${target_mac} → ${vm_ip}"
+      return 0
+    else
+      # Remove old reservation with different IP
+      echo "Updating DHCP reservation for ${target_mac}..."
+      virsh_cmd net-update default delete ip-dhcp-host "<host mac='${target_mac}'/>" --live --config 2>/dev/null || true
+    fi
+  fi
+  
+  # Add DHCP reservation
+  echo "Adding DHCP reservation: ${target_mac} → ${vm_ip}"
+  local host_xml="<host mac='${target_mac}' name='${vm_name}' ip='${vm_ip}'/>"
+  
+  if virsh_cmd net-update default add ip-dhcp-host "${host_xml}" --live --config 2>/dev/null; then
+    echo "✓ DHCP reservation added for ${vm_name} (${vm_ip})"
+    return 0
+  else
+    # Try with sudo if non-sudo failed
+    if sudo virsh net-update default add ip-dhcp-host "${host_xml}" --live --config 2>/dev/null; then
+      echo "✓ DHCP reservation added for ${vm_name} (${vm_ip})"
+      return 0
+    else
+      echo "Warning: Could not add DHCP reservation. The VM may get a random IP from DHCP pool." >&2
+      echo "Falling back to in-guest static IP configuration via netplan." >&2
+      return 1
+    fi
+  fi
+}
+
 virt_install() {
   echo "Creating libvirt domain ${NAME}..."
   if virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
@@ -308,6 +356,9 @@ cmd_init() {
     echo "Domain ${NAME} already defined. You can run: servobox start --name ${NAME}"
     exit 0
   fi
+  
+  # Add DHCP reservation to ensure consistent IP assignment across reboots
+  ensure_dhcp_reservation
 
   ensure_image
   make_vm_storage
@@ -369,6 +420,15 @@ cmd_start() {
   
   # Ensure libvirt's default network is available before starting
   ensure_default_network
+  
+  # Extract MAC address from the VM definition for DHCP reservation
+  local vm_mac
+  vm_mac=$(virsh_cmd domiflist "${NAME}" 2>/dev/null | awk '$3 == "default" || $3 ~ /^virbr/ {print $5; exit}')
+  if [[ -n "${vm_mac}" ]]; then
+    MAC_ADDR="${vm_mac}"
+    # Ensure DHCP reservation exists for this VM (idempotent)
+    ensure_dhcp_reservation
+  fi
   
   # Require sudo credentials upfront for RT configuration
   echo "RT configuration requires elevated privileges..."

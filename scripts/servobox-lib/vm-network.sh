@@ -116,6 +116,8 @@ choose_host_nic() {
 }
 
 # Inject persistent netplan for the primary (NAT) NIC using MAC match
+# NOTE: This function now uses DHCP with a fallback to static IP for robustness
+# The DHCP reservation in the libvirt network ensures consistent IP assignment
 inject_primary_static_netplan() {
   local target_mac="${MAC_ADDR}"
   local effective_cidr="${STATIC_IP_CIDR:-${DEFAULT_NAT_STATIC}}"
@@ -132,17 +134,19 @@ network:
     enp-nat:
       match:
         macaddress: ${target_mac}
-      dhcp4: false
+      dhcp4: true
+      dhcp4-overrides:
+        use-dns: true
+        use-routes: true
+      # Fallback to static IP if DHCP fails
       addresses:
         - ${vm_ip}/${vm_prefix}
+      gateway4: ${gateway}
       nameservers:
         addresses: [8.8.8.8, 1.1.1.1]
-      routes:
-        - to: default
-          via: ${gateway}
 NPYAML
 
-  echo "Injecting persistent netplan for NAT NIC (MAC ${target_mac}, IP ${vm_ip}/${vm_prefix})"
+  echo "Configuring primary NIC (MAC ${target_mac}): DHCP with static IP fallback (${vm_ip}/${vm_prefix})"
   if virt-customize -a "${DISK_QCOW}" \
       --mkdir /etc/netplan \
       --copy-in "${np_tmp}:/etc/netplan" \
