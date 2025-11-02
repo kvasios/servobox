@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 # VM networking functions
 
+# Smart virsh wrapper: uses sudo only if user is not in libvirt group
+# Always connects to qemu:///system for persistence
+virsh_cmd() {
+  if groups | grep -qw libvirt 2>/dev/null; then
+    virsh -c qemu:///system "$@"
+  else
+    sudo virsh -c qemu:///system "$@"
+  fi
+}
+
 # List candidate host NICs suitable for direct/macvtap attachment
 list_host_nics() {
   # Show only UP physical-ish interfaces and filter out virtuals/bridges/taps
@@ -514,7 +524,7 @@ EOF
 vm_ip() {
   # Method 1: Try virsh domifaddr (works for DHCP)
   local ip
-  ip=$(virsh domifaddr "${NAME}" 2>/dev/null | awk '/ipv4/ {print $4}' | sed 's#/.*##')
+  ip=$(virsh_cmd domifaddr "${NAME}" 2>/dev/null | awk '/ipv4/ {print $4}' | sed 's#/.*##')
   if [[ -n "${ip}" ]]; then
     echo "${ip}"
     return 0
@@ -522,7 +532,7 @@ vm_ip() {
   
   # Method 2: Check ARP table using VM's MAC address (works for static IPs)
   local mac
-  mac=$(virsh domiflist "${NAME}" 2>/dev/null | awk '$3 == "default" || $3 ~ /^virbr/ {print $5; exit}')
+  mac=$(virsh_cmd domiflist "${NAME}" 2>/dev/null | awk '$3 == "default" || $3 ~ /^virbr/ {print $5; exit}')
   if [[ -n "${mac}" ]]; then
     # Ping the expected static IP to populate ARP cache
     local expected_ip="192.168.122.100"  # Default libvirt NAT IP
@@ -600,7 +610,7 @@ cmd_network_setup() {
   parse_args "$@"
   
   # Check if VM exists
-  if ! virsh dominfo "${NAME}" >/dev/null 2>&1; then
+  if ! virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
     echo "Error: VM '${NAME}' does not exist." >&2
     echo "Use 'servobox init --name ${NAME}' to create the VM first." >&2
     exit 1
@@ -608,7 +618,7 @@ cmd_network_setup() {
   
   # Check if VM is running
   local vm_state
-  vm_state=$(virsh domstate "${NAME}" 2>/dev/null || echo "unknown")
+  vm_state=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
   if [[ "${vm_state}" == "running" ]]; then
     echo "Warning: VM '${NAME}' is currently running." >&2
     echo "Network changes require the VM to be shut down." >&2
@@ -619,10 +629,10 @@ cmd_network_setup() {
       exit 0
     fi
     echo "Stopping VM..."
-    virsh shutdown "${NAME}" >/dev/null 2>&1
+    virsh_cmd shutdown "${NAME}" >/dev/null 2>&1
     # Wait for shutdown
     for i in {1..30}; do
-      vm_state=$(virsh domstate "${NAME}" 2>/dev/null || echo "unknown")
+      vm_state=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
       if [[ "${vm_state}" == "shut off" ]]; then
         break
       fi
@@ -671,7 +681,7 @@ cmd_network_setup() {
   # Preserve existing MAC addresses before undefining
   # Extract primary NAT MAC (network=default)
   local existing_nat_mac
-  existing_nat_mac=$(virsh domiflist "${NAME}" 2>/dev/null | awk '$2 == "network" && $3 == "default" {print $5; exit}')
+  existing_nat_mac=$(virsh_cmd domiflist "${NAME}" 2>/dev/null | awk '$2 == "network" && $3 == "default" {print $5; exit}')
   if [[ -n "${existing_nat_mac}" ]]; then
     MAC_ADDR="${existing_nat_mac}"
     echo "Preserving NAT interface MAC: ${MAC_ADDR}"
@@ -679,7 +689,7 @@ cmd_network_setup() {
   
   # Extract existing direct NIC MACs if any
   local existing_direct_macs
-  mapfile -t existing_direct_macs < <(virsh domiflist "${NAME}" 2>/dev/null | awk '$2 == "direct" {print $5}')
+  mapfile -t existing_direct_macs < <(virsh_cmd domiflist "${NAME}" 2>/dev/null | awk '$2 == "direct" {print $5}')
   if [[ ${#existing_direct_macs[@]} -ge 1 ]]; then
     MAC_ADDR2="${existing_direct_macs[0]}"
     echo "Preserving direct NIC #1 MAC: ${MAC_ADDR2}"
@@ -690,7 +700,7 @@ cmd_network_setup() {
   fi
   
   # Undefine the existing domain (preserving storage)
-  if ! virsh undefine "${NAME}" >/dev/null 2>&1; then
+  if ! virsh_cmd undefine "${NAME}" >/dev/null 2>&1; then
     echo "Error: Failed to undefine VM domain" >&2
     exit 1
   fi

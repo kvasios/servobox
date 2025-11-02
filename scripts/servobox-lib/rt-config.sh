@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 # Real-time configuration functions
 
+# Smart virsh wrapper: uses sudo only if user is not in libvirt group
+# Always connects to qemu:///system for persistence
+virsh_cmd() {
+  if groups | grep -qw libvirt 2>/dev/null; then
+    virsh -c qemu:///system "$@"
+  else
+    sudo virsh -c qemu:///system "$@"
+  fi
+}
+
 # Calculate IRQBALANCE_BANNED_CPUS mask for host RT isolation
 cmd_irqbalance_mask() {
   shift || true  # Remove the command name
@@ -27,8 +37,8 @@ cmd_irqbalance_mask() {
   done
   
   # Auto-detect from VM
-  if virsh dominfo "${vm_name}" >/dev/null 2>&1; then
-    vm_vcpus=$(virsh dominfo "${vm_name}" 2>/dev/null | grep "CPU(s):" | awk '{print $2}')
+  if virsh_cmd dominfo "${vm_name}" >/dev/null 2>&1; then
+    vm_vcpus=$(virsh_cmd dominfo "${vm_name}" 2>/dev/null | grep "CPU(s):" | awk '{print $2}')
     if [[ -n "${vm_vcpus}" && "${vm_vcpus}" =~ ^[0-9]+$ ]]; then
       # Isolate VM vCPUs + 1 for headroom
       isolated_max=$((vm_vcpus + 1))
@@ -129,7 +139,7 @@ apply_rt_xml_config() {
   
   # Export current XML
   local xml_file=$(mktemp)
-  virsh dumpxml "${NAME}" > "${xml_file}"
+  virsh_cmd dumpxml "${NAME}" > "${xml_file}"
   
   # Use xmlstarlet if available, otherwise use sed
   if command -v xmlstarlet >/dev/null 2>&1; then
@@ -224,7 +234,7 @@ apply_rt_xml_config() {
   
   # Redefine the domain with updated XML
   echo "Redefining VM with RT-optimized XML..."
-  if virsh define "${xml_file}" >/dev/null 2>&1; then
+  if virsh_cmd define "${xml_file}" >/dev/null 2>&1; then
     echo "✓ RT XML configuration applied successfully"
     echo "  • CPU pinning: vCPUs 0-$((VCPUS-1)) → host CPUs 1-${VCPUS}"
     echo "  • Emulator thread pinned to CPU 0"
@@ -334,7 +344,7 @@ pin_vcpus() {
     host_cpu=$((vcpu + 1))
     if [[ $host_cpu -lt $HOST_CORES ]]; then
       echo "Pinning vCPU ${vcpu} to host CPU ${host_cpu}"
-      virsh vcpupin "${NAME}" ${vcpu} ${host_cpu} >/dev/null
+      virsh_cmd vcpupin "${NAME}" ${vcpu} ${host_cpu} >/dev/null
     fi
   done
   
@@ -461,7 +471,7 @@ verify_rt_config() {
   echo ""
   
   # Check if VM is running
-  if ! virsh domstate "${NAME}" 2>/dev/null | grep -qi running; then
+  if ! virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi running; then
     echo "❌ VM ${NAME} is not running"
     echo "Run 'servobox start --name ${NAME}' first"
     return 1
@@ -480,7 +490,7 @@ verify_rt_config() {
   # Check XML configuration first
   echo "📋 XML Configuration:"
   local xml_file=$(mktemp)
-  virsh dumpxml "${NAME}" > "${xml_file}"
+  virsh_cmd dumpxml "${NAME}" > "${xml_file}"
   
   # Check for cputune section
   if grep -q "<cputune>" "${xml_file}"; then
@@ -543,7 +553,7 @@ verify_rt_config() {
   
   # Check vCPU pinning
   echo "📌 Runtime vCPU Pinning (virsh vcpupin):"
-  virsh vcpupin "${NAME}" 2>/dev/null || echo "  ⚠️  Could not retrieve vCPU pinning"
+  virsh_cmd vcpupin "${NAME}" 2>/dev/null || echo "  ⚠️  Could not retrieve vCPU pinning"
   echo ""
   
   # Check QEMU process affinity

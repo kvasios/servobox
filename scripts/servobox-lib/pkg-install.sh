@@ -1,5 +1,16 @@
 #!/usr/bin/env bash
 # Package installation functions
+
+# Smart virsh wrapper: uses sudo only if user is not in libvirt group
+# Always connects to qemu:///system for persistence
+virsh_cmd() {
+  if groups | grep -qw libvirt 2>/dev/null; then
+    virsh -c qemu:///system "$@"
+  else
+    sudo virsh -c qemu:///system "$@"
+  fi
+}
+
 cmd_pkg_install() {
   # Custom arg parsing for pkg-install (avoid global parse_args which treats
   # positional package names as unknown args)
@@ -209,18 +220,18 @@ cmd_pkg_install() {
   fi
   # Treat as single package
   # Ensure the VM is shut down before offline customization
-  if virsh domstate "${NAME}" 2>/dev/null | grep -qi running; then
+  if virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi running; then
     echo "VM ${NAME} is running; shutting it down for offline package install..."
-    if ! virsh shutdown "${NAME}" >/dev/null 2>&1; then
+    if ! virsh_cmd shutdown "${NAME}" >/dev/null 2>&1; then
       echo "Warning: Failed to initiate VM shutdown" >&2
     fi
     for i in {1..60}; do
-      if virsh domstate "${NAME}" 2>/dev/null | grep -qi "shut off"; then break; fi
+      if virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi "shut off"; then break; fi
       sleep 1
     done
-    if ! virsh domstate "${NAME}" 2>/dev/null | grep -qi "shut off"; then
+    if ! virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi "shut off"; then
       echo "Warning: VM did not shut down cleanly; forcing destroy..." >&2
-      if ! virsh destroy "${NAME}" >/dev/null 2>&1; then
+      if ! virsh_cmd destroy "${NAME}" >/dev/null 2>&1; then
         echo "Error: Failed to force destroy VM ${NAME}" >&2
         exit 1
       fi

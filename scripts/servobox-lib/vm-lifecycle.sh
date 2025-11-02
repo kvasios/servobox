@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 # VM lifecycle management functions
 
+# Smart virsh wrapper: uses sudo only if user is not in libvirt group
+# Always connects to qemu:///system for persistence
+virsh_cmd() {
+  if groups | grep -qw libvirt 2>/dev/null; then
+    virsh -c qemu:///system "$@"
+  else
+    sudo virsh -c qemu:///system "$@"
+  fi
+}
+
 # Ensure libvirt's 'default' network is active (required for NAT networking)
 ensure_default_network() {
   # Check if we're using a custom bridge (skip default network check)
@@ -8,16 +18,16 @@ ensure_default_network() {
     return 0
   fi
   
-  # Check if default network exists (use sudo in case user group membership isn't active yet)
-  if ! sudo virsh net-info default >/dev/null 2>&1; then
+  # Check if default network exists
+  if ! virsh_cmd net-info default >/dev/null 2>&1; then
     echo "Warning: libvirt 'default' network not found." >&2
     echo "ServoBox requires libvirt's default NAT network for VM connectivity." >&2
     echo "This is usually created automatically by libvirt-daemon-system." >&2
     echo "" >&2
     echo "Attempting to create it now..." >&2
     
-    # Define the default network (requires sudo/libvirt group)
-    if sudo virsh net-define /usr/share/libvirt/networks/default.xml >/dev/null 2>&1; then
+    # Define the default network
+    if virsh_cmd net-define /usr/share/libvirt/networks/default.xml >/dev/null 2>&1; then
       echo "✓ Created default network" >&2
     else
       echo "Error: Failed to create default network." >&2
@@ -27,9 +37,9 @@ ensure_default_network() {
   fi
   
   # Check if default network is active
-  if ! sudo virsh net-info default 2>/dev/null | grep -q "Active:.*yes"; then
+  if ! virsh_cmd net-info default 2>/dev/null | grep -q "Active:.*yes"; then
     echo "Starting libvirt 'default' network..." >&2
-    if ! sudo virsh net-start default >/dev/null 2>&1; then
+    if ! virsh_cmd net-start default >/dev/null 2>&1; then
       echo "Error: Failed to start libvirt 'default' network." >&2
       echo "Please run: sudo virsh net-start default" >&2
       exit 1
@@ -38,9 +48,9 @@ ensure_default_network() {
   fi
   
   # Ensure it's set to autostart
-  if ! sudo virsh net-info default 2>/dev/null | grep -q "Autostart:.*yes"; then
+  if ! virsh_cmd net-info default 2>/dev/null | grep -q "Autostart:.*yes"; then
     echo "Enabling autostart for libvirt 'default' network..." >&2
-    if ! sudo virsh net-autostart default >/dev/null 2>&1; then
+    if ! virsh_cmd net-autostart default >/dev/null 2>&1; then
       echo "Warning: Failed to set autostart for default network" >&2
     else
       echo "✓ Enabled autostart for default network" >&2
@@ -50,14 +60,14 @@ ensure_default_network() {
 
 virt_install() {
   echo "Creating libvirt domain ${NAME}..."
-  if virsh dominfo "${NAME}" >/dev/null 2>&1; then
+  if virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
     # Check if domain is already running
-    if virsh domstate "${NAME}" 2>/dev/null | grep -qi running; then
+    if virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi running; then
       echo "Domain ${NAME} is already running."
       return
     else
       echo "Domain already exists; starting..."
-      if ! virsh start "${NAME}"; then
+      if ! virsh_cmd start "${NAME}"; then
         echo "Error: Failed to start existing VM domain" >&2
         exit 1
       fi
@@ -92,24 +102,40 @@ virt_install() {
   OSINFO_OPT="--osinfo ${OSINFO_OPT_VAL}"
 
   if [[ "${DEBUG}" -eq 1 ]]; then set -x; fi
-  virt-install \
-    --name "${NAME}" \
-    --memory "${MEMORY}" --vcpus "${VCPUS}" \
-    --cpu host-passthrough,cache.mode=passthrough \
-    ${OSINFO_OPT} \
-    --disk "path=${DISK_QCOW},format=qcow2,cache=none,discard=unmap" \
-    --disk "path=${SEED_ISO},device=cdrom" \
-    ${NETOPTS[@]} \
-    --graphics none \
-    --import \
-    --noautoconsole
+  if groups | grep -qw libvirt 2>/dev/null; then
+    virt-install \
+      --connect qemu:///system \
+      --name "${NAME}" \
+      --memory "${MEMORY}" --vcpus "${VCPUS}" \
+      --cpu host-passthrough,cache.mode=passthrough \
+      ${OSINFO_OPT} \
+      --disk "path=${DISK_QCOW},format=qcow2,cache=none,discard=unmap" \
+      --disk "path=${SEED_ISO},device=cdrom" \
+      ${NETOPTS[@]} \
+      --graphics none \
+      --import \
+      --noautoconsole
+  else
+    sudo virt-install \
+      --connect qemu:///system \
+      --name "${NAME}" \
+      --memory "${MEMORY}" --vcpus "${VCPUS}" \
+      --cpu host-passthrough,cache.mode=passthrough \
+      ${OSINFO_OPT} \
+      --disk "path=${DISK_QCOW},format=qcow2,cache=none,discard=unmap" \
+      --disk "path=${SEED_ISO},device=cdrom" \
+      ${NETOPTS[@]} \
+      --graphics none \
+      --import \
+      --noautoconsole
+  fi
   if [[ "${DEBUG}" -eq 1 ]]; then set +x; fi
 }
 
 # Define (but do not start) the libvirt domain using virt-install generated XML
 virt_define() {
   echo "Defining libvirt domain ${NAME} (no boot)..."
-  if virsh dominfo "${NAME}" >/dev/null 2>&1; then
+  if virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
     echo "Domain ${NAME} already defined."
     return
   fi
@@ -140,20 +166,40 @@ virt_define() {
   OSINFO_OPT="--osinfo ${OSINFO_OPT_VAL}"
 
   if [[ "${DEBUG}" -eq 1 ]]; then set -x; fi
-  if ! virt-install \
-      --name "${NAME}" \
-      --memory "${MEMORY}" --vcpus "${VCPUS}" \
-      --cpu host-passthrough,cache.mode=passthrough \
-      ${OSINFO_OPT} \
-      --disk "path=${DISK_QCOW},format=qcow2,cache=none,discard=unmap" \
-      --disk "path=${SEED_ISO},device=cdrom" \
-      ${NETOPTS[@]} \
-      --graphics none \
-      --import \
-      --noautoconsole \
-      --print-xml --dry-run | virsh define /dev/stdin; then
-    echo "Error: failed to define domain ${NAME}" >&2
-    exit 1
+  if groups | grep -qw libvirt 2>/dev/null; then
+    if ! virt-install \
+        --connect qemu:///system \
+        --name "${NAME}" \
+        --memory "${MEMORY}" --vcpus "${VCPUS}" \
+        --cpu host-passthrough,cache.mode=passthrough \
+        ${OSINFO_OPT} \
+        --disk "path=${DISK_QCOW},format=qcow2,cache=none,discard=unmap" \
+        --disk "path=${SEED_ISO},device=cdrom" \
+        ${NETOPTS[@]} \
+        --graphics none \
+        --import \
+        --noautoconsole \
+        --print-xml --dry-run | virsh -c qemu:///system define /dev/stdin; then
+      echo "Error: failed to define domain ${NAME}" >&2
+      exit 1
+    fi
+  else
+    if ! sudo virt-install \
+        --connect qemu:///system \
+        --name "${NAME}" \
+        --memory "${MEMORY}" --vcpus "${VCPUS}" \
+        --cpu host-passthrough,cache.mode=passthrough \
+        ${OSINFO_OPT} \
+        --disk "path=${DISK_QCOW},format=qcow2,cache=none,discard=unmap" \
+        --disk "path=${SEED_ISO},device=cdrom" \
+        ${NETOPTS[@]} \
+        --graphics none \
+        --import \
+        --noautoconsole \
+        --print-xml --dry-run | sudo virsh -c qemu:///system define /dev/stdin; then
+      echo "Error: failed to define domain ${NAME}" >&2
+      exit 1
+    fi
   fi
   if [[ "${DEBUG}" -eq 1 ]]; then set +x; fi
   
@@ -262,7 +308,7 @@ cmd_init() {
     fi
   done
 
-  if virsh dominfo "${NAME}" >/dev/null 2>&1; then
+  if virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
     echo "Domain ${NAME} already defined. You can run: servobox start --name ${NAME}"
     exit 0
   fi
@@ -312,7 +358,7 @@ cmd_start() {
   fi
   
   # Only start an already-defined domain
-  if ! virsh dominfo "${NAME}" >/dev/null 2>&1; then
+  if ! virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
     echo "Error: VM ${NAME} is not defined. Run 'servobox init --name ${NAME}' first." >&2
     
     # If we just started libvirtd, suggest waiting a moment
@@ -349,7 +395,7 @@ cmd_start() {
   fi
   
   local was_already_running=0
-  if virsh domstate "${NAME}" 2>/dev/null | grep -qi running; then
+  if virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi running; then
     was_already_running=1
     IP=$(vm_ip || true)
     if [[ -n "${IP}" ]]; then
@@ -371,14 +417,14 @@ cmd_start() {
   if [[ ${was_already_running} -eq 0 ]]; then
     echo "Checking RT XML configuration..."
     local xml_file=$(mktemp)
-    virsh dumpxml "${NAME}" > "${xml_file}"
+    virsh_cmd dumpxml "${NAME}" > "${xml_file}"
     
     if ! grep -q "<cputune>" "${xml_file}"; then
       echo "⚠️  RT XML optimizations not found in VM definition"
       echo "Applying RT XML configuration before starting..."
       
       # Get vCPU count from domain
-      VCPUS=$(virsh dominfo "${NAME}" 2>/dev/null | grep "CPU(s):" | awk '{print $2}')
+      VCPUS=$(virsh_cmd dominfo "${NAME}" 2>/dev/null | grep "CPU(s):" | awk '{print $2}')
       
       # Apply RT XML config
       apply_rt_xml_config
@@ -387,7 +433,7 @@ cmd_start() {
     rm -f "${xml_file}"
     
     echo "Starting VM ${NAME}..."
-    virsh start "${NAME}"
+    virsh_cmd start "${NAME}"
     echo "Waiting for IP..."
     for i in {1..60}; do
       IP=$(vm_ip || true)
@@ -422,7 +468,7 @@ cmd_ip() {
   parse_args "$@"
   
   # Check if VM domain exists
-  if ! virsh dominfo "${NAME}" >/dev/null 2>&1; then
+  if ! virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
     echo "Error: VM '${NAME}' does not exist." >&2
     echo "Use 'servobox init --name ${NAME}' to create the VM first." >&2
     exit 1
@@ -430,7 +476,7 @@ cmd_ip() {
   
   # Check VM state
   local vm_state
-  vm_state=$(virsh domstate "${NAME}" 2>/dev/null || echo "unknown")
+  vm_state=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
   
   case "${vm_state}" in
     "shut off")
@@ -473,14 +519,14 @@ cmd_stop() {
   parse_args "$@"
   
   # Ensure VM exists
-  if ! virsh dominfo "${NAME}" >/dev/null 2>&1; then
+  if ! virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
     echo "Error: VM '${NAME}' does not exist." >&2
     exit 1
   fi
   
   # Determine current state
   local vm_state
-  vm_state=$(virsh domstate "${NAME}" 2>/dev/null || echo "unknown")
+  vm_state=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
   
   case "${vm_state}" in
     "shut off")
@@ -489,7 +535,7 @@ cmd_stop() {
       ;;
     "paused")
       echo "VM '${NAME}' is paused. Attempting resume before shutdown..."
-      if ! virsh resume "${NAME}" >/dev/null 2>&1; then
+      if ! virsh_cmd resume "${NAME}" >/dev/null 2>&1; then
         echo "Warning: Failed to resume VM before shutdown" >&2
       fi
       ;;
@@ -505,7 +551,7 @@ cmd_stop() {
   esac
   
   # Initiate shutdown (idempotent)
-  if ! virsh shutdown "${NAME}" >/dev/null 2>&1; then
+  if ! virsh_cmd shutdown "${NAME}" >/dev/null 2>&1; then
     echo "Warning: Failed to initiate VM shutdown" >&2
   fi
   
@@ -516,7 +562,7 @@ cmd_stop() {
   echo "Waiting for shutdown to complete... (timeout: ${timeout_seconds}s)"
   
   while [[ ${elapsed} -lt ${timeout_seconds} ]]; do
-    vm_state=$(virsh domstate "${NAME}" 2>/dev/null || echo "unknown")
+    vm_state=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
     case "${vm_state}" in
       "shut off")
         echo "VM '${NAME}' has been shut down successfully."
@@ -531,7 +577,7 @@ cmd_stop() {
       "paused"|"running")
         # Re-issue a gentle shutdown periodically if still running/paused
         if [[ $((elapsed % 10)) -eq 0 ]]; then
-          virsh shutdown "${NAME}" >/dev/null 2>&1 || true
+          virsh_cmd shutdown "${NAME}" >/dev/null 2>&1 || true
         fi
         ;;
       *)
@@ -543,7 +589,7 @@ cmd_stop() {
   done
   
   echo "Error: VM '${NAME}' did not shut down within ${timeout_seconds} seconds." >&2
-  echo "Current state: $(virsh domstate "${NAME}" 2>/dev/null || echo 'unknown')" >&2
+  echo "Current state: $(virsh_cmd domstate "${NAME}" 2>/dev/null || echo 'unknown')" >&2
   echo "" >&2
   echo "You can try:" >&2
   echo "  • virsh destroy ${NAME}  # Force power off" >&2
@@ -556,7 +602,7 @@ cmd_destroy() {
   parse_args "$@"
   
   # Check if VM exists
-  if ! virsh dominfo "${NAME}" >/dev/null 2>&1; then
+  if ! virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
     echo "Error: VM '${NAME}' does not exist." >&2
     exit 1
   fi
@@ -585,15 +631,15 @@ cmd_destroy() {
   echo "Destroying VM '${NAME}'..."
   
   # Destroy only if running
-  if virsh domstate "${NAME}" 2>/dev/null | grep -qi running; then
+  if virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi running; then
     echo "Stopping running VM..."
-    if ! virsh destroy "${NAME}" >/dev/null 2>&1; then
+    if ! virsh_cmd destroy "${NAME}" >/dev/null 2>&1; then
       echo "Warning: Failed to destroy running VM" >&2
     fi
   fi
   
   # Undefine the domain
-  if ! virsh undefine "${NAME}" --remove-all-storage >/dev/null 2>&1; then
+  if ! virsh_cmd undefine "${NAME}" --remove-all-storage >/dev/null 2>&1; then
     echo "Error: Failed to undefine VM domain" >&2
     exit 1
   fi
@@ -618,21 +664,21 @@ cmd_status() {
   echo "VM Directory: ${VM_DIR}"
   
   # Check if domain exists
-  if ! virsh dominfo "${NAME}" >/dev/null 2>&1; then
+  if ! virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
     echo "Status: VM does not exist"
     echo "Use 'servobox init' to create the VM, then 'servobox start' to boot."
     exit 0
   fi
   
   # Get VM state
-  VM_STATE=$(virsh domstate "${NAME}" 2>/dev/null || echo "unknown")
+  VM_STATE=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
   echo "Status: ${VM_STATE}"
   
   # Get VM configuration
   echo -e "\n=== VM Configuration ==="
-  if virsh dominfo "${NAME}" >/dev/null 2>&1; then
-    VCPUS_CONFIG=$(virsh dominfo "${NAME}" 2>/dev/null | grep "CPU(s):" | awk '{print $2}' || echo "unknown")
-    MEMORY_CONFIG=$(virsh dominfo "${NAME}" 2>/dev/null | grep "Max memory:" | awk '{print $3, $4}' || echo "unknown")
+  if virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
+    VCPUS_CONFIG=$(virsh_cmd dominfo "${NAME}" 2>/dev/null | grep "CPU(s):" | awk '{print $2}' || echo "unknown")
+    MEMORY_CONFIG=$(virsh_cmd dominfo "${NAME}" 2>/dev/null | grep "Max memory:" | awk '{print $3, $4}' || echo "unknown")
     echo "vCPUs: ${VCPUS_CONFIG}"
     echo "Memory: ${MEMORY_CONFIG}"
   fi
@@ -729,7 +775,7 @@ cmd_ssh() {
   parse_args "$@"
   
   # Check if VM domain exists
-  if ! virsh dominfo "${NAME}" >/dev/null 2>&1; then
+  if ! virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
     echo "Error: VM '${NAME}' does not exist." >&2
     echo "Use 'servobox init --name ${NAME}' to create the VM first." >&2
     exit 1
@@ -737,7 +783,7 @@ cmd_ssh() {
   
   # Check VM state
   local vm_state
-  vm_state=$(virsh domstate "${NAME}" 2>/dev/null || echo "unknown")
+  vm_state=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
   
   case "${vm_state}" in
     "shut off")
@@ -797,7 +843,7 @@ cmd_ssh() {
   echo "VM IP: ${IP}"
   
   # Re-check VM state after getting IP (VM might have transitioned states)
-  vm_state=$(virsh domstate "${NAME}" 2>/dev/null || echo "unknown")
+  vm_state=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
   if [[ "${vm_state}" == "in shutdown" ]]; then
     echo "Error: VM '${NAME}' is currently shutting down." >&2
     echo "Please wait for shutdown to complete, then use 'servobox start --name ${NAME}' to boot the VM." >&2
@@ -808,7 +854,7 @@ cmd_ssh() {
   echo "Checking SSH connectivity..."
   if ! wait_for_sshd "${IP}" 15; then
     # Check VM state again in case it changed during SSH wait
-    vm_state=$(virsh domstate "${NAME}" 2>/dev/null || echo "unknown")
+    vm_state=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
     if [[ "${vm_state}" == "in shutdown" ]]; then
       echo "Error: VM '${NAME}' shut down while waiting for SSH." >&2
       echo "Use 'servobox start --name ${NAME}' to boot the VM." >&2

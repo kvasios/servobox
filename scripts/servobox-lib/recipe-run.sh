@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 # Recipe execution functions for ServoBox
 
+# Smart virsh wrapper: uses sudo only if user is not in libvirt group
+# Always connects to qemu:///system for persistence
+virsh_cmd() {
+  if groups | grep -qw libvirt 2>/dev/null; then
+    virsh -c qemu:///system "$@"
+  else
+    sudo virsh -c qemu:///system "$@"
+  fi
+}
+
 # List available recipes
 list_available_recipes() {
   local recipes_dir="${REPO_ROOT}/packages/recipes"
@@ -36,7 +46,7 @@ list_recipes_with_run() {
 # Ensure VM is running and SSH is ready
 ensure_vm_running() {
   # Check if VM domain exists
-  if ! virsh dominfo "${NAME}" >/dev/null 2>&1; then
+  if ! virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
     echo "Error: VM '${NAME}' does not exist." >&2
     echo "Use 'servobox init --name ${NAME}' to create the VM first." >&2
     exit 1
@@ -44,7 +54,7 @@ ensure_vm_running() {
   
   # Check VM state directly
   local vm_state
-  vm_state=$(virsh domstate "${NAME}" 2>/dev/null || echo "unknown")
+  vm_state=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
   
   case "${vm_state}" in
     "shut off")
@@ -54,7 +64,7 @@ ensure_vm_running() {
       ;;
     "paused")
       echo "Error: VM '${NAME}' is paused." >&2
-      echo "Use 'virsh resume ${NAME}' to resume the VM." >&2
+      echo "Use 'virsh -c qemu:///system resume ${NAME}' to resume the VM." >&2
       exit 1
       ;;
     "in shutdown")

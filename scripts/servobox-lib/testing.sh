@@ -1,5 +1,16 @@
 #!/usr/bin/env bash
 # Testing and validation functions
+
+# Smart virsh wrapper: uses sudo only if user is not in libvirt group
+# Always connects to qemu:///system for persistence
+virsh_cmd() {
+  if groups | grep -qw libvirt 2>/dev/null; then
+    virsh -c qemu:///system "$@"
+  else
+    sudo virsh -c qemu:///system "$@"
+  fi
+}
+
 # Parse cyclictest output and display results in a readable format
 parse_cyclictest_results() {
   local output="$1"
@@ -392,12 +403,12 @@ cmd_test() {
 
 cmd_debug() {
   parse_args "$@"
-  if ! virsh dominfo "${NAME}" >/dev/null 2>&1; then
+  if ! virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
     echo "VM ${NAME} not found"
     exit 1
   fi
   echo "=== VM Debug Info ==="
-  echo "VM State: $(virsh domstate "${NAME}" 2>/dev/null || echo 'unknown')"
+  echo "VM State: $(virsh_cmd domstate "${NAME}" 2>/dev/null || echo 'unknown')"
   IP=$(vm_ip || true)
   echo "VM IP: ${IP:-none}"
   
