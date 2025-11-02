@@ -40,13 +40,13 @@ Download the latest release:
 
 ```console
 # Check https://github.com/kvasios/servobox/releases for the latest version
-wget https://github.com/kvasios/servobox/releases/download/v0.1.1/servobox_0.1.1_amd64.deb
+wget https://github.com/kvasios/servobox/releases/download/v0.1.2/servobox_0.1.2_amd64.deb
 ```
 
 Install the package:
 
 ```console
-sudo apt install -f ./servobox_0.1.1_amd64.deb
+sudo apt install -f ./servobox_0.1.2_amd64.deb
 ```
 
 ### Option C: From Source

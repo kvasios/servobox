@@ -44,8 +44,8 @@ sudo apt install servobox
 
 ```bash
 # Download latest release (check https://github.com/kvasios/servobox/releases for latest version)
-wget https://github.com/kvasios/servobox/releases/download/v0.1.1/servobox_0.1.1_amd64.deb
-sudo apt install -f ./servobox_0.1.1_amd64.deb
+wget https://github.com/kvasios/servobox/releases/download/v0.1.2/servobox_0.1.2_amd64.deb
+sudo apt install -f ./servobox_0.1.2_amd64.deb
 ```
 
 **Create your VM**

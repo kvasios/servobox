@@ -5,13 +5,13 @@ set -euo pipefail
 # Purpose: Ensure a GitHub release exists and upload VM image asset(s) to it.
 #
 # Behaviors:
-# - Auto-detects tag from debian/changelog (e.g. 0.1.1 -> v0.1.1) if not provided
+# - Auto-detects tag from debian/changelog (e.g. 0.1.2 -> v0.1.2) if not provided
 # - Ensures authenticated gh session; prefers non-interactive token if available
 # - Creates the release if missing (with --generate-notes)
 # - Uploads provided files or auto-discovers the latest built image(s)
 #
 # Usage examples:
-#   scripts/utils/upload-image.sh --tag v0.1.1 out/vm-0.1.1.qcow2
+#   scripts/utils/upload-image.sh --tag v0.1.2 out/vm-0.1.2.qcow2
 #   GITHUB_TOKEN=... scripts/utils/upload-image.sh --all
 #   scripts/utils/upload-image.sh                 # auto-tag, auto-latest asset
 
@@ -34,7 +34,7 @@ usage() {
 Usage: $(basename "$0") [--tag TAG] [--glob PATTERN] [--all] [--notes TEXT] [FILES...]
 
 Options:
-  --tag TAG       Release tag (e.g. v0.1.1). If omitted, parsed from debian/changelog as v<version>.
+  --tag TAG       Release tag (e.g. v0.1.2). If omitted, parsed from debian/changelog as v<version>.
   --glob PATTERN  Glob used to discover assets (rooted at ${DISCOVERY_ROOT}). Implies discovery mode.
   --all           Upload all discovered assets instead of only the newest one.
   --notes TEXT    Extra text to include in generated release notes (only when creating release).
@@ -95,7 +95,7 @@ require_cmd() {
 parse_tag_from_debian_changelog() {
   local changelog="${REPO_ROOT}/debian/changelog"
   [[ -f "$changelog" ]] || return 1
-  # Expect first line like: "servobox (0.1.1) unstable; urgency=medium"
+  # Expect first line like: "servobox (0.1.2) unstable; urgency=medium"
   local first_line
   first_line="$(head -n1 "$changelog" || true)"
   [[ -n "$first_line" ]] || return 1
