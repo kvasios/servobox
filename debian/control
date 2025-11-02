@@ -7,7 +7,7 @@ Standards-Version: 4.7.0
 
 Package: servobox
 Architecture: amd64
-Depends: ${misc:Depends}, bash, coreutils, grep, sed, iproute2, net-tools, wget, xz-utils, qemu-kvm, qemu-utils, libvirt-daemon-system, libvirt-clients, virtinst, cloud-image-utils, libguestfs-tools, libosinfo-bin, acl, openssh-client, stress-ng
+Depends: ${misc:Depends}, bash, coreutils, grep, sed, iproute2, net-tools, wget, xz-utils, qemu-kvm, qemu-utils, libvirt-daemon-system, libvirt-clients, virtinst, cloud-image-utils, libguestfs-tools, libosinfo-bin, acl, openssh-client, stress-ng, isc-dhcp-client
 Recommends: sshpass, osinfo-db, bridge-utils, ethtool
 Suggests: virt-viewer
 Description: One-command launcher for real-time VMs (Ubuntu 22.04 PREEMPT_RT)
