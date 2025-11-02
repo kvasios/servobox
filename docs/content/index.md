@@ -27,26 +27,22 @@ sudo apt install servobox
 ```
 
 ### 2. Configure Host (Required for RT)
+⚠️ **WARNING:**: Check your CPU count first
+nproc  # You need 6+, ideally 8+ cores for safe RT isolation
 
 ```console
-# IMPORTANT: Check your CPU count first
-nproc  # You need 6+ cores for safe RT isolation
-
 # Edit GRUB for CPU isolation
-sudo vim /etc/default/grub
-```
-⚠️ **WARNING:** Adjust CPU range based on YOUR system! The example shows 8-core config.
+sudo vim /etc/default/grub # or with any other editor
 
-```text
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0"
+# Add the following settings to the GRUB_CMDLINE_LINUX_DEFAULT variable
+# GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0"
 ```
+Finalize with:
 
 ```console
 sudo update-grub
 sudo reboot
 ```
-
-See [Installation Guide](getting-started/installation.md#step-2-configure-host-for-rt-performance) for CPU-specific examples.
 
 ### 3. Create Your First RT VM
 
