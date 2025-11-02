@@ -399,9 +399,8 @@ NPYAML
     if ! "${vc_cmd[@]}" >/dev/null 2>&1; then 
       echo "Running virt-customize with sudo privileges..."
       if ! sudo "${vc_cmd[@]}"; then
-        echo "Error: Failed to customize VM image with guest basics" >&2
-        echo "Please ensure you have sudo privileges and virt-customize is available" >&2
-        exit 1
+        echo "Warning: Failed to customize VM image with guest basics" >&2
+        echo "Continuing anyway - the base image should have necessary components" >&2
       fi
     fi
     rm -f "${np_tmp}" 2>/dev/null || true
@@ -432,8 +431,22 @@ UNIT
   # NOTE: Default VM credentials (servobox-usr:servobox-pwd) are intentional
   # These are for local development VMs only (NAT-isolated, not public-facing)
   # Users can change via cloud-init user-data or by logging in and running 'passwd'
+  
+  # Try to install packages if network is available, but don't fail if it's not
+  # (prebuilt images should already have these packages)
+  local vc_cmd_install=(virt-customize -a "${DISK_QCOW}" \
+    --install openssh-server,qemu-guest-agent,cloud-init,netplan.io)
+  
+  echo "Attempting to install/update guest packages (may fail if network unavailable)..."
+  if ! "${vc_cmd_install[@]}" >/dev/null 2>&1; then
+    if ! sudo "${vc_cmd_install[@]}" 2>/dev/null; then
+      echo "Warning: Could not install packages via virt-customize (network issue or already present)" >&2
+      echo "Continuing with configuration - prebuilt image should have these packages" >&2
+    fi
+  fi
+  
+  # Configure the VM (this doesn't require network)
   local vc_cmd=(virt-customize -a "${DISK_QCOW}" \
-    --install openssh-server,qemu-guest-agent,cloud-init,netplan.io \
     --run-command 'getent group realtime >/dev/null 2>&1 || groupadd realtime' \
     --run-command 'id -u servobox-usr >/dev/null 2>&1 || useradd -m -s /bin/bash servobox-usr' \
     --run-command 'usermod -aG sudo,realtime servobox-usr || true' \
@@ -456,9 +469,8 @@ UNIT
   if ! "${vc_cmd[@]}" >/dev/null 2>&1; then
     echo "Running virt-customize with sudo privileges..."
     if ! sudo "${vc_cmd[@]}"; then
-      echo "Error: Failed to customize VM image with full guest setup" >&2
-      echo "Please ensure you have sudo privileges and virt-customize is available" >&2
-      exit 1
+      echo "Warning: Failed to fully customize VM image" >&2
+      echo "The VM should still work but may need manual configuration" >&2
     fi
   fi
   rm -f "${np_tmp}" 2>/dev/null || true

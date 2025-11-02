@@ -12,40 +12,166 @@ ensure_default_network() {
     return 0
   fi
   
-  # Check if default network exists
-  if ! virsh_cmd net-info default >/dev/null 2>&1; then
-    echo "Warning: libvirt 'default' network not found." >&2
-    echo "ServoBox requires libvirt's default NAT network for VM connectivity." >&2
-    echo "This is usually created automatically by libvirt-daemon-system." >&2
-    echo "" >&2
-    echo "Attempting to create it now..." >&2
-    
-    # Define the default network
-    if virsh_cmd net-define /usr/share/libvirt/networks/default.xml >/dev/null 2>&1; then
-      echo "✓ Created default network" >&2
-    else
-      echo "Error: Failed to create default network." >&2
-      echo "Please run: sudo virsh net-define /usr/share/libvirt/networks/default.xml" >&2
-      exit 1
+  # Ensure libvirtd is running before attempting network operations
+  if ! systemctl is-active libvirtd >/dev/null 2>&1 && ! systemctl is-active libvirtd.service >/dev/null 2>&1; then
+    echo "Error: libvirtd service is not running. Cannot manage networks." >&2
+    echo "Please run: sudo systemctl start libvirtd" >&2
+    exit 1
+  fi
+  
+  # Get network state (if network exists)
+  local net_exists=0
+  local net_active=0
+  local net_autostart=0
+  local net_info_output
+  
+  if net_info_output=$(virsh_cmd net-info default 2>&1); then
+    net_exists=1
+    if echo "${net_info_output}" | grep -q "Active:.*yes"; then
+      net_active=1
+    fi
+    if echo "${net_info_output}" | grep -q "Autostart:.*yes"; then
+      net_autostart=1
     fi
   fi
   
-  # Check if default network is active
-  if ! virsh_cmd net-info default 2>/dev/null | grep -q "Active:.*yes"; then
-    echo "Starting libvirt 'default' network..." >&2
-    if ! virsh_cmd net-start default >/dev/null 2>&1; then
+  # If network doesn't exist, create it
+  if [[ ${net_exists} -eq 0 ]]; then
+    echo "libvirt 'default' network not found. Creating it..." >&2
+    
+    # Try to find the default network XML template
+    local default_xml="/usr/share/libvirt/networks/default.xml"
+    if [[ ! -f "${default_xml}" ]]; then
+      # Try alternative locations
+      default_xml="/etc/libvirt/qemu/networks/default.xml"
+      if [[ ! -f "${default_xml}" ]]; then
+        # Create a minimal default network XML inline
+        default_xml=""
+      fi
+    fi
+    
+    if [[ -n "${default_xml}" && -f "${default_xml}" ]]; then
+      if virsh_cmd net-define "${default_xml}" >/dev/null 2>&1; then
+        echo "✓ Created default network from template" >&2
+        net_exists=1
+        # Re-check network state after creation
+        if net_info_output=$(virsh_cmd net-info default 2>&1); then
+          if echo "${net_info_output}" | grep -q "Active:.*yes"; then
+            net_active=1
+          fi
+          if echo "${net_info_output}" | grep -q "Autostart:.*yes"; then
+            net_autostart=1
+          fi
+        fi
+      else
+        echo "Warning: Failed to create network from template, trying inline definition..." >&2
+      fi
+    fi
+    
+    # If template-based creation failed or template doesn't exist, create inline
+    if [[ ${net_exists} -eq 0 ]]; then
+      local temp_xml=$(mktemp)
+      # Generate a random UUID for the network (or let libvirt generate one)
+      local net_uuid
+      if command -v uuidgen >/dev/null 2>&1; then
+        net_uuid=$(uuidgen)
+      else
+        # Fallback: generate a simple UUID-like string
+        net_uuid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "")
+      fi
+      
+      {
+        echo "<network>"
+        echo "  <name>default</name>"
+        if [[ -n "${net_uuid}" ]]; then
+          echo "  <uuid>${net_uuid}</uuid>"
+        fi
+        echo "  <forward mode='nat'>"
+        echo "    <nat>"
+        echo "      <port start='1024' end='65535'/>"
+        echo "    </nat>"
+        echo "  </forward>"
+        echo "  <bridge name='virbr0' stp='on' delay='0'/>"
+        echo "  <mac address='52:54:00:ab:cd:ef'/>"
+        echo "  <ip address='192.168.122.1' netmask='255.255.255.0'>"
+        echo "    <dhcp>"
+        echo "      <range start='192.168.122.2' end='192.168.122.254'/>"
+        echo "    </dhcp>"
+        echo "  </ip>"
+        echo "</network>"
+      } > "${temp_xml}"
+      if virsh_cmd net-define "${temp_xml}" >/dev/null 2>&1; then
+        echo "✓ Created default network" >&2
+        net_exists=1
+        # Re-check network state after creation
+        if net_info_output=$(virsh_cmd net-info default 2>&1); then
+          if echo "${net_info_output}" | grep -q "Active:.*yes"; then
+            net_active=1
+          fi
+          if echo "${net_info_output}" | grep -q "Autostart:.*yes"; then
+            net_autostart=1
+          fi
+        fi
+      else
+        echo "Error: Failed to create default network." >&2
+        echo "Please ensure you have permissions to manage libvirt networks." >&2
+        echo "You may need to:" >&2
+        echo "  1. Add yourself to the libvirt group: sudo usermod -aG libvirt $USER" >&2
+        echo "  2. Log out and log back in" >&2
+        echo "  3. Or run manually: sudo virsh net-define ${temp_xml}" >&2
+        rm -f "${temp_xml}"
+        exit 1
+      fi
+      rm -f "${temp_xml}"
+    fi
+  fi
+  
+  # Check if network is in error state (exists but can't get info or is inactive with errors)
+  if [[ ${net_exists} -eq 1 && ${net_active} -eq 0 ]]; then
+    # Try to get more details about why it's not active
+    local net_state
+    net_state=$(virsh_cmd net-info default 2>&1 | grep "^State:" | awk '{print $2}' || echo "unknown")
+    
+    echo "Network is not active (state: ${net_state:-inactive}). Attempting to start..." >&2
+    
+    # If network is in error state, try to destroy it first
+    if [[ "${net_state}" == "error" ]]; then
+      echo "Network is in error state. Destroying before restart..." >&2
+      virsh_cmd net-destroy default >/dev/null 2>&1 || true
+    fi
+    
+    # Try to start the network
+    if virsh_cmd net-start default >/dev/null 2>&1; then
+      echo "✓ Started default network" >&2
+      net_active=1
+    else
+      # Get error details
+      local start_error
+      start_error=$(virsh_cmd net-start default 2>&1 || true)
+      
       echo "Error: Failed to start libvirt 'default' network." >&2
-      echo "Please run: sudo virsh net-start default" >&2
+      echo "Details: ${start_error}" >&2
+      echo "" >&2
+      echo "Troubleshooting steps:" >&2
+      echo "  1. Check if virbr0 interface exists: ip link show virbr0" >&2
+      echo "  2. Check network XML: sudo virsh net-dumpxml default" >&2
+      echo "  3. Try manually: sudo virsh net-destroy default && sudo virsh net-start default" >&2
+      echo "  4. If persistent, try: sudo virsh net-undefine default && sudo virsh net-define /usr/share/libvirt/networks/default.xml" >&2
       exit 1
     fi
-    echo "✓ Started default network" >&2
+  elif [[ ${net_active} -eq 1 ]]; then
+    # Network is already active, verify bridge exists
+    if ! ip link show virbr0 >/dev/null 2>&1; then
+      echo "Warning: Network is active but virbr0 bridge not found. This may cause connectivity issues." >&2
+    fi
   fi
   
   # Ensure it's set to autostart
-  if ! virsh_cmd net-info default 2>/dev/null | grep -q "Autostart:.*yes"; then
+  if [[ ${net_autostart} -eq 0 ]]; then
     echo "Enabling autostart for libvirt 'default' network..." >&2
     if ! virsh_cmd net-autostart default >/dev/null 2>&1; then
       echo "Warning: Failed to set autostart for default network" >&2
+      echo "You may need to manually enable it: sudo virsh net-autostart default" >&2
     else
       echo "✓ Enabled autostart for default network" >&2
     fi
@@ -64,19 +190,52 @@ ensure_dhcp_reservation() {
   local vm_ip="${effective_cidr%/*}"
   local vm_name="${NAME}"
   
-  # Check if reservation already exists for this MAC address
-  local existing_reservation
-  existing_reservation=$(virsh_cmd net-dumpxml default 2>/dev/null | grep -i "mac='${target_mac}'" || true)
+  # Validate MAC address format
+  if [[ ! "${target_mac}" =~ ^[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}$ ]]; then
+    echo "Warning: Invalid MAC address format: ${target_mac}. Skipping DHCP reservation." >&2
+    return 1
+  fi
   
-  if [[ -n "${existing_reservation}" ]]; then
-    # Check if the existing reservation has the correct IP
-    if echo "${existing_reservation}" | grep -q "ip='${vm_ip}'"; then
-      echo "DHCP reservation already exists for ${target_mac} → ${vm_ip}"
-      return 0
-    else
-      # Remove old reservation with different IP
-      echo "Updating DHCP reservation for ${target_mac}..."
-      virsh_cmd net-update default delete ip-dhcp-host "<host mac='${target_mac}'/>" --live --config 2>/dev/null || true
+  # Check if default network exists and is accessible
+  if ! virsh_cmd net-info default >/dev/null 2>&1; then
+    echo "Warning: Default network not found. Skipping DHCP reservation." >&2
+    echo "The VM will use in-guest static IP configuration via netplan instead." >&2
+    return 1
+  fi
+  
+  # Check if reservation already exists for this MAC address or IP
+  local existing_reservation_by_mac
+  local existing_reservation_by_ip
+  local net_xml
+  net_xml=$(virsh_cmd net-dumpxml default 2>/dev/null || echo "")
+  
+  if [[ -n "${net_xml}" ]]; then
+    existing_reservation_by_mac=$(echo "${net_xml}" | grep -i "mac='${target_mac}'" || true)
+    existing_reservation_by_ip=$(echo "${net_xml}" | grep -i "ip='${vm_ip}'" || true)
+  fi
+  
+  # If reservation exists for this MAC with correct IP, we're done
+  if [[ -n "${existing_reservation_by_mac}" ]] && echo "${existing_reservation_by_mac}" | grep -q "ip='${vm_ip}'"; then
+    echo "DHCP reservation already exists for ${target_mac} → ${vm_ip}"
+    return 0
+  fi
+  
+  # If reservation exists for this MAC but different IP, remove it
+  if [[ -n "${existing_reservation_by_mac}" ]]; then
+    echo "Updating DHCP reservation for ${target_mac} (removing old entry)..."
+    virsh_cmd net-update default delete ip-dhcp-host "<host mac='${target_mac}'/>" --live --config 2>/dev/null || true
+    sleep 0.5  # Give libvirt a moment to process the deletion
+  fi
+  
+  # If reservation exists for this IP but different MAC, remove it (IP conflict)
+  if [[ -n "${existing_reservation_by_ip}" ]] && ! echo "${existing_reservation_by_ip}" | grep -qi "mac='${target_mac}'"; then
+    echo "Updating DHCP reservation: removing existing entry for IP ${vm_ip} (MAC conflict)..."
+    # Extract the MAC from the existing reservation
+    local old_mac
+    old_mac=$(echo "${existing_reservation_by_ip}" | grep -o "mac='[^']*'" | sed "s/mac='//;s/'//" || true)
+    if [[ -n "${old_mac}" ]]; then
+      virsh_cmd net-update default delete ip-dhcp-host "<host mac='${old_mac}'/>" --live --config 2>/dev/null || true
+      sleep 0.5  # Give libvirt a moment to process the deletion
     fi
   fi
   
@@ -84,20 +243,36 @@ ensure_dhcp_reservation() {
   echo "Adding DHCP reservation: ${target_mac} → ${vm_ip}"
   local host_xml="<host mac='${target_mac}' name='${vm_name}' ip='${vm_ip}'/>"
   
-  if virsh_cmd net-update default add ip-dhcp-host "${host_xml}" --live --config 2>/dev/null; then
+  # Try without sudo first
+  local update_output
+  update_output=$(virsh_cmd net-update default add ip-dhcp-host "${host_xml}" --live --config 2>&1) && {
     echo "✓ DHCP reservation added for ${vm_name} (${vm_ip})"
     return 0
-  else
-    # Try with sudo if non-sudo failed
-    if sudo virsh net-update default add ip-dhcp-host "${host_xml}" --live --config 2>/dev/null; then
-      echo "✓ DHCP reservation added for ${vm_name} (${vm_ip})"
-      return 0
-    else
-      echo "Warning: Could not add DHCP reservation. The VM may get a random IP from DHCP pool." >&2
-      echo "Falling back to in-guest static IP configuration via netplan." >&2
+  }
+  
+  # Try with explicit sudo if non-sudo failed
+  update_output=$(sudo virsh -c qemu:///system net-update default add ip-dhcp-host "${host_xml}" --live --config 2>&1) && {
+    echo "✓ DHCP reservation added for ${vm_name} (${vm_ip})"
+    return 0
+  }
+  
+  # If both attempts failed, check if it's because network isn't active
+  local net_info_output
+  if net_info_output=$(virsh_cmd net-info default 2>&1); then
+    if ! echo "${net_info_output}" | grep -q "Active:.*yes"; then
+      echo "Warning: Default network is not active. Skipping DHCP reservation." >&2
+      echo "The VM will use in-guest static IP configuration via netplan instead." >&2
       return 1
     fi
   fi
+  
+  # If network is active but update still failed, provide helpful diagnostics
+  echo "Warning: Could not add DHCP reservation. The VM will use in-guest static IP configuration via netplan." >&2
+  if [[ -n "${update_output}" ]]; then
+    echo "Error details: ${update_output}" >&2
+  fi
+  echo "This is non-fatal - the VM will still work with static IP configuration." >&2
+  return 1
 }
 
 virt_install() {
