@@ -1,15 +1,9 @@
 #!/usr/bin/env bash
 # Package installation functions
 
-# Smart virsh wrapper: uses sudo only if user is not in libvirt group
-# Always connects to qemu:///system for persistence
-virsh_cmd() {
-  if groups | grep -qw libvirt 2>/dev/null; then
-    virsh -c qemu:///system "$@"
-  else
-    sudo virsh -c qemu:///system "$@"
-  fi
-}
+# Source common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
 
 cmd_pkg_install() {
   # Custom arg parsing for pkg-install (avoid global parse_args which treats

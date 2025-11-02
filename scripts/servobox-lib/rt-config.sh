@@ -1,15 +1,9 @@
 #!/usr/bin/env bash
 # Real-time configuration functions
 
-# Smart virsh wrapper: uses sudo only if user is not in libvirt group
-# Always connects to qemu:///system for persistence
-virsh_cmd() {
-  if groups | grep -qw libvirt 2>/dev/null; then
-    virsh -c qemu:///system "$@"
-  else
-    sudo virsh -c qemu:///system "$@"
-  fi
-}
+# Source common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
 
 # Calculate IRQBALANCE_BANNED_CPUS mask for host RT isolation
 cmd_irqbalance_mask() {

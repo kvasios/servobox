@@ -434,6 +434,22 @@ install_single_package() {
   echo "   This may take several minutes (especially for packages that compile from source)"
   echo "   virt-customize buffers output - you'll see results when complete"
   echo ""
+  
+  # Check if we need sudo for libguestfs (test kernel readability)
+  local need_sudo=0
+  if [[ ! -r /boot/vmlinuz-$(uname -r) ]]; then
+    # Kernel not readable - we'll need sudo for virt-customize
+    need_sudo=1
+    # Ensure sudo credentials are cached upfront (better UX than failing and retrying)
+    if ! sudo -v 2>/dev/null; then
+      echo "⚠️  virt-customize requires sudo access to read kernel files" >&2
+      echo "    (Fresh Ubuntu installations restrict /boot/vmlinuz-* to root)" >&2
+      if ! sudo -v; then
+        error "Failed to obtain sudo credentials"
+      fi
+    fi
+  fi
+  
   # Environment defaults for libguestfs
   export LIBGUESTFS_BACKEND=${LIBGUESTFS_BACKEND:-direct}
   export LIBGUESTFS_MEMSIZE=${LIBGUESTFS_MEMSIZE:-6144}
@@ -461,17 +477,9 @@ install_single_package() {
     log_verbose "  --run-command 'PACKAGE_NAME=$package ... bash /tmp/${script_base}'"
     
     # Run with output visible (add -v to virt-customize and use bash -x for script tracing)
-    if virt-customize -v -a "$image" \
-        --memsize ${LIBGUESTFS_MEMSIZE} \
-        --copy-in "$recipe_dir:/tmp/" \
-        --copy-in "$helpers_script:/tmp/" \
-        --run-command "chmod +x /tmp/${recipe_name}/${script_base}" \
-        --run-command "PACKAGE_NAME='$package' PACKAGE_VERSION='${version:-}' PACKAGE_HELPERS='/tmp/pkg-helpers.sh' RECIPE_DIR='/tmp/${recipe_name}' bash -x /tmp/${recipe_name}/${script_base}" \
-        --run-command "mkdir -p /var/lib/servobox && echo '$package' >> /var/lib/servobox/installed-packages" \
-        --run-command "rm -rf /tmp/${recipe_name} /tmp/pkg-helpers.sh"; then
-      :
-    else
-      if sudo -n env LIBGUESTFS_BACKEND="${LIBGUESTFS_BACKEND}" LIBGUESTFS_MEMSIZE="${LIBGUESTFS_MEMSIZE}" virt-customize -v -a "$image" \
+    # Use sudo if we determined we need it earlier
+    if [[ $need_sudo -eq 1 ]]; then
+      if ! sudo env LIBGUESTFS_BACKEND="${LIBGUESTFS_BACKEND}" LIBGUESTFS_MEMSIZE="${LIBGUESTFS_MEMSIZE}" virt-customize -v -a "$image" \
           --memsize ${LIBGUESTFS_MEMSIZE} \
           --copy-in "$recipe_dir:/tmp/" \
           --copy-in "$helpers_script:/tmp/" \
@@ -479,8 +487,17 @@ install_single_package() {
           --run-command "PACKAGE_NAME='$package' PACKAGE_VERSION='${version:-}' PACKAGE_HELPERS='/tmp/pkg-helpers.sh' RECIPE_DIR='/tmp/${recipe_name}' bash -x /tmp/${recipe_name}/${script_base}" \
           --run-command "mkdir -p /var/lib/servobox && echo '$package' >> /var/lib/servobox/installed-packages" \
           --run-command "rm -rf /tmp/${recipe_name} /tmp/pkg-helpers.sh"; then
-        :
-      else
+        error "virt-customize failed. Ensure libguestfs is installed and /dev/kvm is accessible."
+      fi
+    else
+      if ! virt-customize -v -a "$image" \
+          --memsize ${LIBGUESTFS_MEMSIZE} \
+          --copy-in "$recipe_dir:/tmp/" \
+          --copy-in "$helpers_script:/tmp/" \
+          --run-command "chmod +x /tmp/${recipe_name}/${script_base}" \
+          --run-command "PACKAGE_NAME='$package' PACKAGE_VERSION='${version:-}' PACKAGE_HELPERS='/tmp/pkg-helpers.sh' RECIPE_DIR='/tmp/${recipe_name}' bash -x /tmp/${recipe_name}/${script_base}" \
+          --run-command "mkdir -p /var/lib/servobox && echo '$package' >> /var/lib/servobox/installed-packages" \
+          --run-command "rm -rf /tmp/${recipe_name} /tmp/pkg-helpers.sh"; then
         error "virt-customize failed. Ensure libguestfs is installed and /dev/kvm is accessible."
       fi
     fi
@@ -490,14 +507,27 @@ install_single_package() {
     
     # Start virt-customize in background with output to temp file
     TMP_OUT=$(mktemp)
-    virt-customize -a "$image" \
-        --memsize ${LIBGUESTFS_MEMSIZE} \
-        --copy-in "$recipe_dir:/tmp/" \
-        --copy-in "$helpers_script:/tmp/" \
-        --run-command "chmod +x /tmp/${recipe_name}/${script_base}" \
-        --run-command "PACKAGE_NAME='$package' PACKAGE_VERSION='${version:-}' PACKAGE_HELPERS='/tmp/pkg-helpers.sh' RECIPE_DIR='/tmp/${recipe_name}' bash /tmp/${recipe_name}/${script_base}" \
-        --run-command "mkdir -p /var/lib/servobox && echo '$package' >> /var/lib/servobox/installed-packages" \
-        --run-command "rm -rf /tmp/${recipe_name} /tmp/pkg-helpers.sh" >"${TMP_OUT}" 2>&1 &
+    
+    # Use sudo if we determined we need it earlier
+    if [[ $need_sudo -eq 1 ]]; then
+      sudo env LIBGUESTFS_BACKEND="${LIBGUESTFS_BACKEND}" LIBGUESTFS_MEMSIZE="${LIBGUESTFS_MEMSIZE}" virt-customize -a "$image" \
+          --memsize ${LIBGUESTFS_MEMSIZE} \
+          --copy-in "$recipe_dir:/tmp/" \
+          --copy-in "$helpers_script:/tmp/" \
+          --run-command "chmod +x /tmp/${recipe_name}/${script_base}" \
+          --run-command "PACKAGE_NAME='$package' PACKAGE_VERSION='${version:-}' PACKAGE_HELPERS='/tmp/pkg-helpers.sh' RECIPE_DIR='/tmp/${recipe_name}' bash /tmp/${recipe_name}/${script_base}" \
+          --run-command "mkdir -p /var/lib/servobox && echo '$package' >> /var/lib/servobox/installed-packages" \
+          --run-command "rm -rf /tmp/${recipe_name} /tmp/pkg-helpers.sh" >"${TMP_OUT}" 2>&1 &
+    else
+      virt-customize -a "$image" \
+          --memsize ${LIBGUESTFS_MEMSIZE} \
+          --copy-in "$recipe_dir:/tmp/" \
+          --copy-in "$helpers_script:/tmp/" \
+          --run-command "chmod +x /tmp/${recipe_name}/${script_base}" \
+          --run-command "PACKAGE_NAME='$package' PACKAGE_VERSION='${version:-}' PACKAGE_HELPERS='/tmp/pkg-helpers.sh' RECIPE_DIR='/tmp/${recipe_name}' bash /tmp/${recipe_name}/${script_base}" \
+          --run-command "mkdir -p /var/lib/servobox && echo '$package' >> /var/lib/servobox/installed-packages" \
+          --run-command "rm -rf /tmp/${recipe_name} /tmp/pkg-helpers.sh" >"${TMP_OUT}" 2>&1 &
+    fi
     VC_PID=$!
     
     # Show progress while it runs
@@ -518,37 +548,10 @@ install_single_package() {
     echo ""
     cat "${TMP_OUT}"
     echo ""
+    rm -f "${TMP_OUT}"
     
     if [ $VC_EXIT -ne 0 ]; then
-      rm -f "${TMP_OUT}"
-      log "First attempt failed with exit code $VC_EXIT"
-      
-      # Try with sudo if permissions might be the issue
-      echo ""
-      echo "⚠️  Retrying with sudo (may require password)..."
-      echo ""
-      
-      TMP_OUT_SUDO=$(mktemp)
-      if sudo -n env LIBGUESTFS_BACKEND="${LIBGUESTFS_BACKEND}" LIBGUESTFS_MEMSIZE="${LIBGUESTFS_MEMSIZE}" virt-customize -a "$image" \
-          --memsize ${LIBGUESTFS_MEMSIZE} \
-          --copy-in "$recipe_dir:/tmp/" \
-          --copy-in "$helpers_script:/tmp/" \
-          --run-command "chmod +x /tmp/${recipe_name}/${script_base}" \
-          --run-command "PACKAGE_NAME='$package' PACKAGE_VERSION='${version:-}' PACKAGE_HELPERS='/tmp/pkg-helpers.sh' RECIPE_DIR='/tmp/${recipe_name}' bash /tmp/${recipe_name}/${script_base}" \
-          --run-command "mkdir -p /var/lib/servobox && echo '$package' >> /var/lib/servobox/installed-packages" \
-          --run-command "rm -rf /tmp/${recipe_name} /tmp/pkg-helpers.sh" >"${TMP_OUT_SUDO}" 2>&1; then
-        echo ""
-        cat "${TMP_OUT_SUDO}"
-        rm -f "${TMP_OUT_SUDO}"
-      else
-        echo ""
-        cat "${TMP_OUT_SUDO}"
-        rm -f "${TMP_OUT_SUDO}"
-        echo ""
-        error "Package installation failed even with sudo. See error output above. If this is a permissions issue, try: sudo usermod -aG kvm,libvirt \$USER && newgrp kvm"
-      fi
-    else
-      rm -f "${TMP_OUT}"
+      error "Package installation failed with exit code $VC_EXIT. See error output above."
     fi
   fi
   

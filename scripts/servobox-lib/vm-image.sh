@@ -289,7 +289,7 @@ make_vm_storage() {
   if [[ ! -d "${VM_DIR}" ]]; then
     # Try to create directory without sudo first
     if ! mkdir -p "${VM_DIR}" 2>/dev/null; then 
-      # If that fails, try with sudo, but handle the case where sudo might fail
+      # If that fails, try with sudo
       echo "Creating VM directory ${VM_DIR} (requires sudo privileges)..."
       if ! sudo mkdir -p "${VM_DIR}" 2>/dev/null; then
         echo "Error: Failed to create VM directory ${VM_DIR}" >&2
@@ -298,20 +298,26 @@ make_vm_storage() {
       fi
     fi
     
-    # Set permissions - these are warnings if they fail, not fatal errors
+    # Set permissions - make directories accessible and writable by kvm group
+    # This is critical for allowing users to create files before group membership is active
     echo "Setting up directory permissions..."
-    sudo chmod 0755 "${LIBVIRT_IMAGES_BASE}" >/dev/null 2>&1 || echo "Warning: Could not set permissions on ${LIBVIRT_IMAGES_BASE}" >&2
-    sudo chmod 0755 "${LIBVIRT_IMAGES_BASE}/servobox" >/dev/null 2>&1 || echo "Warning: Could not set permissions on ${LIBVIRT_IMAGES_BASE}/servobox" >&2
-    sudo chmod 0755 "${VM_DIR}" >/dev/null 2>&1 || echo "Warning: Could not set permissions on ${VM_DIR}" >&2
+    sudo chmod 0755 "${LIBVIRT_IMAGES_BASE}" 2>/dev/null || true
+    sudo chmod 0755 "${LIBVIRT_IMAGES_BASE}/servobox" 2>/dev/null || true
     
-    # Make directory group-owned by kvm and setgid so new files inherit group
-    sudo chgrp kvm "${VM_DIR}" >/dev/null 2>&1 || echo "Warning: Could not set kvm group on ${VM_DIR}" >&2
-    sudo chmod 2775 "${VM_DIR}" >/dev/null 2>&1 || echo "Warning: Could not set setgid on ${VM_DIR}" >&2
+    # Make directory group-owned by kvm and setgid so new files inherit group  
+    sudo chgrp kvm "${VM_DIR}" 2>/dev/null || true
+    sudo chmod 2775 "${VM_DIR}" 2>/dev/null || true
+    
+    # Also make the current user owner so they can write even before group membership is active
+    sudo chown "$USER:kvm" "${VM_DIR}" 2>/dev/null || true
     
     # If ACLs are available, grant kvm group rwx and set default ACLs
     if command -v setfacl >/dev/null 2>&1; then
-      sudo setfacl -m g:kvm:rwx "${VM_DIR}" >/dev/null 2>&1 || echo "Warning: Could not set ACL on ${VM_DIR}" >&2
-      sudo setfacl -d -m g:kvm:rwx "${VM_DIR}" >/dev/null 2>&1 || echo "Warning: Could not set default ACL on ${VM_DIR}" >&2
+      sudo setfacl -m g:kvm:rwx "${VM_DIR}" 2>/dev/null || true
+      sudo setfacl -d -m g:kvm:rwx "${VM_DIR}" 2>/dev/null || true
+      # Also grant current user full access via ACL
+      sudo setfacl -m u:$USER:rwx "${VM_DIR}" 2>/dev/null || true
+      sudo setfacl -d -m u:$USER:rwx "${VM_DIR}" 2>/dev/null || true
     fi
   fi
   if [[ ! -f "${DISK_QCOW}" ]]; then

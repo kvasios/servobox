@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 (2025-11-02)
+
+### Fixed
+- **Package Tracking Cleanup**: Fixed critical issue where `servobox destroy` did not clear the package tracking file (`~/.local/share/servobox/tracking/<vm-name>.servobox-packages`). This caused newly created VMs to incorrectly show packages as already installed even though they were not present in the fresh VM. Now properly removes tracking file during VM destruction.
+- **Package Install Silent Failure**: Fixed issue where `servobox pkg-install` would fail silently on fresh Ubuntu installations due to libguestfs permission errors (cannot read `/boot/vmlinuz-*`). Now detects kernel readability upfront and prompts for sudo credentials before starting installation, providing clear feedback instead of failing silently. This resolves the mystery of why installations only worked with `-v` (verbose) flag.
+
 ## 0.1.1 (2025-11-01)
 
 ### Fixed

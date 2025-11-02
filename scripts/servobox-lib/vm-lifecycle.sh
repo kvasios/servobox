@@ -1,15 +1,9 @@
 #!/usr/bin/env bash
 # VM lifecycle management functions
 
-# Smart virsh wrapper: uses sudo only if user is not in libvirt group
-# Always connects to qemu:///system for persistence
-virsh_cmd() {
-  if groups | grep -qw libvirt 2>/dev/null; then
-    virsh -c qemu:///system "$@"
-  else
-    sudo virsh -c qemu:///system "$@"
-  fi
-}
+# Source common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
 
 # Ensure libvirt's 'default' network is active (required for NAT networking)
 ensure_default_network() {
@@ -102,7 +96,8 @@ virt_install() {
   OSINFO_OPT="--osinfo ${OSINFO_OPT_VAL}"
 
   if [[ "${DEBUG}" -eq 1 ]]; then set -x; fi
-  if groups | grep -qw libvirt 2>/dev/null; then
+  # Test if we can use virt-install without sudo
+  if virsh -c qemu:///system version >/dev/null 2>&1; then
     virt-install \
       --connect qemu:///system \
       --name "${NAME}" \
@@ -166,7 +161,8 @@ virt_define() {
   OSINFO_OPT="--osinfo ${OSINFO_OPT_VAL}"
 
   if [[ "${DEBUG}" -eq 1 ]]; then set -x; fi
-  if groups | grep -qw libvirt 2>/dev/null; then
+  # Test if we can use virsh without sudo
+  if virsh -c qemu:///system version >/dev/null 2>&1; then
     if ! virt-install \
         --connect qemu:///system \
         --name "${NAME}" \
@@ -651,6 +647,16 @@ cmd_destroy() {
         echo "Error: Failed to remove VM directory ${VM_DIR}" >&2
         exit 1
       fi
+    fi
+  fi
+  
+  # Clean up package tracking file
+  local tracking_file="${HOME}/.local/share/servobox/tracking/${NAME}.servobox-packages"
+  if [[ -f "${tracking_file}" ]]; then
+    if rm -f "${tracking_file}" 2>/dev/null; then
+      echo "✓ Removed package tracking file"
+    else
+      echo "Warning: Could not remove package tracking file: ${tracking_file}" >&2
     fi
   fi
   
