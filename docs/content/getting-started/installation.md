@@ -138,15 +138,6 @@ You should see the ServoBox help message with available commands.
 
 ## Troubleshooting
 
-### "Missing dependency" error
-
-Install missing packages:
-
-```console
-sudo apt install -y qemu-kvm libvirt-daemon-system virtinst \
-    cloud-image-utils wget xz-utils
-```
-
 ### Permission denied accessing `/var/lib/libvirt`
 
 First, check if you're already in the required groups:

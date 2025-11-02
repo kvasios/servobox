@@ -23,7 +23,7 @@ ServoBox gives you Ubuntu 22.04 VMs with PREEMPT_RT kernel, automatic CPU pinnin
 
 ## Installation
 
-**Install via APT (Recommended)**
+**Install via APT**
 
 ```bash
 # Add the ServoBox APT repository using wget (pre-installed on Ubuntu)
