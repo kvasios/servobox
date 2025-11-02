@@ -1,3 +1,17 @@
+servobox (0.1.2) unstable; urgency=medium
+
+  * Fix critical VM detection issue after closing/reopening terminal
+  * Fix "Permission denied" errors when creating seed.iso in new terminals
+  * Replace unreliable group membership check with actual libvirt connectivity test
+  * Make current user owner of VM_DIR for immediate write access
+  * Add ACLs for both user and kvm group on VM directories
+  * Create common.sh with shared virsh_cmd() function to eliminate code duplication
+  * Fix package tracking cleanup - servobox destroy now removes tracking files
+  * Fix silent pkg-install failures on fresh installs (libguestfs permissions)
+  * Detect kernel readability upfront and prompt for sudo before installation
+
+ -- Konstantinos Vasios <konstantinos.vasios@gmail.com>  Sat, 02 Nov 2025 18:00:00 +0000
+
 servobox (0.1.1) unstable; urgency=medium
 
   * Fix servobox init on fresh Ubuntu installations (group membership issue)
