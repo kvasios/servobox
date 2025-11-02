@@ -75,17 +75,51 @@ sudo dpkg -i ../servobox_*.deb
 !!! warning "Required Step"
     This step is **required** for real-time performance. Without CPU isolation, you will experience latency spikes.
 
+### Check Your CPU Count First
+
+**IMPORTANT:** Before configuring CPU isolation, check how many CPU cores your system has:
+
+```console
+nproc
+# Example output: 8 (means you have 8 CPU cores: 0-7)
+```
+
+!!! danger "Critical: Adjust for Your System"
+    **Do NOT blindly copy the example configuration!** Using incorrect CPU ranges can severely degrade system performance or make your system nearly unusable.
+    
+    **Choose based on YOUR system's CPU count:**
+    
+    - **2-4 cores (0-3)**: ⚠️ **NOT RECOMMENDED** - Use `isolcpus=1` (isolate only 1 CPU). Limited RT performance.
+    - **6 cores (0-5)**: Use `isolcpus=1-3` - Safe, leaves CPUs 0, 4-5 for host OS
+    - **8 cores (0-7)**: Use `isolcpus=1-4` - Good balance (example shown below)
+    - **12+ cores**: Use `isolcpus=1-6` or higher - Excellent RT performance
+    
+    **Golden Rule:** Always leave **at least 2 CPUs** (including CPU 0) for the host OS!
+
+### Edit GRUB Configuration
+
 Edit your GRUB configuration:
 
 ```console
 sudo vim /etc/default/grub
 ```
 
-Modify or add the `GRUB_CMDLINE_LINUX_DEFAULT` line (adjust CPU range based on your system):
+Modify or add the `GRUB_CMDLINE_LINUX_DEFAULT` line. **Example for an 8-core system:**
 
 ```text
 GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0"
 ```
+
+!!! example "Configuration Examples by CPU Count"
+    **6-core system:**
+    ```
+    GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-3 nohz_full=1-3 rcu_nocbs=1-3 irqaffinity=0"
+    ```
+    
+    **12-core system:**
+    ```
+    GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-6 nohz_full=1-6 rcu_nocbs=1-6 irqaffinity=0"
+    ```
 
 ### Understanding the Parameters
 
@@ -93,10 +127,6 @@ GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_fu
 - `nohz_full=1-4` - Disable timer ticks on isolated CPUs
 - `rcu_nocbs=1-4` - Move RCU callbacks off isolated CPUs
 - `irqaffinity=0` - Pin IRQs to CPU 0
-
-!!! tip "Choosing CPU Range"
-    On a 6-core system, `isolcpus=1-4` reserves CPUs 1-4 for RT, leaving CPU 0 and 5 for the host.
-    Always leave at least 1-2 CPUs for host operations.
 
 Apply the configuration and reboot:
 

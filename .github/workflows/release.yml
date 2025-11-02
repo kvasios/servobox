@@ -90,23 +90,24 @@ jobs:
           # Install required tools for APT repository management
           sudo apt-get install -y dpkg-dev apt-utils gnupg
           
+          # Configure git
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Fetch and checkout main branch FIRST (we're in detached HEAD from tag checkout)
+          git fetch origin main
+          git checkout main
+          
           # Ensure GPG secret key exists in the runner keyring (generate if missing)
           if ! gpg --list-secret-keys --keyid-format LONG | grep -q "servobox-apt"; then
             echo "Creating GPG key for APT repository..."
             ./apt-repo/setup-apt-repo.sh
           fi
           
-          # Use the add-package-to-repo.sh script
+          # Use the add-package-to-repo.sh script (now we're on main branch)
           ./apt-repo/add-package-to-repo.sh ../*.deb
           
           # Commit and push changes
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          
-          # Fetch and checkout main branch (we're in detached HEAD from tag checkout)
-          git fetch origin main:main
-          git checkout main
-          
           git add apt-repo/
           git commit -m "Update APT repository for ${{ steps.meta.outputs.tag }}" || echo "No changes to commit"
           git push origin main

@@ -29,10 +29,13 @@ sudo apt install servobox
 ### 2. Configure Host (Required for RT)
 
 ```console
+# IMPORTANT: Check your CPU count first
+nproc  # You need 6+ cores for safe RT isolation
+
 # Edit GRUB for CPU isolation
 sudo vim /etc/default/grub
 ```
-Modify or add the `GRUB_CMDLINE_LINUX_DEFAULT` line (adjust CPU range based on your system):
+⚠️ **WARNING:** Adjust CPU range based on YOUR system! The example shows 8-core config.
 
 ```text
 GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0"
@@ -42,6 +45,8 @@ GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_fu
 sudo update-grub
 sudo reboot
 ```
+
+See [Installation Guide](getting-started/installation.md#step-2-configure-host-for-rt-performance) for CPU-specific examples.
 
 ### 3. Create Your First RT VM
 
@@ -63,13 +68,16 @@ servobox start
 
 # Test RT performance
 servobox test --duration 30
-
-# Install robotics software
-servobox pkg-install libfranka-gen1
-servobox ssh
 ```
-
 **That's it!** You now have a real-time, low-latency VM ready for control.
+
+### 5. Install & run your favorite stack!
+
+```console
+# Install robotics software
+servobox pkg-install deoxys-control
+servobox run deoxys-control
+```
 
 ---
 

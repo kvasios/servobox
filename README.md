@@ -66,8 +66,17 @@ servobox network-setup  # Interactive wizard shows available NICs with IPs
 **Configure host for RT performance** (required for rt - do this once)
 
 ```bash
-# Configure CPU isolation in GRUB (adjust CPU range for your system)
-# Edit /etc/default/grub and set:
+# IMPORTANT: First check your CPU count
+nproc  # Must have 6+ cores for safe RT isolation
+
+# Configure CPU isolation in GRUB
+# ⚠️  WARNING: Adjust CPU range (1-4) based on YOUR system's CPU count!
+# - 6 cores: use isolcpus=1-3
+# - 8 cores: use isolcpus=1-4 (shown below)
+# - 12+ cores: use isolcpus=1-6 or higher
+# Always leave at least 2 CPUs for the host OS!
+
+# Edit /etc/default/grub and set (example for 8-core system):
 GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0"
 
 sudo update-grub
