@@ -9,37 +9,37 @@ Version: 1.0
 Architectures: amd64
 Components: main
 Description: ServoBox - One-command launcher for real-time VMs
-Date: Sun, 02 Nov 2025 13:34:39 +0000
+Date: Sun, 02 Nov 2025 13:43:57 +0000
 MD5Sum:
- 427781127eb299a413e94a7ee0798e68              231 Release
- f5e2abac2855df3c4601704e3feff76d             2055 main/binary-amd64/Packages
- 131a9db8b0c4f7b2bfec3484ba3537cf              827 main/binary-amd64/Packages.gz
+ 21e8f6cfaf1850c38f9eca7432e5f37e              231 Release
+ e21f36953cc1de383287988ed6978cea             2055 main/binary-amd64/Packages
+ 100cc3155530425a41c121442674445d              826 main/binary-amd64/Packages.gz
 SHA1:
- 8736e4d5030eb272643329e389e9a0a3fd377717              231 Release
- 93d72d69242f8280269c5eb4407a4d43cd96b2b8             2055 main/binary-amd64/Packages
- 68de7faba4a3d74323b853f337be7079415a5076              827 main/binary-amd64/Packages.gz
+ df0a3f5e81f66c232cebf072e3babc2509bda30e              231 Release
+ 1beee4350061951158d4674571c7c0630eff11cb             2055 main/binary-amd64/Packages
+ 5038011019bb3dae63b1e806bd0023d25620a7bd              826 main/binary-amd64/Packages.gz
 SHA256:
- d157baa6a648f7b8540d94df54fcc1f9a006b250b827b028a12ae4b7ffbae20c              231 Release
- b51f6e05a1e75d9e9c8ec92de41e2930b2a065efe33be5eb4446c4929ca4a921             2055 main/binary-amd64/Packages
- e9cd3432f4aebfae8f0aced8c3e631de8ac7746de1eff0e12e26bc1ebfb3074d              827 main/binary-amd64/Packages.gz
+ 9af6835a80d216fcc388d568a2c0fa3899878f403c2995cfab43cff430ca56d1              231 Release
+ 36ceb3ed09af2f35048c850c1260c93d3d74f5f128e1bf032b94fc740ae0c717             2055 main/binary-amd64/Packages
+ 68ad6accb8f3e972e4d9e598fb57619762298ab0a8167bc5f93b7de693bf198e              826 main/binary-amd64/Packages.gz
 SHA512:
- ddda77c663e6bb9d01fba24effabf15c800a6c904de88573d107710e9623ac78e952f711486ccb2c647cabc4f7baf913d5b0f2a144a96613c937bfc787454732              231 Release
- 3309af83d3e47ed92cc10fac692ac4fa5b0aae2b76d7586f8b1de2c892a29d00bc6555efc718cec9cfb2aedf353b9704e94f183c98e044f24eb8d05b6c537b35             2055 main/binary-amd64/Packages
- dcb2211f02faffe86c4167baa816afa21cdbbff25075da67200ff1de749376ff5fc35eb4d1a1e43230a4031d18793d6d70204b7298075e8d1d08fcd9ee5a96f5              827 main/binary-amd64/Packages.gz
+ fe7a4ff81f55613833485986a3e1c54a2ad4b6f1ad140743c7530ab1b30a5d531158e41252d6c97ccb600701d10567170d1d81088b9710df2b324c1859457da8              231 Release
+ 705cbd7b5dd329371ed19fbafb1dc787fa80a5e684a755286f231ee32385e5afbc5d2f2bead20bd21600455d0449d8e6eae0c6a7d86d4365ae26e49e616abe9a             2055 main/binary-amd64/Packages
+ 54699b8c23f3ba35a64d002c23270d12fb153d09bb51577be7531d193eed65ac2423646404e47036569e1eb9e1196d5a2ddfc40cd8f0bcc63adb17b16c1a316b              826 main/binary-amd64/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iQJaBAEBCgBEFiEERrin7B44FURFpb1WvMhFo7gL7O0FAmkHXe8mHHNlcnZvYm94
-LWFwdEB1c2Vycy5ub3JlcGx5LmdpdGh1Yi5jb20ACgkQvMhFo7gL7O00eQ//T0HO
-KkAHcmv7uzBuyJLIQ72emAocDDbICHVVKxi/AKDyflIOBn7xckH5j+CuFTxXwAgt
-hyO56PcyAMkdT4PiVumupEgl//BxIP3lLXzrM6WQRUlGsdSNpLKeU/dKdsJx8lwJ
-DJ3jyO0unLUdG8T2NHLzROVF2NnlFS1UXJP4JPFo3C9p3jGFQiwjEilODm5oerPd
-5UzxzoJOavKCEjYoE/cl4cT3wEeHOcUY/jlT+xKLbdYix4eRUhqCY10VRPjTkdsx
-UxbJPyBnDVcykTMjDCfLW1WVEgmK+roUAXvemnTINUkAjXz2aXD6py0HVFCn+1cI
-jVW9XAE4E8IK9KvLs3hIneqYRHFE3RdMnnncshO2n07cWESomCblQyNzJOhWCfr1
-Rm55pTuYhJN1qdxfoGCuWmsjHB8tXTPTGEZh8O9SDYhzoOYa2ZzGz0C+kphAG4Wi
-dQppUAwX1jUg4LI+yL4d5QWjLspbf4PqAYiuiglEmt3u+TYRrN/eQOVWfHgtNUDl
-zD6hNrZTK6UqV8nRqCxXu9dq2INxNlzdEBpvdQaiEz93ArYqaxPUmHl62TLg3L56
-EIvodVl2t/wjila3sXCStzI6Crw80ZlRZWKGDuIl7KVU3XzCqIWWTmgSGdsmB+ve
-Tu3Mk/K8iLQjeZIvDWJIJoliQzxyLmJjSCljWJA=
-=uaJs
+iQJaBAEBCgBEFiEEvM5p3yqEz7r7ITN1ujRyVqV8spwFAmkHYB0mHHNlcnZvYm94
+LWFwdEB1c2Vycy5ub3JlcGx5LmdpdGh1Yi5jb20ACgkQujRyVqV8spxyug//XzBq
+Auujx4iTV3dR/pEsnVNoptxxoQXoV5SV74FwcBJ4Sp0jGDMkbYm+8GCaYjLyHhyq
+SQUXAmstoY4BE7XmJ0ApKhR4vPjGaa/6+afr5svxeabY+MAFlD3mYdgR2/1LqK1F
+WrIinggXWo4rPfKncnA9J0/qRBB5mO/Jsnb+USfmIo0J/ACWIYKifnD1d0ABxTPS
+NJ+ANJzxEd8jGnHUIkZW0ORUd2vm/PZ+O0d5RwtvkF9vZawCkvTp6RH73dYHAfsS
+0A0k4C2ZDhiAVCRDUMQikzLylPnh1oGoF20KGf3+DDcXSf/lpVU7C+Tb10NUra3W
+qxBfK47TrkxfOwch8gDv/EM59I8LEgAS3n8458O3/N2YnNp17RC1oFibrf0RGJX0
+KZalYCYAqZ2wIQ8jrnU5EcLQTZp3UCTLAFdGIalEz39tIqKnjJND7/SpkgJCGxtA
+kMHnywnv5QQRxSQQiKX/8BvIvLWf4FLTvm/LTvOJBpLrSHwjKfZwDsCmDgZN7/sY
+lpeZ1omM4hLmwUgdICgb9ii1o9V7rO2sdyz2eWnzRSbh17xeJuAmgDjkAb2i86VV
+oEZ2Qchnnu3S2f66rX7KapVnHCJGS6jWv3DInpgi/dS9HuOg24r6pcupQ+EaeuAM
+xG/uuyibE22RW7yDR9iHB4MMyIHV+gw6d7FllsM=
+=pQth
 -----END PGP SIGNATURE-----
