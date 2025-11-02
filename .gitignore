@@ -11,8 +11,9 @@ artifacts
 *.zip
 *.7z
 
-# Exception: Allow .deb files in apt-repo for GitHub Pages distribution
+# Exception: Allow .deb and Packages.gz files in apt-repo for GitHub Pages distribution
 !apt-repo/**/*.deb
+!apt-repo/**/Packages.gz
 
 # VM images
 *.qcow2

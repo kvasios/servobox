@@ -20,8 +20,11 @@ This guide walks you through installing ServoBox and configuring your host syste
 Add the ServoBox APT repository and install:
 
 ```console
-# Add the ServoBox APT repository
-curl -sSL https://www.servobox.dev/apt-repo/servobox-apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/servobox-apt-keyring.gpg
+# Add the ServoBox APT repository using wget (pre-installed on Ubuntu)
+wget -qO- https://www.servobox.dev/apt-repo/servobox-apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/servobox-apt-keyring.gpg
+
+# Or if you prefer curl (requires: sudo apt install curl):
+# curl -sSL https://www.servobox.dev/apt-repo/servobox-apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/servobox-apt-keyring.gpg
 
 # Add the repository to your sources list
 echo "deb [signed-by=/usr/share/keyrings/servobox-apt-keyring.gpg] https://www.servobox.dev/apt-repo/ stable main" | sudo tee /etc/apt/sources.list.d/servobox.list

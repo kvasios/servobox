@@ -31,8 +31,11 @@ apt-repo/
 Add the repository to your system:
 
 ```bash
-# Add the GPG key
-curl -sSL https://kvasios.github.io/servobox/apt-repo/servobox-apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/servobox-apt-keyring.gpg
+# Add the GPG key using wget (pre-installed on Ubuntu)
+wget -qO- https://kvasios.github.io/servobox/apt-repo/servobox-apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/servobox-apt-keyring.gpg
+
+# Or if you prefer curl:
+# curl -sSL https://kvasios.github.io/servobox/apt-repo/servobox-apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/servobox-apt-keyring.gpg
 
 # Add the repository
 echo "deb [signed-by=/usr/share/keyrings/servobox-apt-keyring.gpg] https://kvasios.github.io/servobox/apt-repo/ stable main" | sudo tee /etc/apt/sources.list.d/servobox.list
