@@ -27,8 +27,15 @@ sudo apt install servobox
 ```
 
 ### 2. Configure Host (Required for RT)
-⚠️ **WARNING:** Check your CPU count first
-nproc  # You need 6+, ideally 8+ cores for safe RT isolation
+
+
+```console
+# ⚠️ **WARNING:** Check your CPU count first with:
+nproc  
+
+#You need 6+, ideally 8+ cores
+```
+
 
 ```console
 # Edit GRUB for CPU isolation
