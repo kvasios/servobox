@@ -28,10 +28,10 @@ Depends: bash, coreutils, grep, sed, iproute2, net-tools, wget, xz-utils, qemu-k
 Recommends: sshpass, osinfo-db, bridge-utils, ethtool
 Suggests: virt-viewer
 Filename: dists/stable/main/binary-amd64/servobox_0.1.1_amd64.deb
-Size: 66318
-MD5sum: 0c32eddd08b5235a9d0dee8e6e20ffc6
-SHA1: e758e643b8fe9ee4e70b09c8727a4479e15ffb2a
-SHA256: 78ec3929bbea3db6e63a52517f1e2bb3383c46fa992ebf7245abffe59b054558
+Size: 66554
+MD5sum: 63499644a3d6e9c28d2f857c6d27f211
+SHA1: b49d8f11a4c1954883a368485329dcff5ea42913
+SHA256: e7a8048d1cb05230630c1f4005d7c4f4c8cce8d2e8bba048c882ad878a6827c5
 Section: utils
 Priority: optional
 Description: One-command launcher for real-time VMs (Ubuntu 22.04 PREEMPT_RT)
