@@ -6,11 +6,11 @@ This guide walks you through installing ServoBox and configuring your host syste
 
 ### System Requirements
 
-- **Operating System**: Ubuntu 20.04 or newer (host)
-- **CPU**: 4+ cores (minimum 2 for VM + 1 for host)
-- **Memory**: 8GB+ RAM
-- **Disk Space**: 40GB+ free (the servobox default - can be set to be less)
-- **Virtualization**: CPU with Intel VT-x or AMD-V support
+- **OS**: Ubuntu 20.04 or newer (host) (tested with 22.04)
+- **CPU**: 6+, ideally 8+ cores (4 cores for VM)  
+- **Memory**: 8GB+, ideally 16GB RAM
+- **Disk**: 40GB+ free space (default VM size, can be configured for less)
+- **Virtualization**: KVM/QEMU support (Intel VT-x or AMD-V)
 
 
 ## Step 1: Install ServoBox
@@ -22,9 +22,6 @@ Add the ServoBox APT repository and install:
 ```console
 # Add the ServoBox APT repository using wget (pre-installed on Ubuntu)
 wget -qO- https://www.servobox.dev/apt-repo/servobox-apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/servobox-apt-keyring.gpg
-
-# Or if you prefer curl (requires: sudo apt install curl):
-# curl -sSL https://www.servobox.dev/apt-repo/servobox-apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/servobox-apt-keyring.gpg
 
 # Add the repository to your sources list
 echo "deb [signed-by=/usr/share/keyrings/servobox-apt-keyring.gpg] https://www.servobox.dev/apt-repo/ stable main" | sudo tee /etc/apt/sources.list.d/servobox.list
@@ -81,22 +78,12 @@ sudo dpkg -i ../servobox_*.deb
 
 ```console
 nproc
-# Example output: 8 (means you have 8 CPU cores: 0-7)
+# Example output: 8 (means you have 8 CPU cores: 0-7), which means you are good.
 ```
 
-!!! danger "Critical: Adjust for Your System"
-    **Do NOT blindly copy the example configuration!** Using incorrect CPU ranges can severely degrade system performance or make your system nearly unusable.
-    
-    **Choose based on YOUR system's CPU count:**
-    
-    - **2-4 cores (0-3)**: ⚠️ **NOT RECOMMENDED** - Use `isolcpus=1` (isolate only 1 CPU). Limited RT performance.
-    - **6 cores (0-5)**: Use `isolcpus=1-3` - Safe, leaves CPUs 0, 4-5 for host OS
-    - **8 cores (0-7)**: Use `isolcpus=1-4` - Good balance (example shown below)
-    - **12+ cores**: Use `isolcpus=1-6` or higher - Excellent RT performance
-    
-    **Golden Rule:** Always leave **at least 2 CPUs** (including CPU 0) for the host OS!
-
 ### Edit GRUB Configuration
+
+⚠️ Again proceed here if your CPU cores are 6+,ideally 8+ as stated above.
 
 Edit your GRUB configuration:
 
@@ -109,17 +96,6 @@ Modify or add the `GRUB_CMDLINE_LINUX_DEFAULT` line. **Example for an 8-core sys
 ```text
 GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0"
 ```
-
-!!! example "Configuration Examples by CPU Count"
-    **6-core system:**
-    ```
-    GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-3 nohz_full=1-3 rcu_nocbs=1-3 irqaffinity=0"
-    ```
-    
-    **12-core system:**
-    ```
-    GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-6 nohz_full=1-6 rcu_nocbs=1-6 irqaffinity=0"
-    ```
 
 ### Understanding the Parameters
 

@@ -12,7 +12,7 @@ ServoBox gives you Ubuntu 22.04 VMs with PREEMPT_RT kernel, automatic CPU pinnin
 
 ## 🚀 Quick Start
 
-**Prerequisites:** Ubuntu 20.04+, 4+ cores, 8GB+ RAM, hardware virtualization enabled (Intel VT-x or AMD-V)
+**Prerequisites:** Ubuntu 20.04+ (tested with 22.04 host), 6, ideally 8+ cores, 8GB, ideally 16GB+ RAM, hardware virtualization enabled (Intel VT-x or AMD-V)
 
 ### 1. Install ServoBox
 
@@ -52,20 +52,20 @@ See [Installation Guide](getting-started/installation.md#step-2-configure-host-f
 
 ```console
 servobox init
-
-# First time only: activate group membership in current shell
-exec sg libvirt newgrp
 ```
 
 ### 4. Start and Test
 
 ```console
-# Configure networking (interactive wizard; optional but recommended)
+# Configure networking for communication with network devices if needed (interactive wizard)
 servobox network-setup
+```
 
+```console
 # Start VM
 servobox start
-
+```
+```console
 # Test RT performance
 servobox test --duration 30
 ```
@@ -137,16 +137,6 @@ ServoBox follows a **host-VM separation** architecture optimized for real-time r
 - **Motion Control Development** - Isolated environment for time-critical code
 - **RT Algorithm Testing** - Validate performance before production
 - **Robotics Education** - Learn RT concepts without bare-metal setup
-
----
-
-## System Requirements
-
-- **OS**: Ubuntu 20.04 or newer (host)
-- **CPU**: 4+ cores (2+ cores for VM, 1+ for host)  
-- **Memory**: 8GB+ RAM (4GB for VM minimum)
-- **Disk**: 40GB+ free space (default VM size, can be configured for less)
-- **Virtualization**: KVM/QEMU support (Intel VT-x or AMD-V)
 
 ---
 

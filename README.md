@@ -17,7 +17,7 @@
   </a>
 </p>
 
-**Launch real-time VMs for robotics in seconds.**
+**Launch real-time VMs for robotics & control applications.**
 
 ServoBox gives you Ubuntu 22.04 VMs with PREEMPT_RT kernel, automatic CPU pinning, and IRQ isolation. **Includes one-command installation for major Robot control packages** (libfranka, franka-ros, franka-ros2, polymetis, deoxys-control, SERL, franky, CRISP controllers) and ROS/ROS2 stacks. No manual configuration needed.
 
@@ -29,9 +29,6 @@ ServoBox gives you Ubuntu 22.04 VMs with PREEMPT_RT kernel, automatic CPU pinnin
 # Add the ServoBox APT repository using wget (pre-installed on Ubuntu)
 wget -qO- https://www.servobox.dev/apt-repo/servobox-apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/servobox-apt-keyring.gpg
 
-# Or if you prefer curl:
-# curl -sSL https://www.servobox.dev/apt-repo/servobox-apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/servobox-apt-keyring.gpg
-
 # Add the repository to your sources list
 echo "deb [signed-by=/usr/share/keyrings/servobox-apt-keyring.gpg] https://www.servobox.dev/apt-repo/ stable main" | sudo tee /etc/apt/sources.list.d/servobox.list
 
@@ -40,44 +37,29 @@ sudo apt update
 sudo apt install servobox
 ```
 
-**Or download from releases**
-
-```bash
-# Download latest release (check https://github.com/kvasios/servobox/releases for latest version)
-wget https://github.com/kvasios/servobox/releases/download/v0.1.2/servobox_0.1.2_amd64.deb
-sudo apt install -f ./servobox_0.1.2_amd64.deb
-```
-
 **Create your VM**
 
 ```bash
+# It will download the ubuntu img with rt kernel & prep the VM
 servobox init
+```
 
-# IMPORTANT: If this is your first time, activate group membership for your shell:
-exec sg libvirt newgrp
+**Servobox VM Network Setup for Device Communication**
 
+```
 # Configure direct device connections (optional)
 servobox network-setup  # Interactive wizard shows available NICs with IPs
-
-# Or specify directly during init if you know device names:
-# servobox init --host-nic eth0 --host-nic eth1
 ```
 
 **Configure host for RT performance** (required for rt - do this once)
 
 ```bash
 # IMPORTANT: First check your CPU count
-nproc  # Must have 6+ cores for safe RT isolation
-
-# Configure CPU isolation in GRUB
-# ⚠️  WARNING: Adjust CPU range (1-4) based on YOUR system's CPU count!
-# - 6 cores: use isolcpus=1-3
-# - 8 cores: use isolcpus=1-4 (shown below)
-# - 12+ cores: use isolcpus=1-6 or higher
-# Always leave at least 2 CPUs for the host OS!
+nproc  # Must have 6,ideally 8+ cores for safe RT isolation
 
 # Edit /etc/default/grub and set (example for 8-core system):
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0"
+sudo vim /etc/default/grub # or any editor
+# add GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0"
 
 sudo update-grub
 sudo reboot
@@ -92,7 +74,7 @@ Once installed, you can simply start the VM and test it:
 servobox start
 
 # Validate RT performance (results should be green!)
-servobox test --duration 30 --stress-ng
+servobox test --duration 10 --stress-ng
 ```
 You servobox RT VM is now ready for use! Check next section for installing one of the polular RT control packages with the `servobox pkg-install` option.
 
@@ -131,41 +113,6 @@ robot = RobotInterface(
 ```
 
 Enjoy dev :)
-
-### Package Execution
-
-Many packages include an optional `run.sh` script that defines how to execute the package in the VM. Use the `servobox run` command to execute these scripts:
-
-```bash
-# Run a package that has run.sh
-servobox run polymetis
-
-# Run with specific VM name
-servobox run polymetis --name my-vm
-
-```
-
-### Custom Recipes
-
-Test your own recipes directly from Host PC with:
-
-```bash
-# Create your recipe directory
-mkdir -p ~/my-recipes/my-package
-cd ~/my-recipes/my-package
-
-# Create recipe files (see packages/recipes/example-custom/ for template)
-vim recipe.conf install.sh
-
-# Optional: Add run.sh for package execution
-vim run.sh
-
-# Test your custom recipe
-servobox pkg-install --recipe-dir ~/my-recipes my-package
-
-# Run your package (if run.sh exists)
-servobox run my-package
-```
 
 ## What You Get
 
@@ -206,19 +153,10 @@ servobox run <package>                             # Execute package run.sh scri
 - Software/Hardware-in-the-loop testing
 - Isolated testing of time-critical code
 
-## Building from Source
-
-```bash
-git clone https://github.com/kvasios/servobox.git
-cd servobox
-dpkg-buildpackage -us -uc -B
-sudo dpkg -i ../servobox_*.deb
-```
-
 ## Compatibility
 
 **Tested:** Ubuntu 22.04, Intel i5-13700, Franka Robot (gen1)  
-**Expected to work:** AMD CPUs, Ubuntu 20.04 or newer
+**Expected to work:** AMD CPUs, Ubuntu 20.04, 24.04
 **Not yet validated:** Franka FR3 (builds OK, needs runtime testing)
 
 ServoBox is an indie project. Testing with AMD systems or Franka FR3 hardware? Please share results on GitHub!
