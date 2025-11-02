@@ -6,20 +6,20 @@ Version: 1.0
 Architectures: amd64
 Components: main
 Description: ServoBox - One-command launcher for real-time VMs
-Date: Sun, 02 Nov 2025 20:04:11 +0000
+Date: Sun, 02 Nov 2025 20:14:15 +0000
 MD5Sum:
- d15378662068f442330aa674b34e4c51              231 Release
+ 6163de26293a77841a9863cf184c283c              231 Release
  4c81dfb1e85a7ee5bf1df53e50f8f6dd             3088 main/binary-amd64/Packages
- cb85cc5c68dbfa5590f103f680b2a382              948 main/binary-amd64/Packages.gz
+ 4e4f41f22055c145db18f8f446afbaee              948 main/binary-amd64/Packages.gz
 SHA1:
- 6f5d309ae58213b15981e44df1fa3780f8c73472              231 Release
+ 986706064375e8a60735a2c1be58f30d93db7bb2              231 Release
  251d58735b7807b4479566ecd17ca0f015d69c40             3088 main/binary-amd64/Packages
- cc0cb986003a9394113f0ffa6c395d232705da67              948 main/binary-amd64/Packages.gz
+ a57ab24e23a43524bba4577de1f92e76682f1f58              948 main/binary-amd64/Packages.gz
 SHA256:
- e6e8d1f9ad6dc22c7f9e5a99ec14fb76e72af09d7571b828d6b1ac71d93f88ac              231 Release
+ de11a2b747ea6cf35e39250d43ae5c14f6329b0da20a1f9a3cc5fafd35bc6c61              231 Release
  ecc09e277b6a9239cccdd90ad3f1e56f1f50e4b16f0c6113b94633b42d1fcf02             3088 main/binary-amd64/Packages
- cab41ffbec1f60f3cc6e0f61e0941ea4a8d1618652c11826c7ef4a7c3c2c7b8e              948 main/binary-amd64/Packages.gz
+ 814ef38d7a5d70614c72a2daa8d9b996f87e26c8120ec48375d456c1ff64d66a              948 main/binary-amd64/Packages.gz
 SHA512:
- 27205ca4f7fca9c1a7fb76b11385595f161282faee92bdf532f2eb31091d7a7a635f35150966e037075fa281f644cbedb8c2705e713314ec3cbdbb2f1955375b              231 Release
+ 4b5dcb8afe14c114e5ca864f215e33cb54f08f28ac77ac05127ea8e4ac8e24a495637911ecc700659cdd5842004c02994cf5cf0f7c6f4fe6e1e7938e570f3eed              231 Release
  d5974de6191bd4c309934e7f00f89958eb0fa0b165edf2155531a6b81da265de00dd7ff0cc68566a146a347f2ad86e664801ef9cb80b81532cd5db114e151153             3088 main/binary-amd64/Packages
- 9c1fe9c211a1dcff8415e7146812667ee1e4e11181c4125a89175fc7955ae62c2ec966cdae1f9d71fbac788eedd6ed3b3d46d73e3e4bc97be30d5245a9a3289e              948 main/binary-amd64/Packages.gz
+ c7cd63d34e45b80fcef661f813c7da2d4ec7609298e983346001ea022e3b4bf9453b5c88918b027e2a4913a35a97914c0ca31b2e7eec226422d36adb270f9aef              948 main/binary-amd64/Packages.gz
