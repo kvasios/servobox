@@ -483,6 +483,7 @@ install_single_package() {
           --memsize ${LIBGUESTFS_MEMSIZE} \
           --copy-in "$recipe_dir:/tmp/" \
           --copy-in "$helpers_script:/tmp/" \
+          --run-command "mkdir -p /etc && ([[ ! -f /etc/resolv.conf ]] || ! grep -q 'nameserver' /etc/resolv.conf) && echo 'nameserver 8.8.8.8' > /etc/resolv.conf && echo 'nameserver 1.1.1.1' >> /etc/resolv.conf || true" \
           --run-command "chmod +x /tmp/${recipe_name}/${script_base}" \
           --run-command "PACKAGE_NAME='$package' PACKAGE_VERSION='${version:-}' PACKAGE_HELPERS='/tmp/pkg-helpers.sh' RECIPE_DIR='/tmp/${recipe_name}' bash -x /tmp/${recipe_name}/${script_base}" \
           --run-command "mkdir -p /var/lib/servobox && echo '$package' >> /var/lib/servobox/installed-packages" \
@@ -494,6 +495,7 @@ install_single_package() {
           --memsize ${LIBGUESTFS_MEMSIZE} \
           --copy-in "$recipe_dir:/tmp/" \
           --copy-in "$helpers_script:/tmp/" \
+          --run-command "mkdir -p /etc && ([[ ! -f /etc/resolv.conf ]] || ! grep -q 'nameserver' /etc/resolv.conf) && echo 'nameserver 8.8.8.8' > /etc/resolv.conf && echo 'nameserver 1.1.1.1' >> /etc/resolv.conf || true" \
           --run-command "chmod +x /tmp/${recipe_name}/${script_base}" \
           --run-command "PACKAGE_NAME='$package' PACKAGE_VERSION='${version:-}' PACKAGE_HELPERS='/tmp/pkg-helpers.sh' RECIPE_DIR='/tmp/${recipe_name}' bash -x /tmp/${recipe_name}/${script_base}" \
           --run-command "mkdir -p /var/lib/servobox && echo '$package' >> /var/lib/servobox/installed-packages" \
@@ -514,6 +516,7 @@ install_single_package() {
           --memsize ${LIBGUESTFS_MEMSIZE} \
           --copy-in "$recipe_dir:/tmp/" \
           --copy-in "$helpers_script:/tmp/" \
+          --run-command "mkdir -p /etc && ([[ ! -f /etc/resolv.conf ]] || ! grep -q 'nameserver' /etc/resolv.conf) && echo 'nameserver 8.8.8.8' > /etc/resolv.conf && echo 'nameserver 1.1.1.1' >> /etc/resolv.conf || true" \
           --run-command "chmod +x /tmp/${recipe_name}/${script_base}" \
           --run-command "PACKAGE_NAME='$package' PACKAGE_VERSION='${version:-}' PACKAGE_HELPERS='/tmp/pkg-helpers.sh' RECIPE_DIR='/tmp/${recipe_name}' bash /tmp/${recipe_name}/${script_base}" \
           --run-command "mkdir -p /var/lib/servobox && echo '$package' >> /var/lib/servobox/installed-packages" \
@@ -523,6 +526,7 @@ install_single_package() {
           --memsize ${LIBGUESTFS_MEMSIZE} \
           --copy-in "$recipe_dir:/tmp/" \
           --copy-in "$helpers_script:/tmp/" \
+          --run-command "mkdir -p /etc && ([[ ! -f /etc/resolv.conf ]] || ! grep -q 'nameserver' /etc/resolv.conf) && echo 'nameserver 8.8.8.8' > /etc/resolv.conf && echo 'nameserver 1.1.1.1' >> /etc/resolv.conf || true" \
           --run-command "chmod +x /tmp/${recipe_name}/${script_base}" \
           --run-command "PACKAGE_NAME='$package' PACKAGE_VERSION='${version:-}' PACKAGE_HELPERS='/tmp/pkg-helpers.sh' RECIPE_DIR='/tmp/${recipe_name}' bash /tmp/${recipe_name}/${script_base}" \
           --run-command "mkdir -p /var/lib/servobox && echo '$package' >> /var/lib/servobox/installed-packages" \

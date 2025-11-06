@@ -9,10 +9,21 @@ echo "Installing libfranka 0.9.2 for Panda robot control..."
 # Be non-interactive inside image customization
 export DEBIAN_FRONTEND=noninteractive
 
+# Source pkg-helpers for DNS configuration and timeout-wrapped apt functions
+if [[ -f "${PACKAGE_HELPERS:-/tmp/pkg-helpers.sh}" ]]; then
+  source "${PACKAGE_HELPERS}"
+fi
+
 # Install libfranka-specific dependencies
 echo "Installing libfranka dependencies..."
-apt-get update
-apt-get install -y build-essential cmake git libpoco-dev libeigen3-dev
+# Use pkg-helpers functions if available (have DNS + timeouts), otherwise fall back to direct apt-get
+if command -v apt_update >/dev/null 2>&1 && command -v apt_install >/dev/null 2>&1; then
+  apt_update
+  apt_install build-essential cmake git libpoco-dev libeigen3-dev
+else
+  apt-get update
+  apt-get install -y build-essential cmake git libpoco-dev libeigen3-dev
+fi
 
 # If libfranka already installed at the desired version, skip rebuild unless FORCE=1
 if dpkg-query -W -f='${Status} ${Version}\n' libfranka 2>/dev/null | awk '/installed/ {print $NF}' | grep -q '^0.9.2'; then

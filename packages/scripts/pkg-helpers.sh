@@ -5,6 +5,20 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND=${DEBIAN_FRONTEND:-noninteractive}
 
+# Ensure DNS is configured (critical for virt-customize environment)
+# This prevents network operations from hanging indefinitely
+ensure_dns() {
+    if [[ ! -f /etc/resolv.conf ]] || ! grep -q "nameserver" /etc/resolv.conf 2>/dev/null; then
+        echo "Configuring DNS for network operations..."
+        mkdir -p /etc
+        echo "nameserver 8.8.8.8" > /etc/resolv.conf
+        echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+    fi
+}
+
+# Initialize DNS on script load (runs automatically when sourced)
+ensure_dns
+
 # Installation tracking directory
 SERVOBOX_INSTALL_DIR="/var/lib/servobox"
 SERVOBOX_INSTALLED_PACKAGES="${SERVOBOX_INSTALL_DIR}/installed-packages"
@@ -48,12 +62,18 @@ unmark_package_installed() {
 }
 
 apt_update() {
-	apt-get update
+	# Ensure DNS is configured before network operations
+	ensure_dns
+	# Add timeout to prevent indefinite hangs (5 minutes)
+	timeout 300 apt-get update || { echo "Error: apt-get update timed out or failed" >&2; exit 1; }
 }
 
 apt_install() {
 	# Usage: apt_install pkg1 pkg2 ...
-	apt-get install -y --no-install-recommends "$@"
+	# Ensure DNS is configured before network operations
+	ensure_dns
+	# Add timeout to prevent indefinite hangs (10 minutes)
+	timeout 600 apt-get install -y --no-install-recommends "$@" || { echo "Error: apt-get install failed or timed out" >&2; exit 1; }
 }
 
 apt_purge_autoremove() {
