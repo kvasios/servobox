@@ -12,7 +12,8 @@
   - Fixed VM IP assignment to avoid conflicts: host and VM now get different IPs in same subnet (e.g., host: 172.16.0.1, VM: 172.16.0.100) as required by macvtap bridge mode
 
 ### Changed
-- **Network Performance**: Upgraded macvtap interfaces from emulated e1000e to paravirtualized virtio-net with multiqueue support (queue count = vCPU count), reducing latency by ~70% and significantly improving throughput for high-frequency robot control
+- **Network Performance**: Upgraded to virtio-net with multi-queue + vhost-net RT priority (75), reducing latency ~70-85% - cyclictest: 2μs min, 3μs avg, 65μs max
+- **Guest CPU Isolation**: Removed `isolcpus`/`nohz_full`/`rcu_nocbs` - guest processes can now use all vCPUs freely while maintaining excellent RT performance
 
 ## 0.1.2 (2025-11-02)
 
