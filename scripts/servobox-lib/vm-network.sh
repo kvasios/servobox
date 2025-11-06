@@ -193,11 +193,26 @@ NPYAML_HEADER
   if [[ ${#HOST_NICS[@]} -ge 1 ]]; then
     local ip_info
     ip_info=$(ip -4 addr show dev "${HOST_NICS[0]}" 2>/dev/null | awk '/inet /{print $2}' | head -1)
-    local vm_ip="172.16.0.1"
+    local vm_ip="172.16.0.100"
     local vm_prefix="24"
+    local host_ip=""
+    
     if [[ -n "${ip_info}" ]]; then
-      vm_ip="${ip_info%/*}"
+      host_ip="${ip_info%/*}"
       vm_prefix="${ip_info#*/}"
+      
+      # Generate VM IP in same subnet but different from host
+      # If host is X.Y.Z.W, try X.Y.Z.100, X.Y.Z.101, etc.
+      local ip_base="${host_ip%.*}"
+      local last_octet="${host_ip##*.}"
+      
+      # Try .100 first, then .101, .102, etc. (avoid conflict with host)
+      for offset in 100 101 102 103 104 105 110 120 150 200; do
+        if [[ ${offset} -ne ${last_octet} ]]; then
+          vm_ip="${ip_base}.${offset}"
+          break
+        fi
+      done
     fi
     
     cat >> "${np_tmp}" <<NPYAML_NIC1
@@ -214,17 +229,34 @@ NPYAML_HEADER
 NPYAML_NIC1
     
     echo "Configuring first NIC: ${HOST_NICS[0]} → enp2s0 (MAC ${MAC_ADDR2}, IP ${vm_ip}/${vm_prefix})"
+    if [[ -n "${host_ip}" ]]; then
+      echo "  Note: Host IP is ${host_ip}, VM assigned ${vm_ip} (different IP required for macvtap bridge)"
+    fi
   fi
 
   # Configure second host NIC (enp3s0) if provided
   if [[ ${#HOST_NICS[@]} -ge 2 ]]; then
     local ip_info2
     ip_info2=$(ip -4 addr show dev "${HOST_NICS[1]}" 2>/dev/null | awk '/inet /{print $2}' | head -1)
-    local vm_ip2="172.17.0.1"
+    local vm_ip2="172.17.0.100"
     local vm_prefix2="24"
+    local host_ip2=""
+    
     if [[ -n "${ip_info2}" ]]; then
-      vm_ip2="${ip_info2%/*}"
+      host_ip2="${ip_info2%/*}"
       vm_prefix2="${ip_info2#*/}"
+      
+      # Generate VM IP in same subnet but different from host
+      local ip_base2="${host_ip2%.*}"
+      local last_octet2="${host_ip2##*.}"
+      
+      # Try .100 first, then .101, .102, etc. (avoid conflict with host)
+      for offset in 100 101 102 103 104 105 110 120 150 200; do
+        if [[ ${offset} -ne ${last_octet2} ]]; then
+          vm_ip2="${ip_base2}.${offset}"
+          break
+        fi
+      done
     fi
     
     cat >> "${np_tmp}" <<NPYAML_NIC2
@@ -241,20 +273,100 @@ NPYAML_NIC1
 NPYAML_NIC2
     
     echo "Configuring second NIC: ${HOST_NICS[1]} → enp3s0 (MAC ${MAC_ADDR3}, IP ${vm_ip2}/${vm_prefix2})"
+    if [[ -n "${host_ip2}" ]]; then
+      echo "  Note: Host IP is ${host_ip2}, VM assigned ${vm_ip2} (different IP required for macvtap bridge)"
+    fi
   fi
 
   echo "Injecting persistent netplan for ${#HOST_NICS[@]} macvtap NIC(s) into guest image"
   
   # Create systemd override to prevent networkd-wait-online from blocking boot
+  # Compatible with Ubuntu 22.04 (systemd 249) and 24.04 (systemd 255)
   local networkd_override_tmp
   networkd_override_tmp=$(mktemp)
   cat > "${networkd_override_tmp}" <<'NETOVERRIDE'
 [Service]
 ExecStart=
-ExecStart=/usr/lib/systemd/systemd-networkd-wait-online --any --timeout=10
+ExecStart=systemd-networkd-wait-online --any --timeout=10
 NETOVERRIDE
   
-  # Ensure destination directory exists and copy file into /etc/netplan
+  # Create macvtap configuration service
+  local macvtap_service_tmp
+  macvtap_service_tmp=$(mktemp)
+  cat > "${macvtap_service_tmp}" <<'MACVTAPSERVICE'
+[Unit]
+Description=ServoBox Macvtap Interface Configuration
+After=network-pre.target
+Before=network.target
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/servobox-configure-macvtap.sh
+
+[Install]
+WantedBy=multi-user.target
+MACVTAPSERVICE
+  
+  # Create macvtap configuration script
+  local macvtap_script_tmp
+  macvtap_script_tmp=$(mktemp)
+  cat > "${macvtap_script_tmp}" <<'MACVTAPSCRIPT'
+#!/bin/bash
+# ServoBox: Configure macvtap interfaces on boot
+# This runs early in boot to ensure interfaces are ready before services start
+
+# Exit if no macvtap config exists
+[[ ! -f /etc/netplan/99-servobox-macvtap.yaml ]] && exit 0
+
+# Parse netplan config and configure interfaces directly
+# This bypasses netplan/NetworkManager issues
+
+# Extract interface details from netplan (simple parsing)
+MAC1=$(grep -A 10 "enp-macvtap1:" /etc/netplan/99-servobox-macvtap.yaml | grep macaddress | awk '{print $2}' | tr -d "'" || echo "")
+IP1=$(grep -A 10 "enp-macvtap1:" /etc/netplan/99-servobox-macvtap.yaml | grep -E "^\s+- [0-9]" | awk '{print $2}' | head -1 || echo "")
+
+if [[ -n "$MAC1" ]] && [[ -n "$IP1" ]]; then
+  # Find interface by MAC
+  IFACE=$(ip -o link | grep -i "$MAC1" | awk -F': ' '{print $2}' | head -1)
+  
+  if [[ -n "$IFACE" ]]; then
+    echo "Configuring $IFACE with IP $IP1"
+    ip addr flush dev "$IFACE" || true
+    ip addr add "$IP1" dev "$IFACE" || true
+    ip link set "$IFACE" up || true
+    
+    # Add route for the subnet
+    SUBNET="${IP1%.*}.0/24"
+    ip route add "$SUBNET" dev "$IFACE" src "${IP1%/*}" || true
+    
+    echo "ServoBox: $IFACE configured successfully"
+  fi
+fi
+
+# Handle second macvtap if exists
+MAC2=$(grep -A 10 "enp-macvtap2:" /etc/netplan/99-servobox-macvtap.yaml | grep macaddress | awk '{print $2}' | tr -d "'" 2>/dev/null || echo "")
+IP2=$(grep -A 10 "enp-macvtap2:" /etc/netplan/99-servobox-macvtap.yaml | grep -E "^\s+- [0-9]" | awk '{print $2}' | head -1 2>/dev/null || echo "")
+
+if [[ -n "$MAC2" ]] && [[ -n "$IP2" ]]; then
+  IFACE2=$(ip -o link | grep -i "$MAC2" | awk -F': ' '{print $2}' | head -1)
+  
+  if [[ -n "$IFACE2" ]]; then
+    echo "Configuring $IFACE2 with IP $IP2"
+    ip addr flush dev "$IFACE2" || true
+    ip addr add "$IP2" dev "$IFACE2" || true
+    ip link set "$IFACE2" up || true
+    
+    SUBNET2="${IP2%.*}.0/24"
+    ip route add "$SUBNET2" dev "$IFACE2" src "${IP2%/*}" || true
+    
+    echo "ServoBox: $IFACE2 configured successfully"
+  fi
+fi
+MACVTAPSCRIPT
+  
+  # Ensure destination directory exists and copy files into guest
   if virt-customize -a "${DISK_QCOW}" \
       --mkdir /etc/netplan \
       --copy-in "${np_tmp}:/etc/netplan" \
@@ -263,7 +375,15 @@ NETOVERRIDE
       --mkdir /etc/systemd/system/systemd-networkd-wait-online.service.d \
       --copy-in "${networkd_override_tmp}:/etc/systemd/system/systemd-networkd-wait-online.service.d" \
       --run-command "mv -f /etc/systemd/system/systemd-networkd-wait-online.service.d/$(basename ${networkd_override_tmp}) /etc/systemd/system/systemd-networkd-wait-online.service.d/override.conf" \
-      --run-command "systemctl daemon-reload" >/dev/null 2>&1; then
+      --mkdir /etc/systemd/system \
+      --copy-in "${macvtap_service_tmp}:/etc/systemd/system" \
+      --run-command "mv -f /etc/systemd/system/$(basename ${macvtap_service_tmp}) /etc/systemd/system/servobox-configure-macvtap.service" \
+      --mkdir /usr/local/bin \
+      --copy-in "${macvtap_script_tmp}:/usr/local/bin" \
+      --run-command "mv -f /usr/local/bin/$(basename ${macvtap_script_tmp}) /usr/local/bin/servobox-configure-macvtap.sh" \
+      --run-command "chmod +x /usr/local/bin/servobox-configure-macvtap.sh" \
+      --run-command "systemctl daemon-reload" \
+      --run-command "systemctl enable servobox-configure-macvtap.service" >/dev/null 2>&1; then
     :
   else
     sudo virt-customize -a "${DISK_QCOW}" \
@@ -274,11 +394,20 @@ NETOVERRIDE
       --mkdir /etc/systemd/system/systemd-networkd-wait-online.service.d \
       --copy-in "${networkd_override_tmp}:/etc/systemd/system/systemd-networkd-wait-online.service.d" \
       --run-command "mv -f /etc/systemd/system/systemd-networkd-wait-online.service.d/$(basename ${networkd_override_tmp}) /etc/systemd/system/systemd-networkd-wait-online.service.d/override.conf" \
-      --run-command "systemctl daemon-reload"
+      --mkdir /etc/systemd/system \
+      --copy-in "${macvtap_service_tmp}:/etc/systemd/system" \
+      --run-command "mv -f /etc/systemd/system/$(basename ${macvtap_service_tmp}) /etc/systemd/system/servobox-configure-macvtap.service" \
+      --mkdir /usr/local/bin \
+      --copy-in "${macvtap_script_tmp}:/usr/local/bin" \
+      --run-command "mv -f /usr/local/bin/$(basename ${macvtap_script_tmp}) /usr/local/bin/servobox-configure-macvtap.sh" \
+      --run-command "chmod +x /usr/local/bin/servobox-configure-macvtap.sh" \
+      --run-command "systemctl daemon-reload" \
+      --run-command "systemctl enable servobox-configure-macvtap.service"
   fi
-  rm -f "${np_tmp}" "${networkd_override_tmp}" 2>/dev/null || true
+  rm -f "${np_tmp}" "${networkd_override_tmp}" "${macvtap_service_tmp}" "${macvtap_script_tmp}" 2>/dev/null || true
   
   echo "Configured systemd-networkd-wait-online to not block boot (--any --timeout=10)"
+  echo "Installed servobox-configure-macvtap.service for automatic interface configuration"
 }
 
 gen_cloud_init() {
@@ -386,7 +515,79 @@ ${AUTH_KEYS_FLAT_INDENTED}
     content: |
       [Service]
       ExecStart=
-      ExecStart=/usr/lib/systemd/systemd-networkd-wait-online --any --timeout=10
+      ExecStart=systemd-networkd-wait-online --any --timeout=10
+  - path: /etc/systemd/system/servobox-configure-macvtap.service
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=ServoBox Macvtap Interface Configuration
+      After=network-pre.target
+      Before=network.target
+      Wants=network-pre.target
+      
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/local/bin/servobox-configure-macvtap.sh
+      
+      [Install]
+      WantedBy=multi-user.target
+  - path: /usr/local/bin/servobox-configure-macvtap.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      # ServoBox: Configure macvtap interfaces on boot
+      # This runs early in boot to ensure interfaces are ready before services start
+      
+      # Exit if no macvtap config exists
+      [[ ! -f /etc/netplan/99-servobox-macvtap.yaml ]] && exit 0
+      
+      # Parse netplan config and configure interfaces directly
+      # This bypasses netplan/NetworkManager issues
+      
+      # Extract interface details from netplan (simple parsing)
+      MAC1=$(grep -A 10 "enp-macvtap1:" /etc/netplan/99-servobox-macvtap.yaml | grep macaddress | awk '{print $2}' | tr -d "'" || echo "")
+      IP1=$(grep -A 10 "enp-macvtap1:" /etc/netplan/99-servobox-macvtap.yaml | grep -E "^\s+- [0-9]" | awk '{print $2}' | head -1 || echo "")
+      
+      if [[ -n "$MAC1" ]] && [[ -n "$IP1" ]]; then
+        # Find interface by MAC
+        IFACE=$(ip -o link | grep -i "$MAC1" | awk -F': ' '{print $2}' | head -1)
+        
+        if [[ -n "$IFACE" ]]; then
+          echo "Configuring $IFACE with IP $IP1"
+          ip addr flush dev "$IFACE" || true
+          ip addr add "$IP1" dev "$IFACE" || true
+          ip link set "$IFACE" up || true
+          
+          # Add route for the subnet
+          SUBNET="${IP1%.*}.0/24"
+          ip route add "$SUBNET" dev "$IFACE" src "${IP1%/*}" || true
+          
+          echo "ServoBox: $IFACE configured successfully"
+        fi
+      fi
+      
+      # Handle second macvtap if exists
+      MAC2=$(grep -A 10 "enp-macvtap2:" /etc/netplan/99-servobox-macvtap.yaml | grep macaddress | awk '{print $2}' | tr -d "'" 2>/dev/null || echo "")
+      IP2=$(grep -A 10 "enp-macvtap2:" /etc/netplan/99-servobox-macvtap.yaml | grep -E "^\s+- [0-9]" | awk '{print $2}' | head -1 2>/dev/null || echo "")
+      
+      if [[ -n "$MAC2" ]] && [[ -n "$IP2" ]]; then
+        IFACE2=$(ip -o link | grep -i "$MAC2" | awk -F': ' '{print $2}' | head -1)
+        
+        if [[ -n "$IFACE2" ]]; then
+          echo "Configuring $IFACE2 with IP $IP2"
+          ip addr flush dev "$IFACE2" || true
+          ip addr add "$IP2" dev "$IFACE2" || true
+          ip link set "$IFACE2" up || true
+          
+          SUBNET2="${IP2%.*}.0/24"
+          ip route add "$SUBNET2" dev "$IFACE2" src "${IP2%/*}" || true
+          
+          echo "ServoBox: $IFACE2 configured successfully"
+        fi
+      fi
 
 package_update: true
 # Avoid automatic full upgrades to keep image size stable; update explicitly when needed
@@ -414,6 +615,11 @@ runcmd:
       echo "nameserver 8.8.8.8" > /etc/resolv.conf 2>/dev/null || true
       echo "nameserver 1.1.1.1" >> /etc/resolv.conf 2>/dev/null || true
     fi
+    
+    # Enable macvtap configuration service (runs on every boot)
+    systemctl daemon-reload || true
+    systemctl enable servobox-configure-macvtap.service || true
+    systemctl start servobox-configure-macvtap.service || true
     
     # Exit immediately - SSH is up, expensive stuff happens in background service
     exit 0
@@ -479,6 +685,17 @@ runcmd:
     iptables -P INPUT ACCEPT
     iptables -P FORWARD ACCEPT
     iptables -P OUTPUT ACCEPT
+    
+    # Disable reverse path filtering (critical for macvtap UDP communication)
+    # rp_filter can block UDP packets from Franka robot with macvtap bridge
+    sysctl -w net.ipv4.conf.all.rp_filter=0 || true
+    sysctl -w net.ipv4.conf.default.rp_filter=0 || true
+    # Make persistent
+    if ! grep -q "net.ipv4.conf.all.rp_filter" /etc/sysctl.conf 2>/dev/null; then
+      echo "net.ipv4.conf.all.rp_filter=0" >> /etc/sysctl.conf
+      echo "net.ipv4.conf.default.rp_filter=0" >> /etc/sysctl.conf
+    fi
+    
     echo "Firewall configured for libfranka communication"
 
     # Apply guest tuning (non-fatal in dev)
