@@ -222,6 +222,7 @@ NPYAML_HEADER
       set-name: enp2s0
       dhcp4: false
       optional: true
+      renderer: networkd
       addresses:
         - ${vm_ip}/${vm_prefix}
       nameservers:
@@ -266,6 +267,7 @@ NPYAML_NIC1
       set-name: enp3s0
       dhcp4: false
       optional: true
+      renderer: networkd
       addresses:
         - ${vm_ip2}/${vm_prefix2}
       nameservers:
@@ -616,10 +618,8 @@ runcmd:
       echo "nameserver 1.1.1.1" >> /etc/resolv.conf 2>/dev/null || true
     fi
     
-    # Enable macvtap configuration service (runs on every boot)
-    systemctl daemon-reload || true
-    systemctl enable servobox-configure-macvtap.service || true
-    systemctl start servobox-configure-macvtap.service || true
+    # Note: macvtap configuration service is installed via cloud-init write_files
+    # and auto-enabled during network-setup via virt-customize
     
     # Exit immediately - SSH is up, expensive stuff happens in background service
     exit 0
