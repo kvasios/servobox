@@ -704,7 +704,8 @@ runcmd:
     for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
       echo performance > "\$cpu" 2>/dev/null || true
     done
-    sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=1,2,3 nohz_full=1,2,3 rcu_nocbs=1,2,3"/' /etc/default/grub
+    # Note: No guest-level isolcpus - PREEMPT_RT + host isolation is sufficient
+    # This allows guest processes to use all vCPUs without manual pinning
     systemctl disable --now snapd || true
     systemctl disable --now ModemManager || true
     systemctl disable --now bluetooth || true

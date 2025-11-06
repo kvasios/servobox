@@ -246,22 +246,18 @@ apply_rt_xml_config() {
 
 # Inject RT kernel parameters into guest GRUB configuration
 inject_rt_kernel_params() {
-  local isolate_cpus=""
-  if [[ ${VCPUS} -gt 1 ]]; then
-    isolate_cpus=$(seq -s, 1 $((VCPUS - 1)))
-  fi
+  # Note: We intentionally do NOT use isolcpus/nohz_full/rcu_nocbs in the guest.
+  # The PREEMPT_RT kernel + host-level CPU isolation is sufficient for RT performance.
+  # Guest-level isolation would force all user processes onto vCPU 0, creating a bottleneck
+  # and preventing Python apps (ur_rtde, franky) from utilizing all available vCPUs.
+  # Advanced users who need guest isolation can manually add it via /etc/default/grub.
   
   local grub_params="quiet splash"
-  if [[ -n "${isolate_cpus}" ]]; then
-    grub_params="${grub_params} isolcpus=${isolate_cpus} nohz_full=${isolate_cpus} rcu_nocbs=${isolate_cpus}"
-  fi
   
-  echo "Injecting RT kernel parameters into guest GRUB configuration..."
-  if [[ -n "${isolate_cpus}" ]]; then
-    echo "  • Guest CPUs to isolate: ${isolate_cpus} (leaving guest CPU 0 for Linux housekeeping)"
-  else
-    echo "  • No guest CPU isolation (only 1 vCPU)"
-  fi
+  echo "Configuring guest kernel parameters (PREEMPT_RT only, no guest CPU isolation)..."
+  echo "  • Host-level isolation already provides dedicated cores for the VM"
+  echo "  • Guest processes can freely use all ${VCPUS} vCPUs for optimal performance"
+  echo "  • Advanced users: manually add 'isolcpus=' to /etc/default/grub if needed"
   
   # Create a script to update GRUB configuration
   local grub_script
@@ -656,20 +652,20 @@ verify_rt_config() {
     fi
     
     if [[ -n "${guest_cmdline}" ]]; then
+      # Note: As of v0.1.4, guest-level isolation (isolcpus/nohz_full/rcu_nocbs) is 
+      # intentionally disabled by default. The PREEMPT_RT kernel + host-level isolation
+      # provides excellent RT performance while allowing guest processes to use all vCPUs.
       if echo "${guest_cmdline}" | grep -q "isolcpus"; then
-        echo "  ✓ isolcpus: $(echo "${guest_cmdline}" | grep -oP 'isolcpus=\S+')"
+        echo "  ℹ️  isolcpus: $(echo "${guest_cmdline}" | grep -oP 'isolcpus=\S+') (manually configured)"
       else
-        echo "  ❌ isolcpus: NOT FOUND"
+        echo "  ✓ No guest CPU isolation (default - allows processes to use all vCPUs)"
       fi
-      if echo "${guest_cmdline}" | grep -q "nohz_full"; then
-        echo "  ✓ nohz_full: $(echo "${guest_cmdline}" | grep -oP 'nohz_full=\S+')"
+      if echo "${guest_cmdline}" | grep -q "PREEMPT_RT"; then
+        echo "  ✓ PREEMPT_RT kernel detected"
+      elif echo "${guest_cmdline}" | grep -q "PREEMPT"; then
+        echo "  ℹ️  PREEMPT kernel (standard preemption)"
       else
-        echo "  ❌ nohz_full: NOT FOUND"
-      fi
-      if echo "${guest_cmdline}" | grep -q "rcu_nocbs"; then
-        echo "  ✓ rcu_nocbs: $(echo "${guest_cmdline}" | grep -oP 'rcu_nocbs=\S+')"
-      else
-        echo "  ❌ rcu_nocbs: NOT FOUND"
+        echo "  ⚠️  No PREEMPT kernel detected"
       fi
     else
       echo "  ⚠️  Could not SSH to guest (install sshpass or setup SSH keys)"
