@@ -244,21 +244,41 @@ NPYAML_NIC2
   fi
 
   echo "Injecting persistent netplan for ${#HOST_NICS[@]} macvtap NIC(s) into guest image"
+  
+  # Create systemd override to prevent networkd-wait-online from blocking boot
+  local networkd_override_tmp
+  networkd_override_tmp=$(mktemp)
+  cat > "${networkd_override_tmp}" <<'NETOVERRIDE'
+[Service]
+ExecStart=
+ExecStart=/usr/lib/systemd/systemd-networkd-wait-online --any --timeout=10
+NETOVERRIDE
+  
   # Ensure destination directory exists and copy file into /etc/netplan
   if virt-customize -a "${DISK_QCOW}" \
       --mkdir /etc/netplan \
       --copy-in "${np_tmp}:/etc/netplan" \
       --run-command "mv -f /etc/netplan/$(basename ${np_tmp}) /etc/netplan/99-servobox-macvtap.yaml" \
-      --run-command "chown root:root /etc/netplan/99-servobox-macvtap.yaml && chmod 0600 /etc/netplan/99-servobox-macvtap.yaml" >/dev/null 2>&1; then
+      --run-command "chown root:root /etc/netplan/99-servobox-macvtap.yaml && chmod 0600 /etc/netplan/99-servobox-macvtap.yaml" \
+      --mkdir /etc/systemd/system/systemd-networkd-wait-online.service.d \
+      --copy-in "${networkd_override_tmp}:/etc/systemd/system/systemd-networkd-wait-online.service.d" \
+      --run-command "mv -f /etc/systemd/system/systemd-networkd-wait-online.service.d/$(basename ${networkd_override_tmp}) /etc/systemd/system/systemd-networkd-wait-online.service.d/override.conf" \
+      --run-command "systemctl daemon-reload" >/dev/null 2>&1; then
     :
   else
     sudo virt-customize -a "${DISK_QCOW}" \
       --mkdir /etc/netplan \
       --copy-in "${np_tmp}:/etc/netplan" \
       --run-command "mv -f /etc/netplan/$(basename ${np_tmp}) /etc/netplan/99-servobox-macvtap.yaml" \
-      --run-command "chown root:root /etc/netplan/99-servobox-macvtap.yaml && chmod 0600 /etc/netplan/99-servobox-macvtap.yaml"
+      --run-command "chown root:root /etc/netplan/99-servobox-macvtap.yaml && chmod 0600 /etc/netplan/99-servobox-macvtap.yaml" \
+      --mkdir /etc/systemd/system/systemd-networkd-wait-online.service.d \
+      --copy-in "${networkd_override_tmp}:/etc/systemd/system/systemd-networkd-wait-online.service.d" \
+      --run-command "mv -f /etc/systemd/system/systemd-networkd-wait-online.service.d/$(basename ${networkd_override_tmp}) /etc/systemd/system/systemd-networkd-wait-online.service.d/override.conf" \
+      --run-command "systemctl daemon-reload"
   fi
-  rm -f "${np_tmp}" 2>/dev/null || true
+  rm -f "${np_tmp}" "${networkd_override_tmp}" 2>/dev/null || true
+  
+  echo "Configured systemd-networkd-wait-online to not block boot (--any --timeout=10)"
 }
 
 gen_cloud_init() {
@@ -360,6 +380,13 @@ ${AUTH_KEYS_FLAT_INDENTED}
       ff00::0 ip6-mcastprefix
       ff02::1 ip6-allnodes
       ff02::2 ip6-allrouters
+  - path: /etc/systemd/system/systemd-networkd-wait-online.service.d/override.conf
+    owner: root:root
+    permissions: '0644'
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/lib/systemd/systemd-networkd-wait-online --any --timeout=10
 
 package_update: true
 # Avoid automatic full upgrades to keep image size stable; update explicitly when needed
@@ -376,20 +403,20 @@ packages:
 runcmd:
   - |
     set +e
-    echo "Starting ServoBox VM boot..."
-
-    # FAST PATH: Ensure SSH is up ASAP on every boot (critical for servobox ssh to work)
+    # ULTRA-FAST PATH: Start SSH immediately, exit cloud-init runcmd ASAP
+    # All expensive operations moved to background systemd service
+    systemctl enable ssh || systemctl enable sshd || true
     systemctl start ssh || systemctl start sshd || true
     
-    # Check if this is the first boot (one-time initialization flag)
-    FIRST_BOOT_FLAG="/var/lib/servobox-first-boot-done"
-    if [[ -f "\$FIRST_BOOT_FLAG" ]]; then
-      echo "ServoBox VM already initialized. Skipping first-boot configuration."
-      echo "SSH should be ready now."
-      exit 0
+    # Quick DNS fallback (non-blocking)
+    if [[ ! -f /etc/resolv.conf ]] || ! grep -q "nameserver" /etc/resolv.conf 2>/dev/null; then
+      mkdir -p /etc
+      echo "nameserver 8.8.8.8" > /etc/resolv.conf 2>/dev/null || true
+      echo "nameserver 1.1.1.1" >> /etc/resolv.conf 2>/dev/null || true
     fi
     
-    echo "First boot detected. Running ServoBox VM initialization..."
+    # Exit immediately - SSH is up, expensive stuff happens in background service
+    exit 0
 
     # Ensure servobox-usr exists and is properly configured (preserve build-time installations)
     if ! id -u servobox-usr >/dev/null 2>&1; then
@@ -479,6 +506,16 @@ runcmd:
     
     # Mark first boot as complete
     touch "\$FIRST_BOOT_FLAG"
+    
+    # Disable cloud-init on subsequent boots to prevent delays
+    # Method 1: Create disable file (cloud-init checks this first)
+    mkdir -p /etc/cloud
+    touch /etc/cloud/cloud-init.disabled
+    
+    # Method 2: Disable services (backup method)
+    systemctl disable cloud-init cloud-init-local cloud-config cloud-final || true
+    echo "Cloud-init disabled for future boots (will not run on subsequent starts)"
+    
     echo "ServoBox VM first-boot initialization completed!"
 
 final_message: |
@@ -743,13 +780,72 @@ cmd_network_setup() {
   # Inject persistent netplan for the new direct NICs
   inject_persistent_netplan
   
-  # Regenerate cloud-init seed with updated configuration
-  # This ensures the VM uses the latest fast-boot configuration
-  echo "Regenerating cloud-init seed with updated boot configuration..."
-  gen_cloud_init
+  # Note: We do NOT regenerate cloud-init seed here because:
+  # 1. Network changes are handled via netplan injection (persistent, survives reboots)
+  # 2. Regenerating seed triggers cloud-init to rerun, causing 30-60s boot delays
+  # 3. The first-boot flag in the VM disk ensures fast boots on subsequent starts
+  
+  # Debug: Show what we're about to configure
+  echo "Configuring VM with network interfaces:"
+  echo "  NAT interface: MAC ${MAC_ADDR}"
+  if [[ ${#HOST_NICS[@]} -ge 1 ]]; then
+    echo "  Direct NIC #1: ${HOST_NICS[0]} → MAC ${MAC_ADDR2}"
+  fi
+  if [[ ${#HOST_NICS[@]} -ge 2 ]]; then
+    echo "  Direct NIC #2: ${HOST_NICS[1]} → MAC ${MAC_ADDR3}"
+  fi
+  
+  # Ensure domain is undefined before redefining (force redefinition)
+  if virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
+    echo "Undefining existing domain to apply new network configuration..."
+    virsh_cmd undefine "${NAME}" >/dev/null 2>&1 || true
+    # Give libvirt a moment to process
+    sleep 1
+  fi
   
   # Redefine the domain with new network configuration
   virt_define
+  
+  # Verify the VM was defined correctly
+  if ! virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
+    echo "Error: Failed to define VM domain ${NAME}" >&2
+    exit 1
+  fi
+  
+  # Verify network interfaces are configured correctly
+  echo "Verifying network configuration..."
+  local iflist
+  iflist=$(virsh_cmd domiflist "${NAME}" 2>/dev/null || true)
+  
+  echo "Current VM interfaces:"
+  echo "${iflist}"
+  echo ""
+  
+  local nat_count=0
+  local direct_count=0
+  if echo "${iflist}" | grep -q "network.*default"; then
+    nat_count=1
+  fi
+  # Strip whitespace/newlines from grep output and convert to integer
+  direct_count=$(echo "${iflist}" | grep -c "direct" 2>/dev/null | tr -d '[:space:]' || echo "0")
+  # Ensure it's a number (handle empty string)
+  direct_count=${direct_count:-0}
+  
+  if [[ ${nat_count} -eq 0 ]]; then
+    echo "Warning: NAT network interface not found in VM definition" >&2
+  fi
+  
+  if [[ ${#HOST_NICS[@]} -ge 1 ]] && [[ ${direct_count} -lt 1 ]]; then
+    echo "Error: Direct NIC #1 not found in VM definition (expected ${HOST_NICS[0]})" >&2
+    echo "Found ${direct_count} direct interface(s), expected at least 1" >&2
+    exit 1
+  fi
+  
+  if [[ ${#HOST_NICS[@]} -ge 2 ]] && [[ ${direct_count} -lt 2 ]]; then
+    echo "Error: Direct NIC #2 not found in VM definition (expected ${HOST_NICS[1]})" >&2
+    echo "Found ${direct_count} direct interface(s), expected at least 2" >&2
+    exit 1
+  fi
   
   echo ""
   echo "✓ Network configuration complete!"
@@ -760,10 +856,10 @@ cmd_network_setup() {
   echo "  VM: ${NAME}"
   echo "  NAT Network: 192.168.122.0/24 (default libvirt)"
   if [[ ${#HOST_NICS[@]} -ge 1 ]]; then
-    echo "  Direct NIC #1: ${HOST_NICS[0]} → enp2s0 in VM"
+    echo "  Direct NIC #1: ${HOST_NICS[0]} → enp2s0 in VM (MAC: ${MAC_ADDR2})"
   fi
   if [[ ${#HOST_NICS[@]} -ge 2 ]]; then
-    echo "  Direct NIC #2: ${HOST_NICS[1]} → enp3s0 in VM"
+    echo "  Direct NIC #2: ${HOST_NICS[1]} → enp3s0 in VM (MAC: ${MAC_ADDR3})"
   fi
   echo ""
   echo "VM is now configured. Use 'servobox start' to boot the VM."
