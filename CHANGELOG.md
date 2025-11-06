@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.3 (2025-11-06)
+
+### Fixed
+- **Network Setup Boot Delays**: Fixed critical issue where VMs booted after `servobox network-setup` experienced 30-60 second delays before SSH became available. Root causes and fixes:
+  - Added `optional: true` to macvtap NIC netplan configs to prevent systemd-networkd from blocking boot waiting for interfaces
+  - Implemented first-boot flag (`/var/lib/servobox-first-boot-done`) to skip expensive cloud-init operations (DNS tests, apt-get installs) on subsequent boots, reducing boot time from 30-60s to 5-10s
+  - Fixed hanging operations: added timeouts to virsh commands, use `mv -f` to avoid file overwrite prompts, prefer non-interactive sudo with clear error messages
+  - Regenerate cloud-init seed during `network-setup` to ensure VMs get updated fast-boot configuration
+  - Improved error handling: gracefully handle non-existent VMs, check VM existence before querying, provide clear error messages
+
 ## 0.1.2 (2025-11-02)
 
 ### Fixed
