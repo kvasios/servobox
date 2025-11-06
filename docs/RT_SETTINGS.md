@@ -79,30 +79,57 @@ Applied during VM creation:
     - Eliminates cache-related latency unpredictability
     - Direct I/O for deterministic behavior
 
+### Network Configuration
+Applied during VM creation:
+
+15. **virtio-net Network Model** - Paravirtualized network driver
+    - Used for all network interfaces (NAT, bridge, macvtap)
+    - Replaces emulated e1000e driver (5-10x lower latency)
+    - Reduces network overhead from ~20-50μs to ~2-5μs per packet
+    - Critical for high-frequency robot control (UR RTDE @ 500Hz, libfranka @ 1kHz)
+
+16. **Multi-Queue virtio-net** - Parallel packet processing
+    - Number of queues matches vCPU count (e.g., 4 vCPUs → 4 queues)
+    - Distributes network load across multiple CPU cores
+    - Improves throughput and reduces latency under load
+
+17. **vhost-net Acceleration** - Kernel-space packet processing
+    - Network packets processed in kernel space (not userspace QEMU)
+    - Spawns dedicated vhost worker threads (typically 4-8 threads per NIC)
+    - Significantly reduces CPU overhead and latency
+    - All vhost threads pinned to host CPU 0 (off RT cores)
+
 ## Settings Applied During `servobox start`
 
 ### Runtime CPU Pinning
 Applied after VM starts:
 
-15. **vCPU Pinning (via `virsh vcpupin`)** - Runtime CPU affinity
+18. **vCPU Pinning (via `virsh vcpupin`)** - Runtime CPU affinity
     - Reinforces XML pinning at runtime
     - Ensures vCPUs run only on designated host cores
     - Host cores 1 to vCPUS are reserved for VM
 
-16. **QEMU Process Priority** - Sets QEMU main process to SCHED_FIFO priority 70
+19. **QEMU Process Priority** - Sets QEMU main process to SCHED_FIFO priority 70
     - Real-time scheduling policy (FIFO = First In, First Out)
     - Priority 70 (medium RT priority, leaves room for higher-priority tasks)
     - Prevents QEMU from being preempted by normal processes
 
-17. **vCPU Thread Priority** - Sets vCPU threads to SCHED_FIFO priority 80
+20. **vCPU Thread Priority** - Sets vCPU threads to SCHED_FIFO priority 80
     - Higher priority than QEMU main process (80 vs 70)
     - Critical threads that execute guest CPU instructions
     - Leaves room for guest RT applications (typically 90-99)
 
+21. **vhost-net Thread Priority** - Sets vhost-net threads to SCHED_FIFO priority 75
+    - Network packet processing threads (kernel-space)
+    - Priority 75 (between QEMU main and vCPU threads)
+    - Handles all network I/O between host and guest
+    - Critical for robot control applications (UR RTDE, libfranka FCI)
+    - Prevents network packet processing delays that cause connection drops
+
 ### Host CPU Configuration
 Applied on the host system:
 
-18. **CPU Frequency Governor** - Sets to `performance` mode
+22. **CPU Frequency Governor** - Sets to `performance` mode
     - Disables CPU frequency scaling (no throttling)
     - Prevents dynamic clock changes that cause latency spikes
     - Applied to CPU 0 (IRQ handling) and RT cores (1 to vCPUS)
@@ -110,7 +137,7 @@ Applied on the host system:
 ### IRQ Affinity
 Applied on the host system:
 
-19. **IRQ Affinity to CPU 0** - Routes all interrupts to host CPU 0
+23. **IRQ Affinity to CPU 0** - Routes all interrupts to host CPU 0
     - Keeps interrupts off isolated RT cores (1 to vCPUS)
     - Prevents interrupt handlers from causing latency spikes on RT cores
     - Uses `/proc/irq/*/smp_affinity_list` and `smp_affinity` (hex mask)
@@ -125,6 +152,7 @@ Together, these settings provide:
 - **CPU isolation** - RT workloads run on dedicated cores
 - **Interrupt isolation** - IRQs routed away from RT cores
 - **Memory locking** - No swap-related latency
-- **Real-time scheduling** - RT priorities for QEMU and vCPU threads
-- **Deterministic performance** - Predictable, low-latency execution
+- **Real-time scheduling** - RT priorities for QEMU, vCPU, and vhost threads
+- **Network optimization** - Low-latency virtio-net with vhost acceleration
+- **Deterministic performance** - Predictable, low-latency execution for robot control
 

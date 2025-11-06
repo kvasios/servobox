@@ -394,6 +394,33 @@ pin_vcpus() {
     fi
   fi
   
+  # Set RT priority for vhost-net threads (network packet processing)
+  # Priority 75 for vhost threads (between QEMU main and vCPU threads)
+  # These handle all network I/O between host and guest - critical for robot control
+  echo "Setting vhost-net threads to RT priority..."
+  local vhost_threads=$(ps -eLo pid,tid,comm | awk "\$1 == ${QEMU_PID}" | grep "vhost-" | awk '{print $2}' || true)
+  if [[ -n "${vhost_threads}" ]]; then
+    local vhost_success=0
+    local vhost_fail=0
+    for tid in ${vhost_threads}; do
+      if sudo chrt -f -p 75 ${tid} >/dev/null 2>&1; then
+        echo "  ✓ Set vhost thread ${tid} to SCHED_FIFO priority 75"
+        vhost_success=$((vhost_success + 1))
+      else
+        echo "  ❌ Failed to set RT priority for vhost thread ${tid}"
+        vhost_fail=$((vhost_fail + 1))
+      fi
+    done
+    
+    if [[ ${vhost_fail} -gt 0 ]]; then
+      echo "❌ Warning: ${vhost_fail} vhost thread(s) failed RT configuration"
+    else
+      echo "✓ All ${vhost_success} vhost-net threads configured for RT"
+    fi
+  else
+    echo "⚠️  No vhost-net threads found (network model may not be using vhost)"
+  fi
+  
   # Configure CPU governor to performance mode for RT cores and CPU 0 (IRQ handling)
   echo "Setting CPU governor to performance mode for RT cores and CPU 0..."
   for cpu in 0 $(seq 1 ${VCPUS}); do
