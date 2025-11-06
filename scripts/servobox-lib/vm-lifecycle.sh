@@ -292,9 +292,9 @@ virt_install() {
     fi
   fi
 
-  NETOPTS=("--network network=default,mac=${MAC_ADDR}")
+  NETOPTS=("--network network=default,model=virtio,driver.queues=${VCPUS},mac=${MAC_ADDR}")
   if [[ -n "${BRIDGE}" ]]; then
-    NETOPTS=("--network bridge=${BRIDGE},mac=${MAC_ADDR}")
+    NETOPTS=("--network bridge=${BRIDGE},model=virtio,driver.queues=${VCPUS},mac=${MAC_ADDR}")
   fi
 
   # Optional: add direct/macvtap NICs bound to host devices (up to 2)
@@ -302,7 +302,7 @@ virt_install() {
     if [[ -z "${MAC_ADDR2}" ]]; then
       MAC_ADDR2="52:54:00:$(hexdump -n3 -e '3/1 "%02X"' /dev/urandom | sed 's/../&:/g;s/:$//g' | tr A-Z a-z)"
     fi
-    NETOPTS+=("--network type=direct,source=${HOST_NICS[0]},source_mode=bridge,model=e1000e,mac=${MAC_ADDR2}")
+    NETOPTS+=("--network type=direct,source=${HOST_NICS[0]},source_mode=bridge,model=virtio,driver.queues=${VCPUS},mac=${MAC_ADDR2}")
     echo "Attaching direct NIC #1 via macvtap on host ${HOST_NICS[0]} (mac ${MAC_ADDR2})"
   fi
   
@@ -310,7 +310,7 @@ virt_install() {
     if [[ -z "${MAC_ADDR3}" ]]; then
       MAC_ADDR3="52:54:00:$(hexdump -n3 -e '3/1 "%02X"' /dev/urandom | sed 's/../&:/g;s/:$//g' | tr A-Z a-z)"
     fi
-    NETOPTS+=("--network type=direct,source=${HOST_NICS[1]},source_mode=bridge,model=e1000e,mac=${MAC_ADDR3}")
+    NETOPTS+=("--network type=direct,source=${HOST_NICS[1]},source_mode=bridge,model=virtio,driver.queues=${VCPUS},mac=${MAC_ADDR3}")
     echo "Attaching direct NIC #2 via macvtap on host ${HOST_NICS[1]} (mac ${MAC_ADDR3})"
   fi
 
@@ -358,9 +358,9 @@ virt_define() {
     return
   fi
 
-  NETOPTS=("--network network=default,mac=${MAC_ADDR}")
+  NETOPTS=("--network network=default,model=virtio,driver.queues=${VCPUS},mac=${MAC_ADDR}")
   if [[ -n "${BRIDGE}" ]]; then
-    NETOPTS=("--network bridge=${BRIDGE},mac=${MAC_ADDR}")
+    NETOPTS=("--network bridge=${BRIDGE},model=virtio,driver.queues=${VCPUS},mac=${MAC_ADDR}")
   fi
 
   # Optional: add direct/macvtap NICs bound to host devices (up to 2)
@@ -368,7 +368,7 @@ virt_define() {
     if [[ -z "${MAC_ADDR2}" ]]; then
       MAC_ADDR2="52:54:00:$(hexdump -n3 -e '3/1 "%02X"' /dev/urandom | sed 's/../&:/g;s/:$//g' | tr A-Z a-z)"
     fi
-    NETOPTS+=("--network type=direct,source=${HOST_NICS[0]},source_mode=bridge,model=e1000e,mac=${MAC_ADDR2}")
+    NETOPTS+=("--network type=direct,source=${HOST_NICS[0]},source_mode=bridge,model=virtio,driver.queues=${VCPUS},mac=${MAC_ADDR2}")
     echo "Attaching direct NIC #1 via macvtap on host ${HOST_NICS[0]} (mac ${MAC_ADDR2})"
   fi
   
@@ -376,7 +376,7 @@ virt_define() {
     if [[ -z "${MAC_ADDR3}" ]]; then
       MAC_ADDR3="52:54:00:$(hexdump -n3 -e '3/1 "%02X"' /dev/urandom | sed 's/../&:/g;s/:$//g' | tr A-Z a-z)"
     fi
-    NETOPTS+=("--network type=direct,source=${HOST_NICS[1]},source_mode=bridge,model=e1000e,mac=${MAC_ADDR3}")
+    NETOPTS+=("--network type=direct,source=${HOST_NICS[1]},source_mode=bridge,model=virtio,driver.queues=${VCPUS},mac=${MAC_ADDR3}")
     echo "Attaching direct NIC #2 via macvtap on host ${HOST_NICS[1]} (mac ${MAC_ADDR3})"
   fi
 
