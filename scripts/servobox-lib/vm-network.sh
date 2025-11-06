@@ -206,6 +206,7 @@ NPYAML_HEADER
         macaddress: ${MAC_ADDR2}
       set-name: enp2s0
       dhcp4: false
+      optional: true
       addresses:
         - ${vm_ip}/${vm_prefix}
       nameservers:
@@ -232,6 +233,7 @@ NPYAML_NIC1
         macaddress: ${MAC_ADDR3}
       set-name: enp3s0
       dhcp4: false
+      optional: true
       addresses:
         - ${vm_ip2}/${vm_prefix2}
       nameservers:
@@ -285,7 +287,7 @@ gen_cloud_init() {
 
   # Prepare fallback SSH password for development convenience
   if [[ ! -d "${VM_DIR}" ]]; then
-    if mkdir -p "${VM_DIR}" 2>/dev/null; then :; else sudo mkdir -p "${VM_DIR}"; fi
+    if mkdir -p "${VM_DIR}" 2>/dev/null; then :; else sudo -n mkdir -p "${VM_DIR}" 2>/dev/null || sudo mkdir -p "${VM_DIR}"; fi
   fi
   # Use standard default password for servobox-usr
   SERVOBOX_PW="servobox-pwd"
@@ -374,7 +376,20 @@ packages:
 runcmd:
   - |
     set +e
-    echo "Starting ServoBox VM initialization..."
+    echo "Starting ServoBox VM boot..."
+
+    # FAST PATH: Ensure SSH is up ASAP on every boot (critical for servobox ssh to work)
+    systemctl start ssh || systemctl start sshd || true
+    
+    # Check if this is the first boot (one-time initialization flag)
+    FIRST_BOOT_FLAG="/var/lib/servobox-first-boot-done"
+    if [[ -f "\$FIRST_BOOT_FLAG" ]]; then
+      echo "ServoBox VM already initialized. Skipping first-boot configuration."
+      echo "SSH should be ready now."
+      exit 0
+    fi
+    
+    echo "First boot detected. Running ServoBox VM initialization..."
 
     # Ensure servobox-usr exists and is properly configured (preserve build-time installations)
     if ! id -u servobox-usr >/dev/null 2>&1; then
@@ -391,7 +406,7 @@ runcmd:
     # Force password change (cloud-init chpasswd might not work if user exists)
     echo "servobox-usr:servobox-pwd" | chpasswd
 
-    # Ensure SSH allows password/publickey auth and reload service ASAP
+    # Ensure SSH allows password/publickey auth and reload service
     systemctl reload ssh || systemctl restart ssh || true
 
     # Ensure DNS is properly configured before any network operations
@@ -403,9 +418,9 @@ runcmd:
     sleep 2
     # Ensure /etc/resolv.conf points to systemd-resolved
     ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf || true
-    # Verify DNS works by testing resolution with getent or curl
-    if ! getent hosts google.com >/dev/null 2>&1 && ! curl -s --connect-timeout 2 https://google.com >/dev/null 2>&1; then
-      echo "DNS resolution still failing, applying fallback configuration..."
+    # Verify DNS works by testing resolution (reduced timeout for faster boot)
+    if ! timeout 3 getent hosts google.com >/dev/null 2>&1; then
+      echo "DNS resolution not working, applying fallback configuration..."
       # Fallback: directly configure resolv.conf with public DNS
       echo "nameserver 8.8.8.8" > /etc/resolv.conf
       echo "nameserver 1.1.1.1" >> /etc/resolv.conf
@@ -414,7 +429,7 @@ runcmd:
     fi
     echo "DNS configuration completed"
 
-    # Configure enp2s0 interface directly
+    # Configure enp2s0 interface directly (if it exists)
     echo "Configuring enp2s0 interface..."
     if ip link show enp2s0 >/dev/null 2>&1; then
       echo "Found enp2s0, configuring with IP 172.16.0.1/24"
@@ -422,7 +437,7 @@ runcmd:
       ip link set enp2s0 up || true
       echo "enp2s0 configured successfully"
     else
-      echo "enp2s0 not found"
+      echo "enp2s0 not found (will be configured if/when direct NIC is attached)"
     fi
 
     # Configure firewall for libfranka communication (disable blocking)
@@ -461,7 +476,10 @@ runcmd:
     echo "Guest real-time tuning completed!"
 
     update-grub || true
-    echo "ServoBox VM initialization completed!"
+    
+    # Mark first boot as complete
+    touch "\$FIRST_BOOT_FLAG"
+    echo "ServoBox VM first-boot initialization completed!"
 
 final_message: |
   ServoBox VM is ready!
@@ -486,33 +504,36 @@ EOF
 
   # Ensure VM directory exists and is writable or we can elevate non-interactively
   if [[ ! -d "${VM_DIR}" ]]; then
-    if mkdir -p "${VM_DIR}" 2>/dev/null; then :; else sudo -n mkdir -p "${VM_DIR}" || true; fi
-  fi
-  # Try to generate seed directly to final path to avoid move issues
-  if [[ -w "${VM_DIR}" ]]; then
-    if ! cloud-localds "${SEED_ISO}" "${USERDATA}" "${METADATA}"; then
-      echo "Error: cloud-localds failed writing ${SEED_ISO}" >&2
+    if mkdir -p "${VM_DIR}" 2>/dev/null; then :; 
+    elif sudo -n mkdir -p "${VM_DIR}" 2>/dev/null; then :;
+    else
+      echo "Error: Cannot create ${VM_DIR} without sudo. Please run with sudo access." >&2
       exit 1
     fi
-  else
-    if sudo -n cloud-localds "${SEED_ISO}" "${USERDATA}" "${METADATA}"; then :;
-    else
-      # Last resort: write to tmp then move with sudo -n
-      SEED_TMP=$(mktemp)
-      if ! cloud-localds "${SEED_TMP}" "${USERDATA}" "${METADATA}"; then
-        echo "Error: cloud-localds failed generating seed image" >&2
-        rm -f "${SEED_TMP}" 2>/dev/null || true
-        exit 1
-      fi
-      if ! sudo -n mv "${SEED_TMP}" "${SEED_ISO}"; then
-        echo "Error: cannot place seed at ${SEED_ISO}. Grant write access to ${VM_DIR} or run with sudo." >&2
-        rm -f "${SEED_TMP}" 2>/dev/null || true
-        exit 1
-      fi
+  fi
+  
+  # Try to generate seed - use tmp file and move approach for better permission handling
+  SEED_TMP=$(mktemp)
+  if ! timeout 30 cloud-localds "${SEED_TMP}" "${USERDATA}" "${METADATA}" >/dev/null 2>&1; then
+    echo "Error: cloud-localds failed generating seed image" >&2
+    rm -f "${SEED_TMP}" 2>/dev/null || true
+    exit 1
+  fi
+  
+  # Move seed to final location (with sudo if needed, but prefer non-interactive)
+  # Force overwrite to avoid prompts
+  if ! mv -f "${SEED_TMP}" "${SEED_ISO}" 2>/dev/null; then
+    if ! timeout 5 sudo -n mv -f "${SEED_TMP}" "${SEED_ISO}" 2>/dev/null; then
+      echo "Error: Cannot move seed image to ${SEED_ISO}" >&2
+      echo "Temp file location: ${SEED_TMP}" >&2
+      echo "Please run manually: sudo mv -f ${SEED_TMP} ${SEED_ISO}" >&2
+      exit 1
     fi
   fi
-  sudo -n chown libvirt-qemu:kvm "${SEED_ISO}" >/dev/null 2>&1 || true
-  sudo -n chmod 0644 "${SEED_ISO}" >/dev/null 2>&1 || true
+  
+  # Set proper ownership and permissions
+  sudo -n chown libvirt-qemu:kvm "${SEED_ISO}" 2>/dev/null || sudo chown libvirt-qemu:kvm "${SEED_ISO}" 2>/dev/null || true
+  sudo -n chmod 0644 "${SEED_ISO}" 2>/dev/null || sudo chmod 0644 "${SEED_ISO}" 2>/dev/null || true
   rm -f "${USERDATA}" "${METADATA}"
   echo "cloud-init seed generated: ${SEED_ISO}"
   # Restore strict mode
@@ -676,31 +697,39 @@ cmd_network_setup() {
     exit 1
   fi
   
-  # Preserve existing MAC addresses before undefining
-  # Extract primary NAT MAC (network=default)
-  local existing_nat_mac
-  existing_nat_mac=$(virsh_cmd domiflist "${NAME}" 2>/dev/null | awk '$2 == "network" && $3 == "default" {print $5; exit}')
-  if [[ -n "${existing_nat_mac}" ]]; then
-    MAC_ADDR="${existing_nat_mac}"
-    echo "Preserving NAT interface MAC: ${MAC_ADDR}"
-  fi
-  
-  # Extract existing direct NIC MACs if any
-  local existing_direct_macs
-  mapfile -t existing_direct_macs < <(virsh_cmd domiflist "${NAME}" 2>/dev/null | awk '$2 == "direct" {print $5}')
-  if [[ ${#existing_direct_macs[@]} -ge 1 ]]; then
-    MAC_ADDR2="${existing_direct_macs[0]}"
-    echo "Preserving direct NIC #1 MAC: ${MAC_ADDR2}"
-  fi
-  if [[ ${#existing_direct_macs[@]} -ge 2 ]]; then
-    MAC_ADDR3="${existing_direct_macs[1]}"
-    echo "Preserving direct NIC #2 MAC: ${MAC_ADDR3}"
-  fi
-  
-  # Undefine the existing domain (preserving storage)
-  if ! virsh_cmd undefine "${NAME}" >/dev/null 2>&1; then
-    echo "Error: Failed to undefine VM domain" >&2
-    exit 1
+  # Preserve existing MAC addresses before undefining (only if VM exists)
+  if timeout 5 virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
+    # Extract primary NAT MAC (network=default)
+    local existing_nat_mac
+    existing_nat_mac=$(timeout 5 virsh_cmd domiflist "${NAME}" 2>/dev/null | awk '$2 == "network" && $3 == "default" {print $5; exit}')
+    if [[ -n "${existing_nat_mac}" ]]; then
+      MAC_ADDR="${existing_nat_mac}"
+      echo "Preserving NAT interface MAC: ${MAC_ADDR}"
+    fi
+    
+    # Extract existing direct NIC MACs if any
+    local existing_direct_macs
+    mapfile -t existing_direct_macs < <(timeout 5 virsh_cmd domiflist "${NAME}" 2>/dev/null | awk '$2 == "direct" {print $5}')
+    if [[ ${#existing_direct_macs[@]} -ge 1 ]]; then
+      MAC_ADDR2="${existing_direct_macs[0]}"
+      echo "Preserving direct NIC #1 MAC: ${MAC_ADDR2}"
+    fi
+    if [[ ${#existing_direct_macs[@]} -ge 2 ]]; then
+      MAC_ADDR3="${existing_direct_macs[1]}"
+      echo "Preserving direct NIC #2 MAC: ${MAC_ADDR3}"
+    fi
+    
+    # Undefine the existing domain (preserving storage)
+    echo "Undefining existing VM domain..."
+    if ! virsh_cmd undefine "${NAME}" >/dev/null 2>&1; then
+      echo "Warning: Failed to undefine VM domain (may already be undefined)" >&2
+    fi
+  else
+    echo "VM domain does not exist. Will create new VM definition."
+    # Generate MAC addresses if not already set
+    if [[ -z "${MAC_ADDR}" ]]; then
+      MAC_ADDR="52:54:00:$(hexdump -n3 -e '3/1 "%02X"' /dev/urandom | sed 's/../&:/g;s/:$//g' | tr A-Z a-z)"
+    fi
   fi
   
   # Regenerate MAC addresses if needed
@@ -713,6 +742,11 @@ cmd_network_setup() {
   
   # Inject persistent netplan for the new direct NICs
   inject_persistent_netplan
+  
+  # Regenerate cloud-init seed with updated configuration
+  # This ensures the VM uses the latest fast-boot configuration
+  echo "Regenerating cloud-init seed with updated boot configuration..."
+  gen_cloud_init
   
   # Redefine the domain with new network configuration
   virt_define
