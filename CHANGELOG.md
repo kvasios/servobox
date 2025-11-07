@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.3 (tbd)
+## 0.1.3 (2025-11-07)
 
 ### Fixed
 - **Network Setup Boot Delays**: Fixed critical issue where VMs booted after `servobox network-setup` experienced 30-60 second delays before SSH became available. Root causes and fixes:

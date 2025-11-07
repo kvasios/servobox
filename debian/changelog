@@ -1,3 +1,17 @@
+servobox (0.1.3) unstable; urgency=medium
+
+  * Fix critical network setup boot delays - VMs now boot in 5-10s instead of 30-60s
+  * Add optional: true to macvtap NIC netplan configs to prevent boot blocking
+  * Implement first-boot flag to skip expensive cloud-init operations on subsequent boots
+  * Add systemd service (servobox-configure-macvtap.service) for reliable macvtap configuration
+  * Fix VM IP assignment to avoid conflicts between host and VM in same subnet
+  * Upgrade to virtio-net with multi-queue + vhost-net RT priority (75)
+  * Remove guest CPU isolation restrictions - guest processes can use all vCPUs freely
+  * Add timeouts to virsh commands and improve error handling
+  * Fix hanging operations with non-interactive sudo and clear error messages
+
+ -- Konstantinos Vasios <konstantinos.vasios@gmail.com>  Thu, 07 Nov 2025 12:00:00 +0000
+
 servobox (0.1.2) unstable; urgency=medium
 
   * Fix critical VM detection issue after closing/reopening terminal

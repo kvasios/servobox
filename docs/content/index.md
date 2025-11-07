@@ -4,7 +4,7 @@
   <img src="assets/images/servobox.png" alt="ServoBox Logo" width="300">
 </div>
 
-**Launch real-time VMs for robotics in seconds.**
+**Launch real-time VMs for robotics in a few steps.**
 
 ServoBox gives you Ubuntu 22.04 VMs with PREEMPT_RT kernel, automatic CPU pinning, and IRQ isolation. No manual configuration needed.
 
@@ -12,7 +12,7 @@ ServoBox gives you Ubuntu 22.04 VMs with PREEMPT_RT kernel, automatic CPU pinnin
 
 ## 🚀 Quick Start
 
-**Prerequisites:** Ubuntu 20.04+ (tested with 22.04 host), 6, ideally 8+ cores, 8GB, ideally 16GB+ RAM, hardware virtualization enabled (Intel VT-x or AMD-V)
+**Prerequisites:** Ubuntu 22.04+ or 24.04, 6, ideally 8+ cores, 8GB, ideally 16GB+ RAM, hardware virtualization enabled (Intel VT-x or AMD-V)
 
 ### 1. Install ServoBox
 
@@ -68,7 +68,7 @@ servobox start
 ```
 ```console
 # Test RT performance
-servobox test --duration 30
+servobox test --duration 30 --stress-ng
 ```
 **That's it!** You now have a real-time, low-latency VM ready for control.
 

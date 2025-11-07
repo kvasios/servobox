@@ -101,12 +101,11 @@ This separation ensures that:
 
 **Tested Configuration:**
 
-ServoBox is developed and tested on Ubuntu 22.04 with Intel i5-13700 (16 cores, 32GB RAM) and validated with Franka Robot (1st generation).
+ServoBox is developed and tested on Ubuntu 22.04 & 24.04 Host PC with Intel i5-13700 (16 cores, 32GB RAM) and validated with Franka Robot (1st generation).
 
 **Expected to Work:**
 
 - AMD CPUs (KVM/QEMU is CPU-agnostic)
-- Ubuntu 20.04, 24.04
 - Other multi-core Intel/AMD systems with VT-x/AMD-V
 
 **Not Yet Validated:**

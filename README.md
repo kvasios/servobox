@@ -155,11 +155,11 @@ servobox run <package>                             # Execute package run.sh scri
 
 ## Compatibility
 
-**Tested:** Ubuntu 22.04, Intel i5-13700, Franka Robot (gen1)  
-**Expected to work:** AMD CPUs, Ubuntu 20.04, 24.04
-**Not yet validated:** Franka FR3 (builds OK, needs runtime testing)
+**Tested:** Ubuntu 22.04 & 24.04 Host PC, Intel i5-13700, Franka Robot (gen1)  
+**Expected to work:** AMD CPUs
+**Not yet validated:** Franka FR3 (builds OK, needs runtime testing) or other robotic platforms with high-frequency RT control API capabilities.
 
-ServoBox is an indie project. Testing with AMD systems or Franka FR3 hardware? Please share results on GitHub!
+ServoBox is an indie project. Testing with AMD systems, Franka FR3 hardware or any other type of system? Please share results on GitHub!
 
 ## Contributing
 

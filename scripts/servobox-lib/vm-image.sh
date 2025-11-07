@@ -144,7 +144,7 @@ ensure_image() {
         DEFAULT_TAG="v$(head -n1 debian/changelog | sed -n 's/.*(\([^)]\+\)).*/\1/p')"
         echo "Checking for release tag: ${DEFAULT_TAG} (from debian/changelog)"
       else
-        DEFAULT_TAG="v0.1.2"
+        DEFAULT_TAG="v0.1.3"
         echo "Checking for release tag: ${DEFAULT_TAG} (fallback)"
       fi
       API_URL_TAG="https://api.github.com/repos/${GH_REPO}/releases/tags/${DEFAULT_TAG}"
