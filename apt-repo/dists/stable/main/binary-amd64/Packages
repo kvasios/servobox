@@ -61,3 +61,24 @@ Description: One-command launcher for real-time VMs (Ubuntu 22.04 PREEMPT_RT)
  setup, cloud-init seed generation, and RT configuration for robotics and
  control workloads.
 
+Package: servobox
+Version: 0.1.3
+Architecture: amd64
+Maintainer: Konstantinos Vasios <konstantinos.vasios@gmail.com>
+Installed-Size: 385
+Depends: iproute2, net-tools, wget, xz-utils, qemu-kvm, qemu-utils, libvirt-daemon-system, libvirt-clients, virtinst, cloud-image-utils, libguestfs-tools, libosinfo-bin, acl, openssh-client, stress-ng, isc-dhcp-client
+Recommends: sshpass, osinfo-db, bridge-utils, ethtool
+Suggests: virt-viewer
+Filename: dists/stable/main/binary-amd64/servobox_0.1.3_amd64.deb
+Size: 73738
+MD5sum: 729fb502337118cae14ee77fc207dcb1
+SHA1: c37fdc482d098cc3503cadec60f9d27ce1b946b1
+SHA256: 6d3ac1867aaacabe5aaeaefc68a6d21531b6abf4da8033cc11025d700ce2555f
+Section: utils
+Priority: optional
+Description: One-command launcher for real-time VMs (Ubuntu 22.04 PREEMPT_RT)
+ ServoBox makes it simple to create and run real-time tuned Ubuntu VMs
+ with CPU pinning and IRQ isolation. It automates image handling, libvirt
+ setup, cloud-init seed generation, and RT configuration for robotics and
+ control workloads.
+
