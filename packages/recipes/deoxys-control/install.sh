@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# deoxys-control installation script
+# deoxys-control server-side installation script for Ubuntu 22.04
+# This script installs dependencies and builds the server-side components (BUILD_FRANKA=1)
 
-echo "Installing deoxys-control dependencies and cloning sources..."
+echo "Installing deoxys-control server-side dependencies..."
 
 export DEBIAN_FRONTEND=noninteractive
 
@@ -13,9 +14,9 @@ if [[ -n "${PACKAGE_HELPERS:-}" && -f "${PACKAGE_HELPERS}" ]]; then
   . "${PACKAGE_HELPERS}"
 else
   # Fallback to local helpers when running directly
-  if [[ -f "$(cd "$(dirname "$0")/.." && pwd)/scripts/pkg-helpers.sh" ]]; then
+  if [[ -f "$(cd "$(dirname "$0")" && pwd)/scripts/pkg-helpers.sh" ]]; then
     # shellcheck source=/dev/null
-    . "$(cd "$(dirname "$0")/.." && pwd)/scripts/pkg-helpers.sh"
+    . "$(cd "$(dirname "$0")" && pwd)/scripts/pkg-helpers.sh"
   fi
 fi
 
@@ -25,146 +26,142 @@ if [[ ! -d /home/servobox-usr ]]; then
   exit 1
 fi
 
-# Refresh shared library cache (important when installing via virt-customize after libfranka)
+# Refresh shared library cache
 ldconfig || true
 
-# Base build prerequisites via apt
+# Update package lists
 apt_update || apt-get update || true
-apt_install build-essential cmake git libpoco-dev libeigen3-dev || apt-get install -y build-essential cmake git libpoco-dev libeigen3-dev
 
-# For protoc (protobuf toolchain)
-apt_install autoconf automake libtool curl make g++ unzip || apt-get install -y autoconf automake libtool curl make g++ unzip
-apt_install protobuf-compiler libprotobuf-dev libprotoc-dev || apt-get install -y protobuf-compiler libprotobuf-dev libprotoc-dev
+# Base build prerequisites
+echo "Installing base build tools..."
+apt_install build-essential cmake git pkg-config || \
+  apt-get install -y build-essential cmake git pkg-config
 
-# For ZeroMQ
-apt_install libzmq3-dev || apt-get install -y libzmq3-dev
+# Protobuf (Ubuntu 22.04 has protobuf 3.20.1 in repos - sufficient for our needs)
+echo "Installing protobuf..."
+apt_install protobuf-compiler libprotobuf-dev libprotoc-dev || \
+  apt-get install -y protobuf-compiler libprotobuf-dev libprotoc-dev
 
-# Build tooling helpers
-apt_install pkg-config || apt-get install -y pkg-config
-
-# Additional apt packages
-apt_install libyaml-cpp-dev libspdlog-dev || apt-get install -y libyaml-cpp-dev libspdlog-dev
-apt_install libreadline-dev bzip2 libmotif-dev libglfw3 || apt-get install -y libreadline-dev bzip2 libmotif-dev libglfw3
-
-# Clone deoxys_control dev branch into user home (shallow)
-cd /home/servobox-usr
-rm -rf deoxys_control
-echo "Cloning deoxys_control (shallow) into /home/servobox-usr/deoxys_control..."
-git clone --depth 1 --single-branch --branch dev https://github.com/kvasios/deoxys_control.git deoxys_control
-
-# Initialize and update submodules
-echo "Initializing and updating submodules..."
-cd deoxys_control
-git submodule update --init --recursive
-cd ..
-
-chown -R servobox-usr:servobox-usr /home/servobox-usr/deoxys_control || true
-
-PROTOV_REQUIRED_MINOR=13
-
-# Prepare a temporary workspace for optional source fallbacks
-BUILD_DIR="/tmp/deoxys-deps"
-rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-
-# Prefer distro protobuf; fallback to source if version < 3.13
+# Verify protobuf version (should be >= 3.19.0)
 if command -v protoc >/dev/null 2>&1; then
   PROTOC_VER=$(protoc --version | awk '{print $2}')
   PROTOC_MAJOR=$(echo "$PROTOC_VER" | cut -d. -f1)
   PROTOC_MINOR=$(echo "$PROTOC_VER" | cut -d. -f2)
+  echo "Found protoc version: $PROTOC_MAJOR.$PROTOC_MINOR"
+  
+  if [[ "${PROTOC_MAJOR}" -lt 3 ]] || [[ "${PROTOC_MAJOR}" -eq 3 && "${PROTOC_MINOR}" -lt 19 ]]; then
+    echo "Warning: protoc version $PROTOC_MAJOR.$PROTOC_MINOR is below 3.19.0" >&2
+    echo "Consider upgrading or building from source if issues occur" >&2
+  fi
 else
-  PROTOC_MAJOR=0
-  PROTOC_MINOR=0
+  echo "Error: protoc not found after installation" >&2
+  exit 1
 fi
 
-if [[ "${PROTOC_MAJOR}" -lt 3 || "${PROTOC_MINOR}" -lt ${PROTOV_REQUIRED_MINOR} ]]; then
-  echo "System protobuf too old ($PROTOC_MAJOR.$PROTOC_MINOR); building v3.13.0 from source..."
-  cd "$BUILD_DIR"
-  rm -rf protobuf-3.13.0
-  echo "Downloading protobuf v3.13.0 C++ release tarball..."
-  curl -sSL -o protobuf-3.13.0.tar.gz https://github.com/protocolbuffers/protobuf/releases/download/v3.13.0/protobuf-cpp-3.13.0.tar.gz
-  tar -xzf protobuf-3.13.0.tar.gz
-  cd protobuf-3.13.0
-  echo "Building protobuf v3.13.0 via configure/make (skip tests)..."
-  ./configure --prefix=/usr/local
-  make -j"$(nproc)"
-  make install
-  # Ensure /usr/local/lib has priority in dynamic linker search path
-  echo "/usr/local/lib" > /etc/ld.so.conf.d/usr-local-protobuf.conf
-  ldconfig
-  cd "$BUILD_DIR"
+# ZeroMQ
+echo "Installing ZeroMQ..."
+apt_install libzmq3-dev || apt-get install -y libzmq3-dev
+
+# System libraries (prefer system packages, CMake will fallback to bundled if needed)
+echo "Installing system libraries..."
+apt_install libeigen3-dev libyaml-cpp-dev libspdlog-dev || \
+  apt-get install -y libeigen3-dev libyaml-cpp-dev libspdlog-dev
+
+# Additional dependencies
+apt_install libreadline-dev bzip2 libmotif-dev libglfw3 || \
+  apt-get install -y libreadline-dev bzip2 libmotif-dev libglfw3
+
+# Clone deoxys_control dev branch into user home (shallow)
+cd /home/servobox-usr
+if [[ -d deoxys_control ]]; then
+  echo "Updating existing deoxys_control repository..."
+  cd deoxys_control
+  git fetch origin dev
+  git checkout dev
+  git pull origin dev || true
 else
-  echo "Using distro protobuf (protoc $PROTOC_MAJOR.$PROTOC_MINOR)"
+  echo "Cloning deoxys_control (shallow) into /home/servobox-usr/deoxys_control..."
+  git clone --depth 1 --single-branch --branch dev https://github.com/kvasios/deoxys_control.git deoxys_control
+  cd deoxys_control
 fi
 
-# Ensure we prefer /usr/local binaries (protoc 3.13) over system ones
-if [[ -x /usr/local/bin/protoc ]]; then
-  export PATH="/usr/local/bin:${PATH}"
+# Initialize and update submodules (only zmqpp is required for server-side)
+echo "Initializing and updating submodules..."
+git submodule update --init --recursive zmqpp spdlog yaml-cpp || \
+  git submodule update --init --recursive
+
+# Ensure proper ownership
+chown -R servobox-usr:servobox-usr /home/servobox-usr/deoxys_control || true
+
+# Build zmqpp from submodule (required, not available as system package)
+echo "Building zmqpp from submodule..."
+cd /home/servobox-usr/deoxys_control/zmqpp || { 
+  echo "Error: zmqpp submodule not found" >&2
+  exit 1
+}
+
+# Clean previous build if exists
+if [[ -d build ]]; then
+  rm -rf build
 fi
 
-# Show effective protoc being used
-if command -v protoc >/dev/null 2>&1; then
-  echo "Using protoc from: $(command -v protoc) ($(protoc --version))"
-else
-  echo "Warning: protoc not found on PATH after setup" >&2
-fi
-
-# Build and install libzmqpp from submodule
-echo "Building and installing libzmqpp from submodule..."
-cd /home/servobox-usr/deoxys_control/zmqpp || { echo "Error: zmqpp submodule not found" >&2; exit 1; }
+# Build zmqpp with CMake (more reliable than Makefile)
+mkdir -p build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j"$(nproc)"
 make install
 ldconfig
+cd /home/servobox-usr/deoxys_control
 
-# Ensure pkg-config finds the new protobuf first
-export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+# Build deoxys_control server-side components
+echo "Building deoxys_control server-side (BUILD_FRANKA=1)..."
+cd /home/servobox-usr/deoxys_control/deoxys || { 
+  echo "Error: deoxys directory not found" >&2
+  exit 1
+}
 
-# Clear any previous CMake cache so Protobuf detection re-runs with the right protoc
-# Also clear any pkg-config or CMake module cache that might incorrectly detect zmqpp
-if [[ -d /home/servobox-usr/deoxys_control/deoxys/build ]]; then
-  echo "Removing old build directory to ensure clean CMake configuration..."
-  rm -rf /home/servobox-usr/deoxys_control/deoxys/build || true
+# Clean previous build if exists
+if [[ -d build ]]; then
+  echo "Removing old build directory for clean configuration..."
+  rm -rf build
 fi
-
-# Build deoxys_control
-echo "Building deoxys_control with cmake (Release, BUILD_FRANKA=1)..."
-cd /home/servobox-usr/deoxys_control/deoxys || { echo "Error: deoxys directory not found" >&2; exit 1; }
 
 # Create build directory
 mkdir -p build
 cd build
 
-# Configure with cmake (set CMAKE_PREFIX_PATH to help find libfranka in virt-customize environment)
-# Also set RPATH to ensure runtime picks up /usr/local/lib libraries (protobuf 3.13)
-# Set SKIP_BUILD_RPATH=FALSE and enable RPATH for build tree executables
-# Force Protobuf_ROOT to ensure CMake finds the right protobuf
-# Set LDFLAGS to prioritize /usr/local/lib during linking
-export LDFLAGS="-L/usr/local/lib -Wl,-rpath,/usr/local/lib"
-export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH:-}"
-CMAKE_PREFIX_PATH="/usr/local:/usr" \
-Protobuf_ROOT="/usr/local" \
-cmake \
+# Configure CMake
+# Note: CMakeLists.txt prefers system packages and falls back to bundled submodules
+echo "Configuring CMake..."
+cmake .. \
   -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_FRANKA=1 \
-  -DCMAKE_SKIP_BUILD_RPATH=FALSE \
-  -DCMAKE_BUILD_RPATH="/usr/local/lib" \
-  -DCMAKE_INSTALL_RPATH="/usr/local/lib" \
-  -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=TRUE \
-  -DProtobuf_INCLUDE_DIR=/usr/local/include \
-  -DProtobuf_LIBRARY=/usr/local/lib/libprotobuf.so \
-  -DProtobuf_PROTOC_EXECUTABLE=/usr/local/bin/protoc \
-  ..
+  -DBUILD_FRANKA=ON \
+  -DBUILD_DEOXYS=OFF \
+  -DCMAKE_INSTALL_PREFIX=/usr/local
 
-# Build with make (use -j2 to avoid OOM in virt-customize with limited memory)
-make -j2
+# Build (use all available cores)
+echo "Building deoxys_control..."
+make -j"$(nproc)"
 
+# Install binaries
+echo "Installing binaries..."
+make install
+ldconfig
+
+# Ensure proper ownership
 cd /home/servobox-usr/deoxys_control
 chown -R servobox-usr:servobox-usr /home/servobox-usr/deoxys_control || true
 
 # Cleanup apt caches if available via helpers
 apt_cleanup || true
 
-echo "deoxys-control built and dependencies installed."
-
-
+echo ""
+echo "✓ deoxys-control server-side installation complete!"
+echo ""
+echo "Binaries installed to: /usr/local/bin"
+echo "  - franka-interface"
+echo "  - gripper-interface"
+echo ""
+echo "To run the server directly from Host PC:"
+echo "  servobox run deoxys-control"
