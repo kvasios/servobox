@@ -6,20 +6,20 @@ Version: 1.0
 Architectures: amd64
 Components: main
 Description: ServoBox - One-command launcher for real-time VMs
-Date: Fri, 07 Nov 2025 19:12:02 +0000
+Date: Sat, 08 Nov 2025 14:33:06 +0000
 MD5Sum:
- 93e701afc8f9e3f874bee31846ff375a              231 Release
- fb14b6ad2d4787f8c8be7bcd00bb272d             4099 main/binary-amd64/Packages
- 725b14cb2d63172e4a3787c3e581b489             1075 main/binary-amd64/Packages.gz
+ 194b03dfc486fde9689981691c5fafd4              231 Release
+ a83427e7d25e7c3deba10ebafa323a46             4099 main/binary-amd64/Packages
+ 641a5b794b42653040e2b0a00b741a2c             1072 main/binary-amd64/Packages.gz
 SHA1:
- 6c0b798f7f178267b6caa65ff8f33d0d9eba6499              231 Release
- 360e067dc6a5a1a679efc752f97a59a076f2b5d9             4099 main/binary-amd64/Packages
- bf88ed2469bd29a6cd9d81db7a67b12dd626ce25             1075 main/binary-amd64/Packages.gz
+ 22d9bc5a7d27fab221cbb2fc58ec83459646d1db              231 Release
+ c41f7a5ae0c1ad1a37fc8976e7963cd4f7a253fc             4099 main/binary-amd64/Packages
+ 0c89587bf624a21a4eba57b5140962510d89e8bf             1072 main/binary-amd64/Packages.gz
 SHA256:
- ee5499432d97e8ce87e2fb701f2dc04b1791d999aea6f9da31d93a5c3c3f76dc              231 Release
- 78c5919be93dea67f67c0b7856fefffe7fda5fa34e2379d66971bc8a6a34712a             4099 main/binary-amd64/Packages
- 3ace521ea2e209f492484792804d961b1fd2e3d4ab85dea8bf77c961fb150521             1075 main/binary-amd64/Packages.gz
+ 646624d4cfb35c893fbe3b9a51fb5dfb3d9654c2d1ed59fda7ef4a4d940de25e              231 Release
+ 3f546780209aba0eed4cf657c785978c35baf5241c908d753737c3c58ddfdf43             4099 main/binary-amd64/Packages
+ 7f6fd16e80d522fc69b684d939742dff4d8aae4667d7a1f412544f8d0be9796d             1072 main/binary-amd64/Packages.gz
 SHA512:
- 0936b5cfa03b5cbb4f97314bd23fd7106298eb910ee9ff4bf10b9a14ea376c6170e436bcab8f77edde9912bb1a3028f7432c482230c94b303b062993868adaaa              231 Release
- 9caf7b3f20776abbc2a4897152ac0dd79d94020acdc6912960c75434b8a3c71199018b89de607036629014f3af077fbeec6918d0b1f6c218bf7607e6e3fad567             4099 main/binary-amd64/Packages
- 9833594bb5adab2f6decd56436d45250e96f2665dc433845c772cf1d6ac2c231b0a704da363135d515a180e1d667e0f07a63fe6ff15df8f3162c7b84a06c04e9             1075 main/binary-amd64/Packages.gz
+ f305fb260f104aec6290a50f6e4c10bafcc0eaf8b1de845ce9066bb8464433f5995a54b8ce48e25d5e96c80f7d88d88ad575d93270f4b0e0b2fbba84ec63ba20              231 Release
+ 325321e023738f2373a8c31e883bf9a66e90914351db35e495d894ba4581122cde1d36e8a7b231e64b31b03857c986f9a266404da03dd37affda4946553cfb3b             4099 main/binary-amd64/Packages
+ c24a4b6695c00c6930a140200c91a8ac3f4e70773ce0cfc6a7c5ab1c023960576feafa8188bbe25abcd515536ca2a8b24f7c3591974f6756c06f52d62bb38e45             1072 main/binary-amd64/Packages.gz
