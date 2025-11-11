@@ -10,7 +10,7 @@
 ServoBox's balanced mode already achieves excellent RT performance (~4μs avg, ~100-120μs max). The settings below are for:
 
 - **Experimentation** - Understanding latency sources in your system
-- **99.99% guarantees** - Reducing spike frequency from ~1 per 10k to ~1 per 100k cycles
+- **99.99% guarantees** - Reducing spike latencies and frequency from ~1 per 10k to ~1 per 100k cycles
 - **Future research** - Community testing of advanced tuning approaches
 
 **If you try these and have interesting results, please [share them on GitHub](https://github.com/kvasios/servobox/discussions)!**
