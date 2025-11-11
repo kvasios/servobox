@@ -23,15 +23,26 @@ ServoBox offers three RT performance modes (selected with `servobox start`):
 
 | Mode | Latency Target | Power Usage | Command |
 |------|---------------|-------------|---------|
-| **Balanced** (default) | avg: ~4μs, max: ~100μs | Normal | `servobox start` |
-| **Performance** | avg: ~3μs, max: ~70μs | +20-30W | `servobox start --performance` |
-| **Extreme** | avg: <3μs, max: <50μs | +40-60W (high) | `servobox start --extreme` |
+| **Balanced** (default) | avg: ~4μs, max: ~100-120μs | Normal | `servobox start` |
+| **Performance** | avg: ~3μs, max: ~100μs (fewer spikes) | +20-30W | `servobox start --performance` |
+| **Extreme** | avg: ~3μs, max: ~100μs (rare spikes) | +40-60W (high) | `servobox start --extreme` |
 
 **Mode details:**
 
-- **Balanced**: Performance CPU governor with dynamic frequency scaling. **Recommended for most robotics control loops** - excellent latency with normal power consumption.
-- **Performance**: Locks CPU frequencies to maximum, eliminating frequency transition latency. Use when <100μs worst-case is required.
-- **Extreme**: Adds Turbo Boost disable for maximum determinism. Experimental, high power consumption. Use only when <50μs max latency is required.
+- **Balanced**: Performance CPU governor with dynamic frequency scaling. **Recommended for most robotics control loops** - excellent latency with normal power consumption. Achieves the VM's fundamental latency floor.
+
+- **Performance**: Locks CPU frequencies to maximum, eliminating frequency transition jitter. **Does not reduce max latency significantly** but makes 100μs+ spikes less frequent. Use when your application needs tighter timing guarantees (99.99% vs 99.9%).
+
+- **Extreme**: Adds Turbo Boost disable for maximum determinism. In testing, shows no measurable improvement over Performance mode. Use only for experimentation or if you need absolutely predictable behavior.
+
+!!! info "VM Latency Ceiling"
+    The ~100-120μs max latency represents the fundamental limit of running RT workloads in a VM. These spikes come from:
+    
+    - **Hypervisor overhead** (QEMU/KVM context switches, memory management)
+    - **Hardware interrupts** (SMIs, IRQs bleeding through isolation)
+    - **Memory subsystem** (cache misses, TLB flushes)
+    
+    Frequency locking (Performance/Extreme modes) can reduce the *frequency* of spikes but cannot eliminate them. For latencies <50μs, bare-metal RT Linux is required.
 
 !!! tip "Switching Modes"
     You can change modes by stopping and restarting the VM with a different flag. The mode only affects host CPU tuning, not the VM image.
@@ -74,49 +85,14 @@ Prevents kernel scheduler and interrupt activity from preempting RT vCPU threads
 
 ---
 
-### Advanced Host Tuning (Optional - For <100μs Max Latency)
+### Experimental Tuning
 
-For applications requiring extremely low worst-case latency, consider these additional host optimizations:
+ServoBox's balanced mode already achieves the VM latency ceiling (~100-120μs max). For users interested in experimenting with advanced BIOS and host tuning to potentially reduce spike frequency, see:
 
-**Disable CPU Turbo Boost:**
+**[:material-flask: Experimental Host Tuning →](experimental-tuning.md)**
 
-```console
-# Intel
-echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo
-
-# AMD  
-echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost
-```
-
-**Limit C-States (prevent deep sleep):**
-
-Add to `/etc/default/grub`:
-
-```text
-intel_idle.max_cstate=1 processor.max_cstate=1
-```
-
-Or more aggressive (prevents any idle, highest power):
-
-```text
-idle=poll
-```
-
-**Disable SMT/Hyper-Threading (BIOS recommended):**
-
-SMT siblings share execution resources. For absolute determinism:
-
-1. Disable in BIOS/UEFI (cleanest approach)
-2. Or: Never run workloads on sibling threads simultaneously
-
-Check SMT status:
-
-```console
-cat /sys/devices/system/cpu/smt/active  # 1=enabled, 0=disabled
-```
-
-!!! warning "Trade-offs"
-    These optimizations reduce max latency spikes but increase power consumption and may reduce throughput. Test your specific workload before applying in production.
+!!! info "Community Research"
+    These settings are untested with ServoBox and may not provide significant benefits in VMs. If you experiment with them and have interesting results, please share on [GitHub Discussions](https://github.com/kvasios/servobox/discussions)!
 
 ---
 
@@ -471,13 +447,13 @@ Runs `cyclictest` at 1kHz (1000μs interval) while optionally stressing the host
 
 **Expected results by mode:**
 
-| Mode | Average | Max (typical) | Rating |
-|------|---------|--------------|--------|
-| Balanced | ~4μs | ~100μs | EXCELLENT |
-| Performance | ~3μs | 60-70μs | EXCELLENT |
-| Extreme | <3μs | <50μs | EXCELLENT |
+| Mode | Average | Max (typical) | Spike Frequency | Rating |
+|------|---------|--------------|-----------------|--------|
+| Balanced | ~4μs | ~100-120μs | ~1 per 10k cycles | EXCELLENT |
+| Performance | ~3μs | ~100μs | ~1 per 50k cycles | EXCELLENT |
+| Extreme | ~3μs | ~100μs | ~1 per 100k cycles | EXCELLENT |
 
-Results depend on host hardware and isolation configuration. **Balanced mode is recommended for most users** - it provides excellent performance with normal power consumption. Use performance/extreme modes only when stricter latency guarantees are required.
+Results depend on host hardware and isolation configuration. **Balanced mode is recommended for all users** - it achieves the VM latency ceiling with normal power consumption. Performance/Extreme modes reduce spike *frequency* for applications needing 99.99% timing guarantees, but do not significantly reduce maximum latency.
 
 ---
 

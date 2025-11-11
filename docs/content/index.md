@@ -76,11 +76,11 @@ servobox test --duration 30 --stress-ng
 **That's it!** You now have a real-time, low-latency VM ready for control.
 
 !!! tip "Performance Modes"
-    - **Balanced** (default): avg ~4μs, max ~100μs, normal power - **recommended**
-    - **Performance** (`--performance`): avg ~3μs, max ~70μs, +20W power - for <100μs needs
-    - **Extreme** (`--extreme`): avg <3μs, max <50μs, high power (experimental)
+    - **Balanced** (default): avg ~4μs, max ~100-120μs, normal power - **recommended**
+    - **Performance** (`--performance`): avg ~3μs, max ~100μs (fewer spikes), +20W
+    - **Extreme** (`--extreme`): avg ~3μs, max ~100μs (rare spikes), high power
     
-    See [RT Tuning Reference](reference/rt-tuning.md#performance-modes) for details.
+    The ~100μs ceiling is the VM latency limit. Performance/Extreme modes reduce spike frequency for tighter timing guarantees. See [RT Tuning Reference](reference/rt-tuning.md#performance-modes) for details.
 
 ### 5. Install & run your favorite stack!
 

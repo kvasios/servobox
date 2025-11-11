@@ -81,9 +81,11 @@ servobox test --duration 10 --stress-ng
 ```
 
 **Performance Modes:**
-- **Balanced** (default): avg ~4μs, max ~100μs, normal power — **recommended for most users**
-- **Performance** (`--performance`): avg ~3μs, max ~70μs, +20W — for <100μs requirements
-- **Extreme** (`--extreme`): avg <3μs, max <50μs, high power — experimental, for <50μs requirements
+- **Balanced** (default): avg ~3-6μs, max ~100-120μs, normal power — **recommended for all users**
+- **Performance** (`--performance`): avg ~3-6μs, max ~100μs (fewer spikes), +20W — for 99.99% timing
+- **Extreme** (`--extreme`): avg ~3-6μs, max ~100μs (rare spikes), high power — experimental only
+
+*Note: ~100μs represents the VM latency ceiling. Performance/Extreme modes reduce spike frequency, not max latency.*
 
 You servobox RT VM is now ready for use! Check next section for installing one of the polular RT control packages with the `servobox pkg-install` option.
 

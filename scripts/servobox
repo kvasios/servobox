@@ -198,9 +198,12 @@ Notes:
   - Cloud-init seeds authorize your local SSH keys automatically
 
 RT Performance Modes (for 'start'):
-  Default (balanced):   Standard RT optimizations (avg: ~4μs, max: ~100μs) - RECOMMENDED
-  --performance:        Lock CPU frequencies (avg: ~3μs, max: ~70μs, +20W power)
-  --extreme:            Aggressive tuning for <50μs max (experimental, high power)
+  Default (balanced):   Standard RT optimizations (avg: ~4μs, max: ~100-120μs) - RECOMMENDED
+  --performance:        Lock CPU frequencies - reduces spike frequency (+20W power)
+  --extreme:            + Turbo disable - experimental, minimal benefit (high power)
+
+  Note: ~100μs represents the VM latency ceiling (hypervisor overhead).
+        Performance/Extreme modes reduce spike frequency, not maximum latency.
 
 Examples:
   servobox init --vcpus 4 --mem 8192 --disk 40
