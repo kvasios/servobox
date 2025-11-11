@@ -83,6 +83,7 @@ nav:
     - Commands Reference: user-guide/commands.md
 
   - Reference:
+    - Real-time Tuning: reference/rt-tuning.md
     - Contributing: reference/contributing.md
     - Troubleshooting: reference/troubleshooting.md
     - FAQ: reference/faq.md

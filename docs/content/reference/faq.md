@@ -50,6 +50,9 @@ RT kernels prioritize worst-case latency over average-case throughput. This make
 
 For most robotics development workstations running perception + control, ServoBox's isolation approach is superior.
 
+!!! info "Deep Dive"
+    For a complete technical breakdown of ServoBox's real-time optimizations, see the [Real-Time Tuning Reference](rt-tuning.md).
+
 ### What has been tested?
 
 Here's the current testing status:

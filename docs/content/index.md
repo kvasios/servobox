@@ -93,6 +93,8 @@ ServoBox automates the complex setup of real-time Linux environments for robotic
 - **✅ Performance Testing** - Built-in cyclictest with stress testing
 - **🔧 Zero Configuration** - Works out of the box with sensible defaults
 
+For a complete breakdown of ServoBox's RT optimizations, see the [Real-Time Tuning Reference](reference/rt-tuning.md).
+
 ## Why ServoBox?
 
 **Problem:** Setting up real-time Linux for robotics is complex and error-prone.
@@ -176,6 +178,14 @@ ServoBox follows a **host-VM separation** architecture optimized for real-time r
      Diagnose and resolve common issues
  
      [:octicons-arrow-right-24: Troubleshooting](reference/troubleshooting.md)
+
+-   :material-speedometer:{ .lg .middle } **RT Tuning**
+
+    ---
+
+    Complete reference of all real-time optimizations
+
+    [:octicons-arrow-right-24: RT Tuning](reference/rt-tuning.md)
 
 </div>
 
