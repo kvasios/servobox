@@ -439,8 +439,8 @@ pin_vcpus() {
         fi
       fi
     done
-    echo "  ℹ️  Balanced mode: Performance governor only (allows dynamic frequency)"
-    echo "  💡 Tip: Use 'servobox start --performance' for locked frequencies (<70μs max latency)"
+    echo "  ✅ Balanced mode: Performance governor with dynamic frequency (excellent RT performance)"
+    echo "  💡 Tip: This mode is recommended for most users (~4μs avg, ~100μs max)"
     
   elif [[ "${rt_mode}" == "performance" ]]; then
     echo "Setting CPU governor and locking frequencies (performance mode)..."
@@ -503,11 +503,22 @@ pin_vcpus() {
   # Moderate value (50000 = 50μs) reduces wakeup latency without wasting CPU
   echo "Configuring halt polling for lower idle wakeup latency..."
   local halt_poll_ns=50000
-  if [[ -w "/sys/module/kvm/parameters/halt_poll_ns" ]]; then
-    echo ${halt_poll_ns} | sudo tee /sys/module/kvm/parameters/halt_poll_ns >/dev/null 2>&1 && \
-      echo "  ✓ Set halt_poll_ns=${halt_poll_ns} (50μs busy-wait before sleep)"
+  
+  local rt_mode="${RT_MODE:-balanced}"
+  if [[ "${rt_mode}" == "extreme" ]]; then
+    # Extreme mode: use higher halt polling for absolute lowest wakeup latency
+    halt_poll_ns=100000  # 100μs
+  fi
+  
+  if [[ -f "/sys/module/kvm/parameters/halt_poll_ns" ]]; then
+    local current_val=$(cat /sys/module/kvm/parameters/halt_poll_ns 2>/dev/null || echo "0")
+    if echo ${halt_poll_ns} | sudo tee /sys/module/kvm/parameters/halt_poll_ns >/dev/null 2>&1; then
+      echo "  ✓ Set halt_poll_ns=${halt_poll_ns} ($(( halt_poll_ns / 1000 ))μs busy-wait, was ${current_val}ns)"
+    else
+      echo "  ⚠️  Could not set halt_poll_ns (current: ${current_val}ns)"
+    fi
   else
-    echo "  ℹ️  halt_poll_ns not writable (may require module parameter at boot)"
+    echo "  ⚠️  halt_poll_ns not available (KVM not loaded?)"
   fi
   
   # Configure IRQ affinity to keep interrupts off RT cores

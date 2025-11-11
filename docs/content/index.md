@@ -76,8 +76,8 @@ servobox test --duration 30 --stress-ng
 **That's it!** You now have a real-time, low-latency VM ready for control.
 
 !!! tip "Performance Modes"
-    - **Balanced** (default): avg ~5μs, max ~150μs, normal power
-    - **Performance** (`--performance`): avg ~3μs, max ~70μs, +20W power
+    - **Balanced** (default): avg ~4μs, max ~100μs, normal power - **recommended**
+    - **Performance** (`--performance`): avg ~3μs, max ~70μs, +20W power - for <100μs needs
     - **Extreme** (`--extreme`): avg <3μs, max <50μs, high power (experimental)
     
     See [RT Tuning Reference](reference/rt-tuning.md#performance-modes) for details.

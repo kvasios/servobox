@@ -198,7 +198,7 @@ Notes:
   - Cloud-init seeds authorize your local SSH keys automatically
 
 RT Performance Modes (for 'start'):
-  Default (balanced):   Standard RT optimizations (avg: ~5μs, max: ~150μs)
+  Default (balanced):   Standard RT optimizations (avg: ~4μs, max: ~100μs) - RECOMMENDED
   --performance:        Lock CPU frequencies (avg: ~3μs, max: ~70μs, +20W power)
   --extreme:            Aggressive tuning for <50μs max (experimental, high power)
 

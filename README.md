@@ -81,8 +81,8 @@ servobox test --duration 10 --stress-ng
 ```
 
 **Performance Modes:**
-- **Balanced** (default): avg ~5μs, max ~150μs, normal power — ideal for development
-- **Performance** (`--performance`): avg ~3μs, max ~70μs, +20W — recommended for production control
+- **Balanced** (default): avg ~4μs, max ~100μs, normal power — **recommended for most users**
+- **Performance** (`--performance`): avg ~3μs, max ~70μs, +20W — for <100μs requirements
 - **Extreme** (`--extreme`): avg <3μs, max <50μs, high power — experimental, for <50μs requirements
 
 You servobox RT VM is now ready for use! Check next section for installing one of the polular RT control packages with the `servobox pkg-install` option.

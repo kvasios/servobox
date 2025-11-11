@@ -23,14 +23,14 @@ ServoBox offers three RT performance modes (selected with `servobox start`):
 
 | Mode | Latency Target | Power Usage | Command |
 |------|---------------|-------------|---------|
-| **Balanced** (default) | avg: ~5μs, max: ~150μs | Normal | `servobox start` |
+| **Balanced** (default) | avg: ~4μs, max: ~100μs | Normal | `servobox start` |
 | **Performance** | avg: ~3μs, max: ~70μs | +20-30W | `servobox start --performance` |
 | **Extreme** | avg: <3μs, max: <50μs | +40-60W (high) | `servobox start --extreme` |
 
 **Mode details:**
 
-- **Balanced**: Performance CPU governor with dynamic frequency scaling. Suitable for most robotics control loops and development.
-- **Performance**: Locks CPU frequencies to maximum, eliminating frequency transition latency (~50-100μs spikes). Recommended for production control systems.
+- **Balanced**: Performance CPU governor with dynamic frequency scaling. **Recommended for most robotics control loops** - excellent latency with normal power consumption.
+- **Performance**: Locks CPU frequencies to maximum, eliminating frequency transition latency. Use when <100μs worst-case is required.
 - **Extreme**: Adds Turbo Boost disable for maximum determinism. Experimental, high power consumption. Use only when <50μs max latency is required.
 
 !!! tip "Switching Modes"
@@ -473,11 +473,11 @@ Runs `cyclictest` at 1kHz (1000μs interval) while optionally stressing the host
 
 | Mode | Average | Max (typical) | Rating |
 |------|---------|--------------|--------|
-| Balanced | 4-6μs | 100-200μs | GOOD |
-| Performance | 2-4μs | 50-80μs | EXCELLENT |
+| Balanced | ~4μs | ~100μs | EXCELLENT |
+| Performance | ~3μs | 60-70μs | EXCELLENT |
 | Extreme | <3μs | <50μs | EXCELLENT |
 
-Results depend on host hardware and isolation configuration. Use `servobox start --performance` for production control systems requiring <100μs worst-case latency.
+Results depend on host hardware and isolation configuration. **Balanced mode is recommended for most users** - it provides excellent performance with normal power consumption. Use performance/extreme modes only when stricter latency guarantees are required.
 
 ---
 
