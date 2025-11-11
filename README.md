@@ -70,12 +70,21 @@ sudo reboot
 Once installed, you can simply start the VM and test it:
 
 ```bash
-# Start the VM
+# Start the VM (balanced mode - default)
 servobox start
+
+# Or use performance mode for <100μs max latency
+servobox start --performance
 
 # Validate RT performance (results should be green!)
 servobox test --duration 10 --stress-ng
 ```
+
+**Performance Modes:**
+- **Balanced** (default): avg ~5μs, max ~150μs, normal power — ideal for development
+- **Performance** (`--performance`): avg ~3μs, max ~70μs, +20W — recommended for production control
+- **Extreme** (`--extreme`): avg <3μs, max <50μs, high power — experimental, for <50μs requirements
+
 You servobox RT VM is now ready for use! Check next section for installing one of the polular RT control packages with the `servobox pkg-install` option.
 
 ## Package Installation

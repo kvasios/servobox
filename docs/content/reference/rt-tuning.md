@@ -17,6 +17,27 @@ All optimizations are applied automatically during `servobox init` and `servobox
 
 ---
 
+## Performance Modes
+
+ServoBox offers three RT performance modes (selected with `servobox start`):
+
+| Mode | Latency Target | Power Usage | Command |
+|------|---------------|-------------|---------|
+| **Balanced** (default) | avg: ~5μs, max: ~150μs | Normal | `servobox start` |
+| **Performance** | avg: ~3μs, max: ~70μs | +20-30W | `servobox start --performance` |
+| **Extreme** | avg: <3μs, max: <50μs | +40-60W (high) | `servobox start --extreme` |
+
+**Mode details:**
+
+- **Balanced**: Performance CPU governor with dynamic frequency scaling. Suitable for most robotics control loops and development.
+- **Performance**: Locks CPU frequencies to maximum, eliminating frequency transition latency (~50-100μs spikes). Recommended for production control systems.
+- **Extreme**: Adds Turbo Boost disable for maximum determinism. Experimental, high power consumption. Use only when <50μs max latency is required.
+
+!!! tip "Switching Modes"
+    You can change modes by stopping and restarting the VM with a different flag. The mode only affects host CPU tuning, not the VM image.
+
+---
+
 ## Host System Configuration
 
 ### CPU Isolation via Kernel Parameters
@@ -448,13 +469,15 @@ servobox test --duration 30 --stress-ng
 **What it does:**  
 Runs `cyclictest` at 1kHz (1000μs interval) while optionally stressing the host with `stress-ng`.
 
-**Good results:**
+**Expected results by mode:**
 
-- Average latency: <50μs (excellent for 1kHz control)
-- Max latency: <200μs (acceptable jitter)
+| Mode | Average | Max (typical) | Rating |
+|------|---------|--------------|--------|
+| Balanced | 4-6μs | 100-200μs | GOOD |
+| Performance | 2-4μs | 50-80μs | EXCELLENT |
+| Extreme | <3μs | <50μs | EXCELLENT |
 
-**Typical results:**  
-Average ~20-30μs, max ~80-150μs under stress on well-configured systems.
+Results depend on host hardware and isolation configuration. Use `servobox start --performance` for production control systems requiring <100μs worst-case latency.
 
 ---
 
@@ -463,8 +486,9 @@ Average ~20-30μs, max ~80-150μs under stress on well-configured systems.
 | Layer | Optimizations Applied |
 |-------|----------------------|
 | **Host Kernel** | CPU isolation (isolcpus, nohz_full, rcu_nocbs), IRQ affinity |
-| **Host Runtime** | IRQ pinning to CPU 0, performance governor, halt polling (50μs) |
-| **Host Advanced** | Optional: turbo off, C-states limited, SMT disabled |
+| **Host Runtime (Balanced)** | IRQ pinning to CPU 0, performance governor (dynamic freq), halt polling (50μs) |
+| **Host Runtime (Performance)** | + Locked CPU frequencies to max (no scaling transitions) |
+| **Host Runtime (Extreme)** | + Turbo Boost disabled for determinism |
 | **Hypervisor** | vCPU pinning, SCHED_FIFO priorities, KSM off (nosharepages) |
 | **VM Memory** | Locked, KSM disabled (nosharepages), THP disabled in guest |
 | **VM Hardware** | host-passthrough CPU, virtio multiqueue, cache=none disks |

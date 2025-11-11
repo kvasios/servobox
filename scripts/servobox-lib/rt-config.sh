@@ -425,26 +425,78 @@ pin_vcpus() {
     echo "⚠️  No vhost-net threads found (network model may not be using vhost)"
   fi
   
-  # Configure CPU governor to performance mode and lock frequency for RT cores and CPU 0 (IRQ handling)
-  echo "Setting CPU governor to performance mode for RT cores and CPU 0..."
-  for cpu in 0 $(seq 1 ${VCPUS}); do
-    if [[ -f "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor" ]]; then
-      if echo performance | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor >/dev/null 2>&1; then
-        echo "  ✓ CPU ${cpu} set to performance mode"
-        
-        # Lock frequency to max to prevent any scaling (eliminates frequency transition latency)
-        local max_freq=$(cat /sys/devices/system/cpu/cpu${cpu}/cpufreq/cpuinfo_max_freq 2>/dev/null || echo "")
-        if [[ -n "${max_freq}" ]]; then
-          # Set both min and max to the same value to lock frequency
-          echo ${max_freq} | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_min_freq >/dev/null 2>&1
-          echo ${max_freq} | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_max_freq >/dev/null 2>&1
-          echo "    • Locked frequency to max: ${max_freq} kHz"
+  # Configure CPU governor (and optionally lock frequency) based on RT mode
+  local rt_mode="${RT_MODE:-balanced}"
+  
+  if [[ "${rt_mode}" == "balanced" ]]; then
+    echo "Setting CPU governor to performance mode (balanced) for RT cores and CPU 0..."
+    for cpu in 0 $(seq 1 ${VCPUS}); do
+      if [[ -f "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor" ]]; then
+        if echo performance | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor >/dev/null 2>&1; then
+          echo "  ✓ CPU ${cpu} set to performance mode"
+        else
+          echo "Warning: Could not set performance governor for CPU ${cpu}" >&2
         fi
-      else
-        echo "Warning: Could not set performance governor for CPU ${cpu}" >&2
+      fi
+    done
+    echo "  ℹ️  Balanced mode: Performance governor only (allows dynamic frequency)"
+    echo "  💡 Tip: Use 'servobox start --performance' for locked frequencies (<70μs max latency)"
+    
+  elif [[ "${rt_mode}" == "performance" ]]; then
+    echo "Setting CPU governor and locking frequencies (performance mode)..."
+    for cpu in 0 $(seq 1 ${VCPUS}); do
+      if [[ -f "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor" ]]; then
+        if echo performance | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor >/dev/null 2>&1; then
+          echo "  ✓ CPU ${cpu} set to performance mode"
+          
+          # Lock frequency to max to prevent any scaling (eliminates frequency transition latency)
+          local max_freq=$(cat /sys/devices/system/cpu/cpu${cpu}/cpufreq/cpuinfo_max_freq 2>/dev/null || echo "")
+          if [[ -n "${max_freq}" ]]; then
+            # Set both min and max to the same value to lock frequency
+            echo ${max_freq} | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_min_freq >/dev/null 2>&1
+            echo ${max_freq} | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_max_freq >/dev/null 2>&1
+            echo "    • Locked frequency to max: ${max_freq} kHz"
+          fi
+        else
+          echo "Warning: Could not set performance governor for CPU ${cpu}" >&2
+        fi
+      fi
+    done
+    echo "  ⚡ Performance mode: Frequencies locked to max (~3μs avg, ~70μs max)"
+    
+  elif [[ "${rt_mode}" == "extreme" ]]; then
+    echo "Setting CPU governor and applying extreme optimizations..."
+    for cpu in 0 $(seq 1 ${VCPUS}); do
+      if [[ -f "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor" ]]; then
+        if echo performance | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor >/dev/null 2>&1; then
+          echo "  ✓ CPU ${cpu} set to performance mode"
+          
+          # Lock frequency to max
+          local max_freq=$(cat /sys/devices/system/cpu/cpu${cpu}/cpufreq/cpuinfo_max_freq 2>/dev/null || echo "")
+          if [[ -n "${max_freq}" ]]; then
+            echo ${max_freq} | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_min_freq >/dev/null 2>&1
+            echo ${max_freq} | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_max_freq >/dev/null 2>&1
+            echo "    • Locked frequency to max: ${max_freq} kHz"
+          fi
+        else
+          echo "Warning: Could not set performance governor for CPU ${cpu}" >&2
+        fi
+      fi
+    done
+    
+    # Extreme mode: Try to disable turbo if available
+    if [[ -f "/sys/devices/system/cpu/intel_pstate/no_turbo" ]]; then
+      local current_turbo=$(cat /sys/devices/system/cpu/intel_pstate/no_turbo)
+      if [[ "${current_turbo}" == "0" ]]; then
+        echo "  • Disabling Intel Turbo Boost for determinism..."
+        echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo >/dev/null 2>&1
+        echo "    ✓ Turbo disabled (reduces max freq jitter)"
       fi
     fi
-  done
+    
+    echo "  🚀 Extreme mode: Max tuning applied (target <50μs max, high power)"
+    echo "  ⚠️  Warning: High power consumption, monitor temperatures"
+  fi
   
   # Configure halt polling for better idle behavior (reduces exit latency)
   # halt_poll_ns: time (ns) to busy-wait before sleeping when vCPU is idle

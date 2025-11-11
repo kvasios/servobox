@@ -49,6 +49,7 @@ HOST_NICS=()        # optional: array of host NICs for direct macvtap attachment
 ASK_NIC=0           # default: no interactive prompt (use --choose-nic or network-setup for interactive)
 TEST_DURATION=60
 ENABLE_STRESS=0      # default: don't stress host during test (use --stress-ng to enable)
+RT_MODE="balanced"   # RT optimization level: balanced, performance, extreme
 BASE_OVERRIDE=""    # optional path to local .qcow2 or .qcow2.xz
 LIBVIRT_IMAGES_BASE="/var/lib/libvirt/images"
 OSINFO_OPT="ubuntu22.04"  # OS ID for virt-install (fixed to shipped image)
@@ -115,6 +116,8 @@ parse_args() {
       --duration) TEST_DURATION="$2"; shift 2;;
       --stress-ng) ENABLE_STRESS=1; shift 1;;
       --ip) STATIC_IP_CIDR="$2"; shift 2;;
+      --performance) RT_MODE="performance"; shift 1;;
+      --extreme) RT_MODE="extreme"; shift 1;;
       -f|--force) FORCE=1; shift 1;;
       *) echo "Unknown arg: $1"; usage; exit 1;;
     esac
@@ -142,7 +145,10 @@ ServoBox — launch and tune Ubuntu 22.04 PREEMPT_RT VMs for robotics, fast.
 
 Usage:
   servobox init [options]              Create/import the VM with RT configuration (no boot)
-  servobox start [--name NAME]         Boot VM and apply RT CPU pinning automatically
+  servobox start [--name NAME] [--performance|--extreme]
+                                       Boot VM and apply RT CPU pinning automatically
+                                       --performance: Lock CPU frequencies (lower latency, higher power)
+                                       --extreme: Max frequency + aggressive tuning (lowest latency)
   servobox status [--name NAME]        Show VM status and information
   servobox ip [--name NAME]            Print VM IPv4 address
   servobox ssh [--name NAME]           SSH into the VM as user 'servobox-usr'
@@ -191,13 +197,19 @@ Notes:
   - Images are stored in /var/lib/libvirt/images/servobox/<name> for libvirt
   - Cloud-init seeds authorize your local SSH keys automatically
 
+RT Performance Modes (for 'start'):
+  Default (balanced):   Standard RT optimizations (avg: ~5μs, max: ~150μs)
+  --performance:        Lock CPU frequencies (avg: ~3μs, max: ~70μs, +20W power)
+  --extreme:            Aggressive tuning for <50μs max (experimental, high power)
+
 Examples:
   servobox init --vcpus 4 --mem 8192 --disk 40
   servobox init --host-nic eth0                    # Single device
   servobox init --host-nic eth0 --host-nic eth1   # Dual robot setup
   servobox init --choose-nic                       # Interactive selection
   servobox network-setup                            # Configure network after init
-  servobox start
+  servobox start                                    # Balanced mode (default)
+  servobox start --performance                      # Lock frequencies for lower latency
   servobox test --duration 60
   servobox run polymetis                            # Run polymetis recipe
   servobox run "sudo pkill -9 run_server"           # Kill a process in VM

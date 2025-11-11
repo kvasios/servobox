@@ -63,14 +63,24 @@ servobox network-setup
 ```
 
 ```console
-# Start VM
+# Start VM (balanced mode - default)
 servobox start
+
+# Or use performance mode for <100μs max latency (locks CPU frequencies)
+servobox start --performance
 ```
 ```console
 # Test RT performance
 servobox test --duration 30 --stress-ng
 ```
 **That's it!** You now have a real-time, low-latency VM ready for control.
+
+!!! tip "Performance Modes"
+    - **Balanced** (default): avg ~5μs, max ~150μs, normal power
+    - **Performance** (`--performance`): avg ~3μs, max ~70μs, +20W power
+    - **Extreme** (`--extreme`): avg <3μs, max <50μs, high power (experimental)
+    
+    See [RT Tuning Reference](reference/rt-tuning.md#performance-modes) for details.
 
 ### 5. Install & run your favorite stack!
 
