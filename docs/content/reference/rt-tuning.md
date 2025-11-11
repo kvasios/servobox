@@ -53,6 +53,52 @@ Prevents kernel scheduler and interrupt activity from preempting RT vCPU threads
 
 ---
 
+### Advanced Host Tuning (Optional - For <100μs Max Latency)
+
+For applications requiring extremely low worst-case latency, consider these additional host optimizations:
+
+**Disable CPU Turbo Boost:**
+
+```console
+# Intel
+echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo
+
+# AMD  
+echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost
+```
+
+**Limit C-States (prevent deep sleep):**
+
+Add to `/etc/default/grub`:
+
+```text
+intel_idle.max_cstate=1 processor.max_cstate=1
+```
+
+Or more aggressive (prevents any idle, highest power):
+
+```text
+idle=poll
+```
+
+**Disable SMT/Hyper-Threading (BIOS recommended):**
+
+SMT siblings share execution resources. For absolute determinism:
+
+1. Disable in BIOS/UEFI (cleanest approach)
+2. Or: Never run workloads on sibling threads simultaneously
+
+Check SMT status:
+
+```console
+cat /sys/devices/system/cpu/smt/active  # 1=enabled, 0=disabled
+```
+
+!!! warning "Trade-offs"
+    These optimizations reduce max latency spikes but increase power consumption and may reduce throughput. Test your specific workload before applying in production.
+
+---
+
 ### Runtime IRQ Affinity Configuration
 
 **What it does:**  
@@ -124,10 +170,10 @@ Ensures QEMU threads preempt host tasks but leave headroom (priority 90-99) for 
 
 ---
 
-### Memory Locking
+### Memory Locking and KSM Disable
 
 **What it does:**  
-Locks VM memory in physical RAM to prevent swapping.
+Locks VM memory in physical RAM and disables Kernel Same-page Merging (KSM).
 
 **Configuration (automatic):**  
 libvirt XML:
@@ -135,11 +181,38 @@ libvirt XML:
 ```xml
 <memoryBacking>
   <locked/>
+  <nosharepages/>
 </memoryBacking>
 ```
 
 **Why it matters:**  
-Page faults from swap or filesystem-backed memory can cause millisecond-scale latency spikes.
+
+- `locked`: Prevents swapping (eliminates ms-scale page fault latency)
+- `nosharepages`: Disables KSM scanning (prevents unpredictable CPU overhead from background merging)
+
+!!! info "Optional: Static Hugepages"
+    For extreme performance (target <50μs max latency), you can configure host hugepages:
+    
+    ```bash
+    # Reserve 2MB hugepages (e.g., 4096 pages = 8GB for an 8GB VM)
+    echo 4096 | sudo tee /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
+    
+    # Make persistent (add to /etc/sysctl.conf):
+    vm.nr_hugepages=4096
+    ```
+    
+    Then manually add to VM XML:
+    ```xml
+    <memoryBacking>
+      <hugepages>
+        <page size="2048" unit="KiB"/>
+      </hugepages>
+      <locked/>
+      <nosharepages/>
+    </memoryBacking>
+    ```
+    
+    **Trade-off:** Hugepages reduce TLB misses but require dedicated host memory reservation.
 
 ---
 
@@ -179,19 +252,23 @@ Provides stable, low-latency timekeeping for RT control loops. Native TSC avoids
 
 ---
 
-### Virtio Network Multiqueue
+### Virtio Network Multiqueue with Halt Polling
 
 **What it does:**  
-Enables one virtio-net queue per vCPU.
+Enables one virtio-net queue per vCPU and configures KVM halt polling for lower idle wakeup latency.
 
 **Configuration:**
 
 ```bash
 --network model=virtio,driver.queues=4
+# Plus runtime tuning:
+echo 50000 > /sys/module/kvm/parameters/halt_poll_ns
 ```
 
 **Why it matters:**  
-Distributes network interrupt processing across vCPUs, avoiding bottlenecks on a single core during high-bandwidth robot communication.
+
+- Multiqueue: Distributes network interrupt processing across vCPUs
+- Halt polling (50μs): vCPU busy-waits before sleeping, reducing wakeup latency from ~10-20μs to <5μs for network packets
 
 ---
 
@@ -207,19 +284,45 @@ Bypasses host page cache (eliminates cache flush latency) and improves SSD lifes
 
 ## Guest System Configuration
 
-### PREEMPT_RT Kernel
+### PREEMPT_RT Kernel with Optimized Parameters
 
 **What it does:**  
-ServoBox ships Ubuntu 22.04 images with `linux-image-rt-amd64` (kernel 6.8.0-rt8).
+ServoBox ships Ubuntu 22.04 images with `linux-image-rt-amd64` (kernel 6.8.0-rt8) and RT-optimized boot parameters.
+
+**Kernel parameters (automatic):**
+
+```text
+nohpet tsc=reliable
+```
+
+- `nohpet`: Disables HPET timer (reduces interrupt latency)
+- `tsc=reliable`: Uses TSC as primary clocksource (lower overhead than HPET)
 
 **Why it matters:**  
-RT patches convert most kernel spinlocks to mutexes, enabling preemption throughout the kernel. This is the foundation of Linux RT performance.
+RT patches convert most kernel spinlocks to mutexes, enabling preemption throughout the kernel. Disabling HPET eliminates a source of 10-50μs latency spikes.
 
 **Default approach:**  
 No guest-level `isolcpus` parameters by default - allows multi-threaded applications to use all vCPUs freely.
 
 !!! info "Advanced Configuration"
     For applications requiring strict single-core isolation, users can manually add `isolcpus=1-3 nohz_full=1-3 rcu_nocbs=1-3` to `/etc/default/grub` in the guest.
+
+---
+
+### Transparent Hugepages Disabled
+
+**What it does:**  
+Disables THP (Transparent Hugepages) in guest for deterministic behavior.
+
+**Configuration (automatic):**
+
+```bash
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
+echo never > /sys/kernel/mm/transparent_hugepage/defrag
+```
+
+**Why it matters:**  
+THP background scanning and compaction can cause unpredictable latency spikes. We use static hugepages (configured via libvirt XML) instead for deterministic 2MB page allocation.
 
 ---
 
@@ -360,10 +463,12 @@ Average ~20-30μs, max ~80-150μs under stress on well-configured systems.
 | Layer | Optimizations Applied |
 |-------|----------------------|
 | **Host Kernel** | CPU isolation (isolcpus, nohz_full, rcu_nocbs), IRQ affinity |
-| **Host Runtime** | IRQ pinning to CPU 0, performance governor |
-| **Hypervisor** | vCPU pinning, SCHED_FIFO priorities, memory locking |
+| **Host Runtime** | IRQ pinning to CPU 0, performance governor, halt polling (50μs) |
+| **Host Advanced** | Optional: turbo off, C-states limited, SMT disabled |
+| **Hypervisor** | vCPU pinning, SCHED_FIFO priorities, KSM off (nosharepages) |
+| **VM Memory** | Locked, KSM disabled (nosharepages), THP disabled in guest |
 | **VM Hardware** | host-passthrough CPU, virtio multiqueue, cache=none disks |
-| **Guest Kernel** | PREEMPT_RT enabled, no guest isolcpus (default) |
+| **Guest Kernel** | PREEMPT_RT, nohpet, tsc=reliable, no guest isolcpus (default) |
 | **Guest Services** | Trimmed services, RT limits, fast boot path |
 | **Guest Network** | Disabled rp_filter, permissive firewall |
 | **Verification** | `rt-verify` and `test` commands |

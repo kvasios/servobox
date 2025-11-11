@@ -704,6 +704,19 @@ runcmd:
     for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
       echo performance > "\$cpu" 2>/dev/null || true
     done
+    
+    # Disable Transparent Hugepages (THP) for deterministic memory behavior
+    echo "Disabling Transparent Hugepages (THP) for RT determinism..."
+    echo never > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
+    echo never > /sys/kernel/mm/transparent_hugepage/defrag 2>/dev/null || true
+    # Make persistent
+    if ! grep -q "transparent_hugepage" /etc/rc.local 2>/dev/null; then
+      echo '#!/bin/bash' > /etc/rc.local
+      echo 'echo never > /sys/kernel/mm/transparent_hugepage/enabled' >> /etc/rc.local
+      echo 'echo never > /sys/kernel/mm/transparent_hugepage/defrag' >> /etc/rc.local
+      chmod +x /etc/rc.local
+    fi
+    
     # Note: No guest-level isolcpus - PREEMPT_RT + host isolation is sufficient
     # This allows guest processes to use all vCPUs without manual pinning
     systemctl disable --now snapd || true

@@ -142,10 +142,15 @@ apply_rt_xml_config() {
       -s "/domain" -t elem -n "iothreads" -v "1" \
       "${xml_file}" 2>/dev/null || true
     
-    # Add memoryBacking with hugepages and locked
+    # Add memoryBacking with locked, nosharepages
+    # locked: prevents swapping
+    # nosharepages: disables KSM (Kernel Same-page Merging) for determinism
+    # Note: We don't use hugepages by default as they require host configuration
+    # Users can manually configure hugepages if needed for extreme performance
     xmlstarlet ed -L \
       -s "/domain" -t elem -n "memoryBacking" \
       -s "/domain/memoryBacking" -t elem -n "locked" \
+      -s "/domain/memoryBacking" -t elem -n "nosharepages" \
       "${xml_file}" 2>/dev/null || true
     
     # Add cputune section with pinning
@@ -198,8 +203,8 @@ apply_rt_xml_config() {
     # Find the insertion point (before </domain>)
     sed -i '/<\/domain>/i\  <iothreads>1</iothreads>' "${xml_file}"
     
-    # Add memoryBacking
-    sed -i '/<\/domain>/i\  <memoryBacking>\n    <locked/>\n  </memoryBacking>' "${xml_file}"
+    # Add memoryBacking with RT optimizations
+    sed -i '/<\/domain>/i\  <memoryBacking>\n    <locked/>\n    <nosharepages/>\n  </memoryBacking>' "${xml_file}"
     
     # Add cputune section
     local cputune_xml="  <cputune>\n"
@@ -252,7 +257,10 @@ inject_rt_kernel_params() {
   # and preventing Python apps (ur_rtde, franky) from utilizing all available vCPUs.
   # Advanced users who need guest isolation can manually add it via /etc/default/grub.
   
-  local grub_params="quiet splash"
+  # RT-optimized kernel parameters:
+  # - nohpet: Disable HPET (High Precision Event Timer) - reduces latency spikes
+  # - tsc=reliable: Use TSC as primary clocksource (already configured via kvmclock)
+  local grub_params="quiet splash nohpet tsc=reliable"
   
   echo "Configuring guest kernel parameters (PREEMPT_RT only, no guest CPU isolation)..."
   echo "  • Host-level isolation already provides dedicated cores for the VM"
@@ -417,17 +425,38 @@ pin_vcpus() {
     echo "⚠️  No vhost-net threads found (network model may not be using vhost)"
   fi
   
-  # Configure CPU governor to performance mode for RT cores and CPU 0 (IRQ handling)
+  # Configure CPU governor to performance mode and lock frequency for RT cores and CPU 0 (IRQ handling)
   echo "Setting CPU governor to performance mode for RT cores and CPU 0..."
   for cpu in 0 $(seq 1 ${VCPUS}); do
     if [[ -f "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor" ]]; then
       if echo performance | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor >/dev/null 2>&1; then
         echo "  ✓ CPU ${cpu} set to performance mode"
+        
+        # Lock frequency to max to prevent any scaling (eliminates frequency transition latency)
+        local max_freq=$(cat /sys/devices/system/cpu/cpu${cpu}/cpufreq/cpuinfo_max_freq 2>/dev/null || echo "")
+        if [[ -n "${max_freq}" ]]; then
+          # Set both min and max to the same value to lock frequency
+          echo ${max_freq} | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_min_freq >/dev/null 2>&1
+          echo ${max_freq} | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_max_freq >/dev/null 2>&1
+          echo "    • Locked frequency to max: ${max_freq} kHz"
+        fi
       else
         echo "Warning: Could not set performance governor for CPU ${cpu}" >&2
       fi
     fi
   done
+  
+  # Configure halt polling for better idle behavior (reduces exit latency)
+  # halt_poll_ns: time (ns) to busy-wait before sleeping when vCPU is idle
+  # Moderate value (50000 = 50μs) reduces wakeup latency without wasting CPU
+  echo "Configuring halt polling for lower idle wakeup latency..."
+  local halt_poll_ns=50000
+  if [[ -w "/sys/module/kvm/parameters/halt_poll_ns" ]]; then
+    echo ${halt_poll_ns} | sudo tee /sys/module/kvm/parameters/halt_poll_ns >/dev/null 2>&1 && \
+      echo "  ✓ Set halt_poll_ns=${halt_poll_ns} (50μs busy-wait before sleep)"
+  else
+    echo "  ℹ️  halt_poll_ns not writable (may require module parameter at boot)"
+  fi
   
   # Configure IRQ affinity to keep interrupts off RT cores
   echo "Configuring IRQ affinity (keeping IRQs off RT cores)..."
@@ -543,10 +572,15 @@ verify_rt_config() {
     if grep -q "<locked/>" "${xml_file}"; then
       echo "    • ✓ Memory locking enabled"
     fi
-    if grep -q "<hugepages>" "${xml_file}"; then
-      echo "    • ✓ Hugepages configured"
+    if grep -q "<nosharepages/>" "${xml_file}"; then
+      echo "    • ✓ KSM disabled (nosharepages)"
     else
-      echo "    • ℹ️  Hugepages not configured (optional)"
+      echo "    • ⚠️  KSM not disabled (may cause jitter)"
+    fi
+    if grep -q "<hugepages>" "${xml_file}"; then
+      echo "    • ✓ Hugepages configured (manually added)"
+    else
+      echo "    • ℹ️  Hugepages not configured (optional - requires host setup)"
     fi
   else
     echo "  ❌ <memoryBacking> NOT configured"
@@ -652,23 +686,27 @@ verify_rt_config() {
     fi
     
     if [[ -n "${guest_cmdline}" ]]; then
-      # Note: As of v0.1.4, guest-level isolation (isolcpus/nohz_full/rcu_nocbs) is 
-      # intentionally disabled by default. The PREEMPT_RT kernel + host-level isolation
-      # provides excellent RT performance while allowing guest processes to use all vCPUs.
+      # Note: ServoBox ships pre-built images with PREEMPT_RT kernel (6.8.0-rt8).
+      # Guest-level isolation (isolcpus/nohz_full/rcu_nocbs) is intentionally disabled
+      # by default to allow guest processes to use all vCPUs. Host-level isolation
+      # provides the RT guarantees.
+      
+      # Check for custom kernel parameters
+      if echo "${guest_cmdline}" | grep -q "nohpet"; then
+        echo "  ✓ HPET disabled (nohpet)"
+      fi
+      if echo "${guest_cmdline}" | grep -q "tsc=reliable"; then
+        echo "  ✓ TSC clocksource (tsc=reliable)"
+      fi
+      
+      # Check for guest isolation (should be absent by default)
       if echo "${guest_cmdline}" | grep -q "isolcpus"; then
-        echo "  ℹ️  isolcpus: $(echo "${guest_cmdline}" | grep -oP 'isolcpus=\S+') (manually configured)"
+        echo "  ℹ️  Guest CPU isolation: $(echo "${guest_cmdline}" | grep -oP 'isolcpus=\S+') (manually configured)"
       else
         echo "  ✓ No guest CPU isolation (default - allows processes to use all vCPUs)"
       fi
-      if echo "${guest_cmdline}" | grep -q "PREEMPT_RT"; then
-        echo "  ✓ PREEMPT_RT kernel detected"
-      elif echo "${guest_cmdline}" | grep -q "PREEMPT"; then
-        echo "  ℹ️  PREEMPT kernel (standard preemption)"
-      else
-        echo "  ⚠️  No PREEMPT kernel detected"
-      fi
     else
-      echo "  ⚠️  Could not SSH to guest (install sshpass or setup SSH keys)"
+      echo "  ⚠️  Could not SSH to guest to verify kernel parameters"
     fi
   else
     echo "  ⚠️  VM has no IP, cannot check guest kernel parameters"
