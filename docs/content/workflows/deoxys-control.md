@@ -14,3 +14,44 @@
   </div>
 </div>
 
+## ServoBox Setup
+
+1. Install ServoBox and configure host PC → see [Installation](../getting-started/installation.md)
+
+2. Set up network bridging for VM to ethernet port:
+   ```bash
+   servobox network-setup
+   ```
+
+3. Install deoxys-control package:
+   ```bash
+   servobox pkg-install deoxys-control
+   ```
+
+4. Boot RT-VM:
+   ```bash
+   servobox start
+   ```
+
+5. Run deoxys-control:
+   ```bash
+   servobox run deoxys-control
+   ```
+
+## Host PC Deoxys Client
+
+1. Clone the repository:
+   ```bash
+   git clone git@github.com:kvasios/deoxys_control.git
+   ```
+
+2. Follow installation instructions in `README.md` (we recommend a virtual environment with micromamba)
+
+3. Activate the created environment and run an example:
+   ```bash
+   micromamba activate deoxys
+   python examples/run_deoxys_with_space_mouse.py
+   ```
+
+Enjoy!
+
