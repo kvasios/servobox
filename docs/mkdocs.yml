@@ -81,7 +81,8 @@ nav:
     - Network Configuration: user-guide/networking.md
     - Package Management: user-guide/package-management.md
     - Commands Reference: user-guide/commands.md
-
+  - Workflows:
+    - Deoxys Control: workflows/deoxys-control.md
   - Reference:
       - Real-time Tuning: reference/rt-tuning.md
       - Experimental Tuning: reference/experimental-tuning.md
