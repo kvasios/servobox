@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0 (TBD)
+
+### Added
+- RT performance modes for `servobox start`: `--performance` (locks CPU frequencies) and `--extreme` (+ turbo disable, aggressive tuning)
+- Halt polling tuning: 50μs (balanced/default), 100μs (extreme) for lower vCPU wake-up latency
+- Comprehensive RT configuration documentation (`docs/content/reference/rt-tuning.md`) listing all 21 optimization steps
+- Experimental tuning guide for advanced users (`docs/content/reference/experimental-tuning.md`)
+
+### Changed
+- Default RT mode is now "balanced" (~4μs avg, ~100μs max); `--performance` reduces spike frequency (+20W power); `--extreme` for absolute minimum latency
+
 ## 0.1.3 (2025-11-07)
 
 ### Fixed
