@@ -23,6 +23,9 @@ servobox pkg-install libfranka-gen1 #or libfranka-fr3
 servobox pkg-install franky-fer     # For Franka Research 3
 servobox pkg-install franky-gen1    # For Franka Panda Gen1
 
+# Install ur_rtde for Universal Robots
+servobox pkg-install ur_rtde        # For UR robots (RTDE interface)
+
 # Install with verbose output
 servobox pkg-install ros2-humble --verbose
 
@@ -84,6 +87,7 @@ Core robotics frameworks and libraries:
 | **franka-ros2** | Franka Robotics ROS2 packages for Franka Emika Panda robot integration | ros2-humble, libfranka-fr3 |
 | **franky-fer** | Franky - High-level control library for Franka Research 3 with Python support (via micromamba) | None |
 | **franky-gen1** | Franky - High-level control library for Franka Panda Gen1 with Python support (via micromamba) | None |
+| **ur_rtde** | Universal Robots Real-Time Data Exchange (RTDE) interface with C++ and Python support (via micromamba) | None |
 | **pinocchio** | Pinocchio rigid body dynamics library (built from source) | None |
 | **robostack** | RoboStack with micromamba - Conda-based ROS environment manager | None |
 
@@ -111,7 +115,8 @@ After installation, software is typically located in:
 - `/opt/ros/humble/` - ROS2 installation
 - `~/deoxys_control/` - Deoxys control stack
 - `~/franky/` - Franky repository (examples and reference)
-- `~/.local/bin/micromamba` - micromamba (for franky, polymetis, robostack packages)
+- `~/ur_rtde/` - ur_rtde repository (examples and reference)
+- `~/.local/bin/micromamba` - micromamba (for franky, ur_rtde, polymetis, robostack packages)
 - Custom packages usually install to `~/`
 
 ## Dependency Resolution

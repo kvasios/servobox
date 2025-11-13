@@ -5,6 +5,7 @@ servobox (0.2.0) unstable; urgency=medium
   * Add comprehensive RT configuration documentation (21 optimization steps)
   * Add experimental tuning guide for advanced BIOS and host configuration
   * Add franky-fer and franky-gen1 package recipes for high-level Franka robot control
+  * Add ur_rtde package recipe for Universal Robots RTDE interface (C++ and Python)
   * Auto-start VM in 'servobox run' if VM is shut down
   * Default mode is "balanced" (~4μs avg, ~100μs max, recommended for all users)
 

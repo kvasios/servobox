@@ -7,11 +7,16 @@
 - Halt polling tuning: 50μs (balanced/default), 100μs (extreme) for lower vCPU wake-up latency
 - Comprehensive RT configuration documentation (`docs/content/reference/rt-tuning.md`) listing all 21 optimization steps
 - Experimental tuning guide for advanced users (`docs/content/reference/experimental-tuning.md`)
-- **New Package Recipes**: `franky-fer` and `franky-gen1` - high-level Python control library for Franka robots
-  - `franky-fer`: For Franka Research 3 (FER) with latest libfranka via PyPI
-  - `franky-gen1`: For Franka Panda Gen1 with pre-built wheels for libfranka 0.9.2
-  - Both use micromamba for clean Python 3.10 environments
-  - Interactive Python sessions with `servobox run franky-fer` or `servobox run franky-gen1`
+- **New Package Recipes**: High-level robot control libraries with Python support via micromamba
+  - `franky-fer` and `franky-gen1`: High-level control library for Franka robots
+    - `franky-fer`: For Franka Research 3 (FER) with latest libfranka via PyPI
+    - `franky-gen1`: For Franka Panda Gen1 with pre-built wheels for libfranka 0.9.2
+  - `ur_rtde`: Universal Robots Real-Time Data Exchange (RTDE) interface
+    - C++ library (system-wide via apt from sdurobotics PPA)
+    - Python bindings in micromamba environment
+    - Support for rtde_control, rtde_receive, and rtde_io modules
+  - All recipes use micromamba for clean Python 3.10 environments
+  - Interactive Python sessions with `servobox run <recipe-name>`
 
 ### Changed
 - Default RT mode is now "balanced" (~4μs avg, ~100μs max); `--performance` reduces spike frequency (+20W power); `--extreme` for absolute minimum latency
