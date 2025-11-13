@@ -4,9 +4,11 @@ servobox (0.2.0) unstable; urgency=medium
   * Add halt polling tuning: 50μs (balanced), 100μs (extreme) for lower vCPU wake-up latency
   * Add comprehensive RT configuration documentation (21 optimization steps)
   * Add experimental tuning guide for advanced BIOS and host configuration
+  * Add franky-fer and franky-gen1 package recipes for high-level Franka robot control
+  * Auto-start VM in 'servobox run' if VM is shut down
   * Default mode is "balanced" (~4μs avg, ~100μs max, recommended for all users)
 
- -- Konstantinos Vasios <konstantinos.vasios@gmail.com>  Thu, 12 Nov 2025 12:00:00 +0000
+ -- Konstantinos Vasios <konstantinos.vasios@gmail.com>  Thu, 13 Nov 2025 12:00:00 +0000
 
 servobox (0.1.3) unstable; urgency=medium
 

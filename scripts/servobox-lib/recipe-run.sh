@@ -52,9 +52,18 @@ ensure_vm_running() {
   
   case "${vm_state}" in
     "shut off")
-      echo "Error: VM '${NAME}' is not running." >&2
-      echo "Use 'servobox start --name ${NAME}' to boot the VM first." >&2
-      exit 1
+      echo "VM '${NAME}' is not running. Starting it now..." >&2
+      echo "" >&2
+      
+      # Start the VM using the cmd_start function (NAME is already set globally)
+      if cmd_start; then
+        echo "" >&2
+        echo "✓ VM '${NAME}' started successfully" >&2
+        echo "" >&2
+      else
+        echo "Error: Failed to start VM '${NAME}'" >&2
+        exit 1
+      fi
       ;;
     "paused")
       echo "Error: VM '${NAME}' is paused." >&2
@@ -62,9 +71,37 @@ ensure_vm_running() {
       exit 1
       ;;
     "in shutdown")
-      echo "Error: VM '${NAME}' is currently shutting down." >&2
-      echo "Please wait for shutdown to complete, then use 'servobox start --name ${NAME}' to boot the VM." >&2
-      exit 1
+      echo "VM '${NAME}' is currently shutting down." >&2
+      echo "Waiting for shutdown to complete..." >&2
+      
+      # Wait for shutdown to complete (max 60 seconds)
+      local shutdown_timeout=60
+      local shutdown_attempts=0
+      while [[ ${shutdown_attempts} -lt ${shutdown_timeout} ]]; do
+        vm_state=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
+        if [[ "${vm_state}" == "shut off" ]]; then
+          echo "Shutdown complete. Starting VM now..." >&2
+          echo "" >&2
+          
+          # Start the VM (NAME is already set globally)
+          if cmd_start; then
+            echo "" >&2
+            echo "✓ VM '${NAME}' started successfully" >&2
+            echo "" >&2
+            break
+          else
+            echo "Error: Failed to start VM '${NAME}'" >&2
+            exit 1
+          fi
+        fi
+        ((shutdown_attempts++))
+        sleep 1
+      done
+      
+      if [[ ${shutdown_attempts} -ge ${shutdown_timeout} ]]; then
+        echo "Error: VM shutdown timed out after ${shutdown_timeout} seconds" >&2
+        exit 1
+      fi
       ;;
     "running")
       # VM is running, continue

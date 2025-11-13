@@ -168,11 +168,11 @@ Usage:
   servobox pkg-installed [--name NAME] Show packages already installed in the VM
   servobox run <recipe-name> [--name NAME]
                                        Run a recipe's run.sh script in the VM
-                                       Automatically starts VM if not running
+                                       Automatically starts VM if shut down
                                        Keeps terminal open for monitoring
   servobox run "<command>" [--name NAME]
                                        Run arbitrary command in the VM
-                                       Automatically starts VM if not running
+                                       Automatically starts VM if shut down
                                        Example: servobox run "sudo pkill -9 run_server"
   servobox -h | --help                 Show this help
 

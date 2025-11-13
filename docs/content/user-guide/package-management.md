@@ -19,6 +19,10 @@ servobox pkg-install --list
 # Install a package (dependencies are automatically installed)
 servobox pkg-install libfranka-gen1 #or libfranka-fr3
 
+# Install franky for your robot type
+servobox pkg-install franky-fer     # For Franka Research 3
+servobox pkg-install franky-gen1    # For Franka Panda Gen1
+
 # Install with verbose output
 servobox pkg-install ros2-humble --verbose
 
@@ -78,6 +82,8 @@ Core robotics frameworks and libraries:
 | **ros-noetic** | ROS Noetic installed through RoboStack/micromamba with desktop tools and development environment | robostack |
 | **franka-ros** | Franka Emika ROS integration for control (via RoboStack/micromamba) | ros-noetic |
 | **franka-ros2** | Franka Robotics ROS2 packages for Franka Emika Panda robot integration | ros2-humble, libfranka-fr3 |
+| **franky-fer** | Franky - High-level control library for Franka Research 3 with Python support (via micromamba) | None |
+| **franky-gen1** | Franky - High-level control library for Franka Panda Gen1 with Python support (via micromamba) | None |
 | **pinocchio** | Pinocchio rigid body dynamics library (built from source) | None |
 | **robostack** | RoboStack with micromamba - Conda-based ROS environment manager | None |
 
@@ -103,7 +109,9 @@ Essential tools and libraries:
 After installation, software is typically located in:
 - `~/libfranka/` - libfranka libraries
 - `/opt/ros/humble/` - ROS2 installation
-- `~/deoxys/` - Deoxys control stack
+- `~/deoxys_control/` - Deoxys control stack
+- `~/franky/` - Franky repository (examples and reference)
+- `~/.local/bin/micromamba` - micromamba (for franky, polymetis, robostack packages)
 - Custom packages usually install to `~/`
 
 ## Dependency Resolution
