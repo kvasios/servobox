@@ -96,6 +96,46 @@ su - servobox-usr -c "
     fi
 "
 
+# Install build dependencies for C++ examples
+echo "Installing build dependencies for C++ examples..."
+apt_install cmake build-essential libboost-dev libboost-system-dev libboost-thread-dev
+
+# Build C++ examples
+echo "Building C++ examples..."
+cd /home/servobox-usr/ur_rtde/examples/cpp
+
+# Clean previous build if exists
+if [[ -d build ]]; then
+  rm -rf build
+fi
+
+mkdir -p build
+cd build
+
+# Configure with CMake (librtde is installed system-wide, so it should be found automatically)
+echo "Configuring examples with CMake..."
+if cmake .. -DCMAKE_BUILD_TYPE=Release; then
+  echo "✓ CMake configuration successful"
+else
+  echo "⚠ Warning: CMake configuration failed, skipping C++ examples build"
+  echo "Python bindings are still available via micromamba environment"
+  cd /home/servobox-usr
+fi
+
+# Build examples
+if [[ -f Makefile ]]; then
+  echo "Building examples..."
+  if make -j"$(nproc)"; then
+    echo "✓ C++ examples built successfully"
+    echo "Examples are available in: ~/ur_rtde/examples/build/"
+  else
+    echo "⚠ Warning: Build failed, but Python bindings are still available"
+  fi
+fi
+
+# Return to home directory
+cd /home/servobox-usr
+
 # Set proper ownership
 chown -R servobox-usr:servobox-usr /home/servobox-usr/ur_rtde 2>/dev/null || true
 
@@ -111,12 +151,20 @@ echo ""
 echo "Installed components:"
 echo "  - System-wide: librtde, librtde-dev (C++ library)"
 echo "  - Python: ur_rtde package in micromamba environment"
+echo "  - C++ examples: Built in ~/ur_rtde/examples/cpp/build/"
 echo ""
-echo "To use:"
+echo "To use Python interface:"
 echo "  micromamba activate ur_rtde"
 echo "  python -c 'import rtde_control'  # Test import"
 echo ""
-echo "Or run interactively:"
+echo "To run C++ examples:"
+echo "  cd ~/ur_rtde/examples/cpp/build"
+echo "  ./forcemode_example        # Force mode control"
+echo "  ./move_async               # Async movement"
+echo "  ./servoj                   # ServoJ control"
+echo "  # ... and more"
+echo ""
+echo "Or run Python interactively:"
 echo "  servobox run ur_rtde"
 echo ""
 
