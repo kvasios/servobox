@@ -20,7 +20,7 @@
 
 ### Changed
 - Default RT mode is now "balanced" (~4μs avg, ~100μs max); `--performance` reduces spike frequency (+20W power); `--extreme` for absolute minimum latency
-- **Auto-Start VM**: `servobox run` now automatically starts the VM if it's shut down, eliminating the need to manually run `servobox start` first
+- **Auto-Start VM**: `servobox run` and `servobox test` now automatically starts the VM if it's shut down, eliminating the need to manually run `servobox start` first
 
 ## 0.1.3 (2025-11-07)
 
