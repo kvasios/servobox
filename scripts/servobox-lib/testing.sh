@@ -392,6 +392,7 @@ EOF
 
 cmd_test() {
   parse_args "$@"
+  ensure_vm_running
   run_latency_test
 }
 
