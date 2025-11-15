@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (TBD)
+## 0.2.0 (2025-11-15)
 
 ### Added
 - RT performance modes for `servobox start`: `--performance` (locks CPU frequencies) and `--extreme` (+ turbo disable, aggressive tuning)
