@@ -125,6 +125,18 @@ cmd_pkg_install() {
   if [[ ${custom_is_config} -eq 1 ]]; then
     target="${custom_path}"
     # Don't need to look for it, we already have the full path
+  elif [[ ${custom_is_dir} -eq 1 ]]; then
+    # If --custom points to a recipe directory and no target specified,
+    # try to extract package name from recipe.conf
+    if [[ -z "${target}" && -f "${custom_path}/recipe.conf" ]]; then
+      # Extract name from the recipe.conf line: name="pkg-name"
+      if name=$(grep -E '^name=' "${custom_path}/recipe.conf" 2>/dev/null | cut -d'"' -f2); then
+        name="$(echo "${name}" | xargs)"
+        if [[ -n "${name}" ]]; then
+          target="${name}"
+        fi
+      fi
+    fi
   fi
   
   if [[ -z "${target}" ]]; then 

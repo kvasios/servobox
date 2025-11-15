@@ -85,7 +85,16 @@ error() {
 # Check if a package recipe exists and is valid
 validate_package() {
   local package="$1"
-  local recipe_dir="${RECIPES_DIR}/${package}"
+  local recipe_dir=""
+  
+  # If a single custom recipe directory is configured, only use it
+  # for that specific package; all other packages still come from
+  # the normal RECIPES_DIR tree (so dependencies work normally).
+  if [[ -n "${SINGLE_RECIPE_DIR:-}" && -n "${SINGLE_RECIPE_PACKAGE:-}" && "$package" == "${SINGLE_RECIPE_PACKAGE}" ]]; then
+    recipe_dir="${SINGLE_RECIPE_DIR}"
+  else
+    recipe_dir="${RECIPES_DIR}/${package}"
+  fi
   
   if [[ ! -d "$recipe_dir" ]]; then
     error "Package recipe not found: $package"
@@ -122,7 +131,14 @@ validate_package() {
 # Load package metadata from recipe.conf
 load_package_metadata() {
   local package="$1"
-  local recipe_dir="${RECIPES_DIR}/${package}"
+  local recipe_dir=""
+  
+  if [[ -n "${SINGLE_RECIPE_DIR:-}" && -n "${SINGLE_RECIPE_PACKAGE:-}" && "$package" == "${SINGLE_RECIPE_PACKAGE}" ]]; then
+    recipe_dir="${SINGLE_RECIPE_DIR}"
+  else
+    recipe_dir="${RECIPES_DIR}/${package}"
+  fi
+  
   local recipe_conf="${recipe_dir}/recipe.conf"
   
   if [[ ! -f "$recipe_conf" ]]; then
@@ -247,7 +263,12 @@ cmd_build() {
   
   log "Building package: $package (version: ${version:-unknown})"
   
-  local recipe_dir="${RECIPES_DIR}/${package}"
+  local recipe_dir=""
+  if [[ -n "${SINGLE_RECIPE_DIR:-}" && -n "${SINGLE_RECIPE_PACKAGE:-}" && "$package" == "${SINGLE_RECIPE_PACKAGE}" ]]; then
+    recipe_dir="${SINGLE_RECIPE_DIR}"
+  else
+    recipe_dir="${RECIPES_DIR}/${package}"
+  fi
   local install_script="${recipe_dir}/install.sh"
   
   if [[ "${DRY_RUN:-0}" -eq 1 ]]; then
@@ -454,7 +475,12 @@ install_single_package() {
   export LIBGUESTFS_BACKEND=${LIBGUESTFS_BACKEND:-direct}
   export LIBGUESTFS_MEMSIZE=${LIBGUESTFS_MEMSIZE:-6144}
   
-  local recipe_dir="${RECIPES_DIR}/${package}"
+  local recipe_dir=""
+  if [[ -n "${SINGLE_RECIPE_DIR:-}" && -n "${SINGLE_RECIPE_PACKAGE:-}" && "$package" == "${SINGLE_RECIPE_PACKAGE}" ]]; then
+    recipe_dir="${SINGLE_RECIPE_DIR}"
+  else
+    recipe_dir="${RECIPES_DIR}/${package}"
+  fi
   local install_script="${recipe_dir}/install.sh"
   local helpers_script="${PACKAGES_DIR}/scripts/pkg-helpers.sh"
   local script_base
@@ -701,8 +727,24 @@ main() {
     if [[ ! -d "${custom_recipe_dir}" ]]; then
       error "Custom recipe directory not found: ${custom_recipe_dir}"
     fi
-    RECIPES_DIR="${custom_recipe_dir}"
-    log_verbose "Using custom recipe directory: ${RECIPES_DIR}"
+    # Check if this is a single recipe directory (has install.sh and recipe.conf)
+    # vs a directory containing multiple recipe subdirectories
+    if [[ -f "${custom_recipe_dir}/install.sh" && -f "${custom_recipe_dir}/recipe.conf" ]]; then
+      # This is a single recipe directory - use it directly
+      SINGLE_RECIPE_DIR="${custom_recipe_dir}"
+      # Extract package name from recipe.conf
+      if [[ -f "${custom_recipe_dir}/recipe.conf" ]]; then
+        # shellcheck source=/dev/null
+        source "${custom_recipe_dir}/recipe.conf"
+        SINGLE_RECIPE_PACKAGE="${name:-}"
+        unset name version description build_type install_method dependencies
+      fi
+      log_verbose "Using single recipe directory: ${SINGLE_RECIPE_DIR} (package: ${SINGLE_RECIPE_PACKAGE})"
+    else
+      # This is a directory containing multiple recipes
+      RECIPES_DIR="${custom_recipe_dir}"
+      log_verbose "Using custom recipe directory: ${RECIPES_DIR}"
+    fi
   fi
   
   case "$cmd" in
