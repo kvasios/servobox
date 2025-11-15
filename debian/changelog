@@ -1,3 +1,11 @@
+servobox (0.3.0) unstable; urgency=medium
+
+  * Add geoik-velctrl package recipe for geometric IK-based velocity control server
+  * Improve pkg-install --custom handling for external single-recipe directories
+  * Fix false circular dependency detection when using custom recipe directories
+
+ -- Konstantinos Vasios <konstantinos.vasios@gmail.com>  Sat, 15 Nov 2025 22:30:00 +0000
+
 servobox (0.2.0) unstable; urgency=medium
 
   * Add RT performance modes: --performance (lock CPU frequencies) and --extreme (+ turbo disable)

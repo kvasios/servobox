@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 (tbd)
+
+### Added
+- `geoik-velctrl` package recipe: geometric IK-based velocity control server for Franka robots, including build-from-source install script and run helper.
+
+### Fixed
+- `servobox pkg-install --custom` now supports pointing at a single external recipe directory (e.g. a local development copy) without breaking dependency resolution.
+- Fixed false circular dependency detection in the package manager when using custom recipe directories; dependencies such as `libfranka-gen1` are now resolved from the built-in recipes while the target package can come from a custom path.
+
 ## 0.2.0 (2025-11-15)
 
 ### Added
