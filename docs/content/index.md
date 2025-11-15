@@ -81,7 +81,7 @@ servobox network-setup
 servobox start
 
 # Or use performance mode for <100μs max latency (locks CPU frequencies)
-servobox start --performance
+# servobox start --performance
 ```
 ```console
 # Test RT performance

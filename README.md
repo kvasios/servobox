@@ -74,7 +74,7 @@ Once installed, you can simply start the VM and test it:
 servobox start
 
 # Or use performance mode for <100μs max latency
-servobox start --performance
+# servobox start --performance
 
 # Validate RT performance (results should be green!)
 servobox test --duration 10 --stress-ng
