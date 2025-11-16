@@ -13,4 +13,4 @@ echo "Press Ctrl+C to stop the server"
 echo ""
 
 # Run the velocity server
-./franka_velocity_server "${ROBOT_IP}"
+./franka_velocity_server "${ROBOT_IP}" true vs
