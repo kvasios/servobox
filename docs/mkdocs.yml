@@ -83,6 +83,7 @@ nav:
     - Commands Reference: user-guide/commands.md
   - Workflows:
     - Deoxys Control: workflows/deoxys-control.md
+    - GeoIK Visual Servoing: workflows/geoik-velctrl.md
   - Reference:
       - Real-time Tuning: reference/rt-tuning.md
       - Experimental Tuning: reference/experimental-tuning.md

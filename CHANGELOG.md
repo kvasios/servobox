@@ -1,14 +1,5 @@
 # Changelog
 
-## 0.3.0 (tbd)
-
-### Added
-- `geoik-velctrl` package recipe: geometric IK-based velocity control server for Franka robots, including build-from-source install script and run helper.
-
-### Fixed
-- `servobox pkg-install --custom` now supports pointing at a single external recipe directory (e.g. a local development copy) without breaking dependency resolution.
-- Fixed false circular dependency detection in the package manager when using custom recipe directories; dependencies such as `libfranka-gen1` are now resolved from the built-in recipes while the target package can come from a custom path.
-
 ## 0.2.0 (2025-11-15)
 
 ### Added
@@ -17,6 +8,7 @@
 - Comprehensive RT configuration documentation (`docs/content/reference/rt-tuning.md`) listing all 21 optimization steps
 - Experimental tuning guide for advanced users (`docs/content/reference/experimental-tuning.md`)
 - **New Package Recipes**: High-level robot control libraries with Python support via micromamba
+  - `geoik-velctrl`: Geometric IK-based velocity control server for Franka robots, including build-from-source install script and run helper
   - `franky-fer` and `franky-gen1`: High-level control library for Franka robots
     - `franky-fer`: For Franka Research 3 (FER) with latest libfranka via PyPI
     - `franky-gen1`: For Franka Panda Gen1 with pre-built wheels for libfranka 0.9.2
@@ -30,6 +22,10 @@
 ### Changed
 - Default RT mode is now "balanced" (~4μs avg, ~100μs max); `--performance` reduces spike frequency (+20W power); `--extreme` for absolute minimum latency
 - **Auto-Start VM**: `servobox run` and `servobox test` now automatically starts the VM if it's shut down, eliminating the need to manually run `servobox start` first
+
+### Fixed
+- `servobox pkg-install --custom` now supports pointing at a single external recipe directory (e.g. a local development copy) without breaking dependency resolution.
+- Fixed false circular dependency detection in the package manager when using custom recipe directories; dependencies such as `libfranka-gen1` are now resolved from the built-in recipes while the target package can come from a custom path
 
 ## 0.1.3 (2025-11-07)
 

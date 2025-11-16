@@ -1,23 +1,18 @@
-servobox (0.3.0) unstable; urgency=medium
-
-  * Add geoik-velctrl package recipe for geometric IK-based velocity control server
-  * Improve pkg-install --custom handling for external single-recipe directories
-  * Fix false circular dependency detection when using custom recipe directories
-
- -- Konstantinos Vasios <konstantinos.vasios@gmail.com>  Sat, 15 Nov 2025 22:30:00 +0000
-
 servobox (0.2.0) unstable; urgency=medium
 
   * Add RT performance modes: --performance (lock CPU frequencies) and --extreme (+ turbo disable)
   * Add halt polling tuning: 50μs (balanced), 100μs (extreme) for lower vCPU wake-up latency
   * Add comprehensive RT configuration documentation (21 optimization steps)
   * Add experimental tuning guide for advanced BIOS and host configuration
+  * Add geoik-velctrl package recipe for geometric IK-based velocity control server
   * Add franky-fer and franky-gen1 package recipes for high-level Franka robot control
   * Add ur_rtde package recipe for Universal Robots RTDE interface (C++ and Python)
   * Auto-start VM in 'servobox run' and `servobox test` if VM is shut down
   * Default mode is "balanced" (~4μs avg, ~100μs max, recommended for all users)
+  * Improve pkg-install --custom handling for external single-recipe directories
+  * Fix false circular dependency detection when using custom recipe directories
 
- -- Konstantinos Vasios <konstantinos.vasios@gmail.com>  Thu, 13 Nov 2025 12:00:00 +0000
+ -- Konstantinos Vasios <konstantinos.vasios@gmail.com>  Sat, 16 Nov 2025 00:00:00 +0000
 
 servobox (0.1.3) unstable; urgency=medium
 
