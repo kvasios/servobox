@@ -20,7 +20,7 @@ servobox pkg-install --list
 servobox pkg-install libfranka-gen1 #or libfranka-fr3
 
 # Install franky for your robot type
-servobox pkg-install franky-fer     # For Franka Research 3
+servobox pkg-install franky-fr3     # For Franka Research 3
 servobox pkg-install franky-gen1    # For Franka Panda Gen1
 
 # Install ur_rtde for Universal Robots
@@ -85,8 +85,10 @@ Core robotics frameworks and libraries:
 | **ros-noetic** | ROS Noetic installed through RoboStack/micromamba with desktop tools and development environment | robostack |
 | **franka-ros** | Franka Emika ROS integration for control (via RoboStack/micromamba) | ros-noetic |
 | **franka-ros2** | Franka Robotics ROS2 packages for Franka Emika Panda robot integration | ros2-humble, libfranka-fr3 |
-| **franky-fer** | Franky - High-level control library for Franka Research 3 with Python support (via micromamba) | None |
+| **franky-fr3** | Franky - High-level control library for Franka Research 3 with Python support (via micromamba) | None |
 | **franky-gen1** | Franky - High-level control library for Franka Panda Gen1 with Python support (via micromamba) | None |
+| **franky-remote-fr3** | Franky Remote - Remote Control for Franka Research 3 | franky-fr3 |
+| **franky-remote-gen1** | Franky Remote - Remote Control for Franka Panda Gen1 | franky-gen1 |
 | **ur_rtde** | Universal Robots Real-Time Data Exchange (RTDE) interface with C++ and Python support (via micromamba) | None |
 | **pinocchio** | Pinocchio rigid body dynamics library (built from source) | None |
 | **robostack** | RoboStack with micromamba - Conda-based ROS environment manager | None |

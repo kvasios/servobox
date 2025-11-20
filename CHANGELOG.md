@@ -9,9 +9,12 @@
 - Experimental tuning guide for advanced users (`docs/content/reference/experimental-tuning.md`)
 - **New Package Recipes**: High-level robot control libraries with Python support via micromamba
   - `geoik-velctrl`: Geometric IK-based velocity control server for Franka robots, including build-from-source install script and run helper
-  - `franky-fer` and `franky-gen1`: High-level control library for Franka robots
-    - `franky-fer`: For Franka Research 3 (FER) with latest libfranka via PyPI
+  - `franky-fr3` and `franky-gen1`: High-level control library for Franka robots
+    - `franky-fr3`: For Franka Research 3 (FER) with latest libfranka via PyPI
     - `franky-gen1`: For Franka Panda Gen1 with pre-built wheels for libfranka 0.9.2
+  - `franky-remote-fr3` and `franky-remote-gen1`: Remote control for Franka robots
+    - Allows running Python Franky code on a workstation (client) while robot control happens on the real-time VM (server)
+    - Wraps `franky` library via RPyC
   - `ur_rtde`: Universal Robots Real-Time Data Exchange (RTDE) interface
     - C++ library (system-wide via apt from sdurobotics PPA)
     - Python bindings in micromamba environment

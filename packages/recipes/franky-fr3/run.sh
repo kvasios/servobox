@@ -23,8 +23,8 @@ import franky
 print("Ready! Type your commands below:\n")
 PYEOF
 
-# Use micromamba run to execute in the franky-fer environment
-PYTHONSTARTUP="$TMPFILE" micromamba run -n franky-fer python -i
+# Use micromamba run to execute in the franky-fr3 environment
+PYTHONSTARTUP="$TMPFILE" micromamba run -n franky-fr3 python -i
 
 # Clean up
 rm -f "$TMPFILE"

@@ -41,25 +41,25 @@ else
     echo "✓ micromamba already installed"
 fi
 
-# Clean up any previous franky-fer environments
-echo "Cleaning up any existing franky-fer environment..."
+# Clean up any previous franky-fr3 environments
+echo "Cleaning up any existing franky-fr3 environment..."
 su - servobox-usr -c "
-    if /home/servobox-usr/.local/bin/micromamba env list | grep -q '^franky-fer'; then
-        echo 'Removing existing franky-fer environment...'
-        /home/servobox-usr/.local/bin/micromamba env remove -n franky-fer -y
+    if /home/servobox-usr/.local/bin/micromamba env list | grep -q '^franky-fr3'; then
+        echo 'Removing existing franky-fr3 environment...'
+        /home/servobox-usr/.local/bin/micromamba env remove -n franky-fr3 -y
     fi
 " || true
 
-# Create franky-fer environment with Python 3.10
-echo "Creating franky-fer environment with Python 3.10..."
+# Create franky-fr3 environment with Python 3.10
+echo "Creating franky-fr3 environment with Python 3.10..."
 su - servobox-usr -c "
-    /home/servobox-usr/.local/bin/micromamba create -n franky-fer python=3.10 -y -c conda-forge
+    /home/servobox-usr/.local/bin/micromamba create -n franky-fr3 python=3.10 -y -c conda-forge
 "
 
 # Install franky-control via pip
 echo "Installing franky-control..."
 if su - servobox-usr -c "
-    /home/servobox-usr/.local/bin/micromamba run -n franky-fer pip install franky-control
+    /home/servobox-usr/.local/bin/micromamba run -n franky-fr3 pip install franky-control
 "; then
     echo "✓ franky-control installed successfully"
 else
@@ -91,14 +91,14 @@ apt_cleanup || true
 echo ""
 echo "✓ Franky for Franka Research 3 (FER) installation complete!"
 echo ""
-echo "Environment: franky-fer (micromamba)"
+echo "Environment: franky-fr3 (micromamba)"
 echo "Repository: ~/franky"
 echo ""
 echo "To use:"
-echo "  micromamba activate franky-fer"
+echo "  micromamba activate franky-fr3"
 echo "  python -c 'import franky'  # Test import"
 echo ""
 echo "Or run interactively:"
-echo "  servobox run franky-fer"
+echo "  servobox run franky-fr3"
 echo ""
 
