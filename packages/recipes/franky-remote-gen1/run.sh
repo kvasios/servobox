@@ -5,4 +5,4 @@ set -euo pipefail
 echo "Starting Franky Remote Server (Gen1)..."
 
 cd "$HOME/franky-remote"
-micromamba run -n franky-gen1 python3 server/run.py
+micromamba run -n franky-gen1 python3 server/run.py --persistent
