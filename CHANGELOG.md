@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.0 (TBD)
+
+### Added
+- **New Package Recipe**: `docker` - Installs Docker Engine, CLI, and Compose. Configures `servobox-usr` for non-root access.
+
 ## 0.2.0 (2025-11-15)
 
 ### Added
