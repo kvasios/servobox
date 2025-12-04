@@ -1,3 +1,9 @@
+servobox (2.1.0) unstable; urgency=medium
+
+  * Add docker package recipe (Docker Engine, CLI, Compose, non-root access)
+
+ -- Konstantinos Vasios <konstantinos.vasios@gmail.com>  Thu, 04 Dec 2025 12:00:00 +0000
+
 servobox (0.2.0) unstable; urgency=medium
 
   * Add RT performance modes: --performance (lock CPU frequencies) and --extreme (+ turbo disable)
@@ -60,5 +66,3 @@ servobox (0.1.0) unstable; urgency=medium
   * Initial release.
 
  -- Konstantinos Vasios <konstantinos.vasios@gmail.com>  Wed, 15 Oct 2025 12:00:00 +0000
-
-
