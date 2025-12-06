@@ -80,6 +80,7 @@ echo " - Network: Host"
 echo " - Home: ${HOME} (Mounted)"
 echo " - User: ${USER_NAME}"
 echo " - Password: servobox (if keys not configured)"
+echo " - Real-time: Enabled (SYS_NICE, IPC_LOCK, rtprio=99, memlock=unlimited)"
 echo ""
 
 # Remove existing container if it exists (stopped or running)
@@ -90,8 +91,19 @@ fi
 
 # Run the container
 # --net=host: Shares host networking stack (all ports accessible)
+# Real-time optimizations:
+# --cap-add=SYS_NICE: Allows setting real-time scheduling policies (SCHED_FIFO/RR)
+# --cap-add=IPC_LOCK: Allows locking memory (mlock) to prevent paging
+# --cap-add=SYS_RAWIO: Allows raw I/O access (sometimes needed for hardware)
+# --ulimit rtprio=99: Sets maximum real-time priority
+# --ulimit memlock=-1: Unlimited memory locking
 docker run -it --rm \
     --net=host \
+    --cap-add=SYS_NICE \
+    --cap-add=IPC_LOCK \
+    --cap-add=SYS_RAWIO \
+    --ulimit rtprio=99 \
+    --ulimit memlock=-1 \
     --name "${CONTAINER_NAME}" \
     -v "${HOME}:${HOME}" \
     -v "/etc/timezone:/etc/timezone:ro" \
