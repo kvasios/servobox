@@ -19,12 +19,19 @@ apt-repo/
 
 ## How It Works
 
-1. **GitHub Actions** builds the `.deb` package on each release
-2. **GitHub Actions** automatically updates this repository with the new package
+1. **GitHub Actions** builds the `.deb` package on each tagged release
+2. **GitHub Actions** updates the APT repository contents on a dedicated **`apt-repo` branch** (so `main` is never modified)
 3. **GitHub Pages** serves the repository at `https://kvasios.github.io/servobox/apt-repo/`
-4. **Users** can add this repository to their APT sources and install with `sudo apt install servobox`
+4. **Users** add the repo and install with `sudo apt install servobox`
 
 ## Setup Instructions
+
+### For Maintainers (CI signing key)
+
+CI must use a **stable** GPG signing key (do not generate a new key per run).
+
+- Create a long-lived key (locally), export the **private key** (ASCII-armored), and add it as a GitHub repository secret named:
+  - `APT_GPG_PRIVATE_KEY_ASCII_ARMOR`
 
 ### For Users
 
@@ -61,15 +68,8 @@ git push
 
 ## GitHub Pages Configuration
 
-To enable GitHub Pages for this repository:
-
-1. Go to your repository settings
-2. Navigate to "Pages" section
-3. Set source to "Deploy from a branch"
-4. Select "main" branch and "/apt-repo" folder
-5. Save the settings
-
-The repository will be available at: `https://kvasios.github.io/servobox/apt-repo/`
+This repo uses the **GitHub Pages workflow** (`.github/workflows/pages.yml`) to deploy docs and include the APT repository.
+The APT repository contents are sourced from the `apt-repo` branch.
 
 ## Security Notes
 

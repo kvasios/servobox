@@ -11,7 +11,8 @@ fi
 
 DEB_FILE="$1"
 REPO_DIR="apt-repo"
-GPG_KEY_ID="servobox-apt"
+# Use the key UID (email) as the stable identifier.
+GPG_KEY_ID="servobox-apt@users.noreply.github.com"
 ORIGINAL_DIR="$(pwd)"
 
 if [ ! -f "$DEB_FILE" ]; then

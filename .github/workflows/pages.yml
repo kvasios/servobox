@@ -27,6 +27,12 @@ jobs:
         with:
           ref: main  # Ensure we always get the latest main branch
 
+      - name: Check out APT repo branch
+        uses: actions/checkout@v4
+        with:
+          ref: apt-repo
+          path: _apt_repo_branch
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -51,7 +57,8 @@ jobs:
           
           # Copy APT repository to the site for GitHub Pages
           echo "Copying APT repository to site..."
-          cp -r apt-repo site/
+          rm -rf site/apt-repo
+          cp -r _apt_repo_branch/apt-repo site/
           echo "APT repository copied"
 
       # Package the static files as a Pages artifact

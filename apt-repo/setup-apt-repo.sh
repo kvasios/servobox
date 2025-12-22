@@ -5,7 +5,9 @@
 set -e
 
 REPO_DIR="apt-repo"
-GPG_KEY_ID="servobox-apt"
+# Use the key UID (email) as the stable identifier.
+# The old value "servobox-apt" does not match the generated key's UID.
+GPG_KEY_ID="servobox-apt@users.noreply.github.com"
 
 echo "Setting up APT repository structure..."
 

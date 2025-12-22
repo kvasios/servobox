@@ -13,6 +13,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Derive version from tag
         id: meta
@@ -86,28 +88,62 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update APT Repository
+        env:
+          APT_GPG_PRIVATE_KEY_ASCII_ARMOR: ${{ secrets.APT_GPG_PRIVATE_KEY_ASCII_ARMOR }}
         run: |
+          set -euo pipefail
+
           # Install required tools for APT repository management
+          sudo apt-get update -y
           sudo apt-get install -y dpkg-dev apt-utils gnupg
-          
+
           # Configure git
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          
-          # Fetch and checkout main branch FIRST (we're in detached HEAD from tag checkout)
-          git fetch origin main
-          git checkout main
-          
-          # Ensure GPG secret key exists in the runner keyring (generate if missing)
-          if ! gpg --list-secret-keys --keyid-format LONG | grep -q "servobox-apt"; then
-            echo "Creating GPG key for APT repository..."
-            ./apt-repo/setup-apt-repo.sh
+
+          # --- IMPORTANT ---
+          # Keep APT repository state in a dedicated branch, NOT on main.
+          # Also: do NOT generate a new GPG key in CI (that rotates the signing key and breaks users).
+
+          # Snapshot repo scripts so we can carry updates onto the apt-repo branch
+          tmp="$(mktemp -d)"
+          cp -a apt-repo/add-package-to-repo.sh "$tmp/"
+          cp -a apt-repo/setup-apt-repo.sh "$tmp/"
+          cp -a apt-repo/README.md "$tmp/"
+
+          # Import a stable signing key from secrets
+          if [[ -z "${APT_GPG_PRIVATE_KEY_ASCII_ARMOR:-}" ]]; then
+            echo "ERROR: Missing secret APT_GPG_PRIVATE_KEY_ASCII_ARMOR."
+            echo "Create a long-lived GPG key and add its private key (ASCII-armored) as a repository secret."
+            exit 1
           fi
-          
-          # Use the add-package-to-repo.sh script (now we're on main branch)
+          echo "${APT_GPG_PRIVATE_KEY_ASCII_ARMOR}" | gpg --batch --import
+
+          # Checkout (or create) the apt-repo branch which holds the persistent repo files
+          if git ls-remote --exit-code --heads origin apt-repo >/dev/null 2>&1; then
+            git fetch origin apt-repo
+            git checkout -B apt-repo origin/apt-repo
+          else
+            git checkout --orphan apt-repo
+            git rm -rf . >/dev/null 2>&1 || true
+            mkdir -p apt-repo/dists/stable/main/binary-amd64
+            mkdir -p apt-repo/dists/stable/main/source
+          fi
+
+          # Refresh scripts/README on the apt-repo branch (keep dists/ contents intact)
+          mkdir -p apt-repo
+          cp -a "$tmp/add-package-to-repo.sh" apt-repo/add-package-to-repo.sh
+          cp -a "$tmp/setup-apt-repo.sh" apt-repo/setup-apt-repo.sh
+          cp -a "$tmp/README.md" apt-repo/README.md
+          chmod +x apt-repo/add-package-to-repo.sh apt-repo/setup-apt-repo.sh
+
+          # Export public key for users (served via Pages)
+          gpg --armor --export "servobox-apt@users.noreply.github.com" > apt-repo/servobox-apt-key.gpg
+
+          # Add new package(s) and regenerate metadata
           ./apt-repo/add-package-to-repo.sh ../*.deb
-          
-          # Commit and push changes
+
+          # Commit and push changes to apt-repo branch
           git add apt-repo/
           git commit -m "Update APT repository for ${{ steps.meta.outputs.tag }}" || echo "No changes to commit"
-          git push origin main
+          git push origin apt-repo
