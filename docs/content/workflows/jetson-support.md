@@ -143,3 +143,11 @@ Expect Ubuntu 22.04 and a `*-tegra` kernel.
 - `cp: cannot stat rootfs/...` → rootfs not populated
 - `dpkg: Exec format error` → host binfmt/qemu setup broken
 - GRUB prompt / “installer” behavior → wrong workflow (you tried to treat it like a PC)
+
+---
+
+## Real-time kernel (RT)
+
+For installing the real-time kernel follow the instructions:
+
+- [Installing Real-Time Kernel — NVIDIA Jetson Linux Developer Guide (R36.4.4)](https://docs.nvidia.com/jetson/archives/r36.4.4/DeveloperGuide/SD/Kernel/RealTimeKernel.html)
