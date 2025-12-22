@@ -1,8 +1,18 @@
 # Changelog
 
-## 2.1.0 (TBD)
+## 0.3.0 (TBD)
 
 ### Added
+- **Remote Target Mode**: Operate on networked RT machines (Jetson, NUC, etc.) via SSH
+  - Set `SERVOBOX_TARGET_IP` environment variable to enable remote mode
+  - `SERVOBOX_TARGET_USER` defaults to current user (`$USER`) for seamless SSH
+  - Remote-compatible commands: `status`, `ip`, `ssh`, `test`, `rt-verify`, `pkg-install`, `pkg-installed`, `run`
+  - Seamless workflow: same commands work on local VMs or remote bare-metal targets
+  - Interactive sudo password prompts when needed (or configure passwordless sudo)
+  - Auto-detects Jetson platform and displays model info in `servobox status`
+  - Full RT configuration verification with `servobox rt-verify`
+  - Package installation syncs recipe files and runs install scripts via SSH
+  - Example: `export SERVOBOX_TARGET_IP=192.168.1.50 && servobox pkg-install libfranka-gen1`
 - **New Package Recipe**: `docker` - Installs Docker Engine, CLI, and Compose. Configures `servobox-usr` for non-root access.
 
 ## 0.2.0 (2025-11-15)

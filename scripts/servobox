@@ -78,6 +78,14 @@ source "${LIB_DIR}/vm-lifecycle.sh"
 source "${LIB_DIR}/testing.sh"
 source "${LIB_DIR}/pkg-install.sh"
 source "${LIB_DIR}/recipe-run.sh"
+source "${LIB_DIR}/remote-target.sh"
+
+# Remote target mode detection
+# When SERVOBOX_TARGET_IP is set, operate on a remote RT machine (Jetson, NUC, etc.)
+REMOTE_MODE=0
+if is_remote_target; then
+  REMOTE_MODE=1
+fi
 
 # Inlined common utilities (previously in servobox-lib/common.sh)
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -142,6 +150,7 @@ ensure_vm_disk() {
 usage() {
   cat <<EOF
 ServoBox — launch and tune Ubuntu 22.04 PREEMPT_RT VMs for robotics, fast.
+           Also supports remote RT targets (Jetson, NUC) via SERVOBOX_TARGET_IP.
 
 Usage:
   servobox init [options]              Create/import the VM with RT configuration (no boot)
@@ -191,6 +200,31 @@ Options (for 'init'):
 Options (for 'destroy'):
   -f, --force          Skip confirmation prompt (use with caution!)
 
+Remote Target Mode (Jetson, NUC, etc.):
+  Set SERVOBOX_TARGET_IP to operate on a remote RT machine instead of a local VM.
+  
+  Environment Variables:
+    SERVOBOX_TARGET_IP       IP address of remote RT machine (required for remote mode)
+    SERVOBOX_TARGET_USER     SSH user (default: current user \$USER)
+    SERVOBOX_TARGET_PORT     SSH port (default: 22)
+  
+  Remote-compatible commands:
+    servobox status          Show remote machine status
+    servobox ip              Print target IP
+    servobox ssh             SSH into remote machine
+    servobox test            Run RT latency test on remote
+    servobox rt-verify       Verify RT configuration
+    servobox pkg-install     Install packages via SSH
+    servobox pkg-installed   List installed packages
+    servobox run             Run recipe or command
+  
+  Remote Examples:
+    export SERVOBOX_TARGET_IP=192.168.1.50     # Set target IP
+    servobox status                            # Check Jetson status
+    servobox pkg-install libfranka-gen1        # Install on Jetson (prompts for sudo)
+    servobox test --duration 60                # Run RT test on Jetson
+    servobox run polymetis                     # Run recipe on Jetson
+
 Notes:
   - RT configuration (CPU isolation, pinning, IRQ affinity) is automatic on 'init' and 'start'
   - Base RT image is auto-downloaded or pre-cached at /var/lib/servobox
@@ -220,21 +254,126 @@ EOF
 }
 
 # Command dispatcher
-case "${CMD}" in
-  init) cmd_init "$@";;
-  start) cmd_start "$@";;
-  status) cmd_status "$@";;
-  ip) cmd_ip "$@";;
-  ssh) cmd_ssh "$@";;
-  stop) cmd_stop "$@";;
-  destroy) cmd_destroy "$@";;
-  network-setup) cmd_network_setup "$@";;
-  test) cmd_test "$@";;
-  rt-verify) parse_args "$@"; verify_rt_config;;
-  irqbalance-mask) cmd_irqbalance_mask "$@";;
-  debug) cmd_debug "$@";;
-  pkg-install) cmd_pkg_install "$@";;
-  pkg-installed) cmd_pkg_installed "$@";;
-  run) cmd_recipe_run "$@";;
-  *) usage;;
-esac
+# When SERVOBOX_TARGET_IP is set, route applicable commands to remote handlers
+if [[ ${REMOTE_MODE} -eq 1 ]]; then
+  # Remote target mode - show indicator
+  echo "🎯 Remote target mode: $(get_remote_ip)" >&2
+  echo "" >&2
+  
+  case "${CMD}" in
+    # Commands that work on remote targets
+    status) cmd_remote_status "$@";;
+    ip) cmd_remote_ip "$@";;
+    ssh) cmd_remote_ssh "$@";;
+    test)
+      # Parse test-specific args
+      shift || true
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --duration) TEST_DURATION="$2"; shift 2;;
+          --stress-ng) ENABLE_STRESS=1; shift 1;;  # Note: stress on remote not implemented
+          *) shift;;
+        esac
+      done
+      cmd_remote_test "$@";;
+    rt-verify) cmd_remote_rt_verify "$@";;
+    pkg-install)
+      # Custom arg parsing for remote pkg-install
+      shift || true
+      _remote_target=""
+      _remote_verbose_flag=""
+      _remote_force_flag=""
+      _remote_custom_path=""
+      _remote_custom_is_dir="0"
+      _remote_list_only=0
+      
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --name) shift 2;;  # Ignored in remote mode
+          -v|--verbose) _remote_verbose_flag="--verbose"; shift;;
+          --force) _remote_force_flag="--force"; shift;;
+          -l|--list) _remote_list_only=1; shift;;
+          --custom)
+            _remote_custom_path="$2"
+            if [[ -d "${_remote_custom_path}" ]]; then
+              _remote_custom_is_dir="1"
+            fi
+            shift 2;;
+          --recipe-dir)
+            _remote_custom_path="$2"
+            if [[ -d "${_remote_custom_path}" ]]; then
+              _remote_custom_is_dir="1"
+            fi
+            shift 2;;
+          -h|--help)
+            echo "Usage: servobox pkg-install <package|config> [--verbose] [--list] [--custom PATH]"
+            exit 0;;
+          --*) echo "Unknown option: $1" >&2; exit 1;;
+          *)
+            if [[ -z "${_remote_target}" ]]; then
+              _remote_target="$1"
+            fi
+            shift;;
+        esac
+      done
+      
+      if [[ ${_remote_list_only} -eq 1 ]]; then
+        # List packages (same as local)
+        cmd_pkg_install --list
+      else
+        cmd_remote_pkg_install "${_remote_target}" "${_remote_verbose_flag}" "${_remote_force_flag}" "${_remote_custom_path}" "${_remote_custom_is_dir}"
+      fi
+      ;;
+    pkg-installed) cmd_remote_pkg_installed "$@";;
+    run)
+      # Parse run command
+      shift || true
+      _remote_recipe_name=""
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --name) shift 2;;  # Ignored in remote mode
+          --debug) DEBUG=1; shift 1;;
+          *)
+            if [[ -z "${_remote_recipe_name}" ]]; then
+              _remote_recipe_name="$1"
+            fi
+            shift;;
+        esac
+      done
+      cmd_remote_run "${_remote_recipe_name}"
+      ;;
+    
+    # Commands NOT applicable for remote targets
+    init) remote_not_applicable "init";;
+    start) remote_not_applicable "start";;
+    stop) remote_not_applicable "stop";;
+    destroy) remote_not_applicable "destroy";;
+    network-setup) remote_not_applicable "network-setup";;
+    irqbalance-mask) remote_not_applicable "irqbalance-mask";;
+    debug) remote_not_applicable "debug";;
+    
+    -h|--help|help) usage;;
+    *) usage;;
+  esac
+else
+  # Local VM mode (default)
+  case "${CMD}" in
+    init) cmd_init "$@";;
+    start) cmd_start "$@";;
+    status) cmd_status "$@";;
+    ip) cmd_ip "$@";;
+    ssh) cmd_ssh "$@";;
+    stop) cmd_stop "$@";;
+    destroy) cmd_destroy "$@";;
+    network-setup) cmd_network_setup "$@";;
+    test) cmd_test "$@";;
+    rt-verify) parse_args "$@"; verify_rt_config;;
+    irqbalance-mask) cmd_irqbalance_mask "$@";;
+    debug) cmd_debug "$@";;
+    pkg-install) cmd_pkg_install "$@";;
+    pkg-installed) cmd_pkg_installed "$@";;
+    run) cmd_recipe_run "$@";;
+    -h|--help|help) usage;;
+    *) usage;;
+  esac
+fi

@@ -177,3 +177,92 @@ For installing the real-time kernel follow the instructions:
     ```
 
     Log out and log back in to apply the limits.
+
+---
+
+## ServoBox Remote Target Mode
+
+Once your Jetson has the RT kernel running, you can use **ServoBox** to manage it remotely from your development machine. This gives you the same workflow for Jetson as you have for local VMs.
+
+### Setup
+
+Set the environment variable to point to your Jetson:
+
+```bash
+export SERVOBOX_TARGET_IP=192.168.1.50    # Your Jetson's IP
+```
+
+The SSH user defaults to your current username (`$USER`). If your Jetson uses a different username, set it:
+
+```bash
+export SERVOBOX_TARGET_USER=nvidia        # Only if different from your local username
+```
+
+Optionally add to your `~/.bashrc` for persistence:
+
+```bash
+echo 'export SERVOBOX_TARGET_IP=192.168.1.50' >> ~/.bashrc
+```
+
+### Available Commands
+
+With `SERVOBOX_TARGET_IP` set, these commands operate on your Jetson:
+
+```bash
+# Check status and RT configuration
+servobox status          # System info, kernel version, RT check
+servobox rt-verify       # Detailed RT configuration verification
+
+# Run RT latency test
+servobox test --duration 60
+
+# Install packages
+servobox pkg-install libfranka-gen1
+servobox pkg-install robotics.conf    # Install from config file
+
+# Run recipes or commands
+servobox run polymetis                # Run recipe's run.sh
+servobox run "sudo systemctl status"  # Run arbitrary command
+
+# Connect via SSH
+servobox ssh
+```
+
+### Example Workflow
+
+```bash
+# 1. Set target (user defaults to $USER)
+export SERVOBOX_TARGET_IP=192.168.1.50
+
+# 2. Verify connection and RT setup
+servobox status
+servobox rt-verify
+
+# 3. Install control software (will prompt for sudo password)
+servobox pkg-install libfranka-gen1
+
+# 4. Run latency test (will prompt for sudo password)
+servobox test --duration 120
+
+# 5. Start the robot control application
+servobox run polymetis
+```
+
+!!! tip "Passwordless sudo for convenience"
+    To avoid repeated sudo password prompts, configure passwordless sudo on your Jetson:
+    
+    ```bash
+    # On the Jetson:
+    echo "$USER ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/$USER
+    ```
+
+### Switching Between Local VM and Remote Jetson
+
+To switch back to local VM mode, unset the environment variable:
+
+```bash
+unset SERVOBOX_TARGET_IP
+servobox status  # Now shows local VM status
+```
+
+Or use different terminal sessions with different exports for managing multiple targets.

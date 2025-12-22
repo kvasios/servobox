@@ -1,5 +1,11 @@
-servobox (2.1.0) unstable; urgency=medium
+servobox (0.3.0) unstable; urgency=medium
 
+  * Add remote target mode for Jetson, NUC, and other networked RT machines
+    - Set SERVOBOX_TARGET_IP to operate on remote targets via SSH
+    - SERVOBOX_TARGET_USER defaults to current user ($USER) for seamless SSH
+    - Supports pkg-install, test, run, ssh, status, rt-verify commands
+    - Interactive sudo password prompts when needed
+    - New library: remote-target.sh with SSH helpers and remote execution
   * Add docker package recipe (Docker Engine, CLI, Compose, non-root access)
 
  -- Konstantinos Vasios <konstantinos.vasios@gmail.com>  Thu, 04 Dec 2025 12:00:00 +0000

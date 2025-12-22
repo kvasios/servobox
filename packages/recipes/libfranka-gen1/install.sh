@@ -14,6 +14,34 @@ if [[ -f "${PACKAGE_HELPERS:-/tmp/pkg-helpers.sh}" ]]; then
   source "${PACKAGE_HELPERS}"
 fi
 
+# Determine target user and home directory
+# Priority: SERVOBOX_INSTALL_USER env var > SUDO_USER > servobox-usr > first non-root user
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
+else
+  # Find first non-root user with a home directory
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+  if [[ -z "${TARGET_USER}" ]]; then
+    echo "Warning: Could not determine target user, using root" >&2
+    TARGET_USER="root"
+  fi
+fi
+
+if [[ "${TARGET_USER}" == "root" ]]; then
+  TARGET_HOME="/root"
+else
+  TARGET_HOME=$(getent passwd "${TARGET_USER}" | cut -d: -f6)
+  if [[ -z "${TARGET_HOME}" ]]; then
+    TARGET_HOME="/home/${TARGET_USER}"
+  fi
+fi
+
+echo "Installing for user: ${TARGET_USER} (home: ${TARGET_HOME})"
+
 # Install libfranka-specific dependencies
 echo "Installing libfranka dependencies..."
 # Use pkg-helpers functions if available (have DNS + timeouts), otherwise fall back to direct apt-get
@@ -37,8 +65,8 @@ fi
 
 # Clone directly to user home directory (create if missing to be safe)
 echo "Cloning libfranka to user directory..."
-mkdir -p /home/servobox-usr
-cd /home/servobox-usr || { echo "Error: /home/servobox-usr not available" >&2; exit 1; }
+mkdir -p "${TARGET_HOME}"
+cd "${TARGET_HOME}" || { echo "Error: ${TARGET_HOME} not available" >&2; exit 1; }
 
 # Clone libfranka for Panda (0.9.2) — idempotent
 # Note: Using version-specific directory to avoid conflicts with libfranka-fr3
@@ -78,11 +106,11 @@ ldconfig
 
 # Copy example executables to libfranka directory
 echo "Copying libfranka example executables..."
-find "/home/servobox-usr/libfranka-0.9.2/build" -name "*_example" -type f -executable -exec cp {} "/home/servobox-usr/libfranka-0.9.2/" \;
-find "/home/servobox-usr/libfranka-0.9.2/build" -name "*_test" -type f -executable -exec cp {} "/home/servobox-usr/libfranka-0.9.2/" \;
+find "${TARGET_HOME}/libfranka-0.9.2/build" -name "*_example" -type f -executable -exec cp {} "${TARGET_HOME}/libfranka-0.9.2/" \;
+find "${TARGET_HOME}/libfranka-0.9.2/build" -name "*_test" -type f -executable -exec cp {} "${TARGET_HOME}/libfranka-0.9.2/" \;
 
 # Create a README with usage instructions
-cat > "/home/servobox-usr/libfranka-0.9.2/README.md" << 'EOF'
+cat > "${TARGET_HOME}/libfranka-0.9.2/README.md" << EOF
 # libfranka-gen1 Examples and Tests
 
 This directory contains libfranka 0.9.2 example executables and source code for Panda robot control.
@@ -91,23 +119,23 @@ This directory contains libfranka 0.9.2 example executables and source code for 
 
 The following example programs are available for testing:
 
-- `communication_test` - Test communication with Panda robot
-- `motion_generator_example` - Example motion generation
-- `cartesian_impedance_control_example` - Cartesian impedance control
-- `joint_impedance_control_example` - Joint impedance control
-- `force_control_example` - Force control example
-- `gripper_example` - Gripper control example
+- \`communication_test\` - Test communication with Panda robot
+- \`motion_generator_example\` - Example motion generation
+- \`cartesian_impedance_control_example\` - Cartesian impedance control
+- \`joint_impedance_control_example\` - Joint impedance control
+- \`force_control_example\` - Force control example
+- \`gripper_example\` - Gripper control example
 
 ## Usage
 
 1. Connect to your Panda robot via Ethernet
-2. Set robot IP: `export FRANKA_IP=192.168.1.100` (replace with your robot's IP)
-3. Run examples: `./communication_test` or `./motion_generator_example`
+2. Set robot IP: \`export FRANKA_IP=192.168.1.100\` (replace with your robot's IP)
+3. Run examples: \`./communication_test\` or \`./motion_generator_example\`
 
 ## Source Code
 
-- `examples/` - Source code for all examples
-- `tests/` - Test programs source code
+- \`examples/\` - Source code for all examples
+- \`tests/\` - Test programs source code
 
 ## Notes
 
@@ -118,20 +146,22 @@ The following example programs are available for testing:
 ## Version Conflicts
 
 **IMPORTANT**: This version (0.9.2) conflicts with libfranka-fr3 (0.16.1) at the system level.
-If you install both recipes, the last one installed will be active system-wide in `/usr/local/lib`.
+If you install both recipes, the last one installed will be active system-wide in \`/usr/local/lib\`.
 However, the source code and examples for each version are preserved in separate directories:
-- libfranka 0.9.2 (Panda): `/home/servobox-usr/libfranka-0.9.2/`
-- libfranka 0.16.1 (FR3): `/home/servobox-usr/libfranka-0.16.1/`
+- libfranka 0.9.2 (Panda): \`${TARGET_HOME}/libfranka-0.9.2/\`
+- libfranka 0.16.1 (FR3): \`${TARGET_HOME}/libfranka-0.16.1/\`
 EOF
 
-# Set proper ownership
-chown -R servobox-usr:servobox-usr "/home/servobox-usr/libfranka-0.9.2"
-chmod +x "/home/servobox-usr/libfranka-0.9.2"/*_example "/home/servobox-usr/libfranka-0.9.2"/*_test 2>/dev/null || true
+# Set proper ownership (only if not root)
+if [[ "${TARGET_USER}" != "root" ]]; then
+  chown -R "${TARGET_USER}:${TARGET_USER}" "${TARGET_HOME}/libfranka-0.9.2"
+fi
+chmod +x "${TARGET_HOME}/libfranka-0.9.2"/*_example "${TARGET_HOME}/libfranka-0.9.2"/*_test 2>/dev/null || true
 
 echo "libfranka 0.9.2 installation completed!"
 echo "libfranka is now available for Panda robot control"
-echo "Examples and tests are available in: /home/servobox-usr/libfranka-0.9.2"
-echo "Run 'ls /home/servobox-usr/libfranka-0.9.2' to see available examples"
+echo "Examples and tests are available in: ${TARGET_HOME}/libfranka-0.9.2"
+echo "Run 'ls ${TARGET_HOME}/libfranka-0.9.2' to see available examples"
 echo ""
 echo "NOTE: If libfranka-fr3 (0.16.1) is also installed, system libraries will be"
 echo "      from whichever package was installed last. Examples remain separate."
