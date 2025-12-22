@@ -6,7 +6,23 @@ set -euo pipefail
 
 echo "Installing real-time control tools..."
 
-. "$(cd "$(dirname "$0")/.." && pwd)/scripts/pkg-helpers.sh"
+. "$(cd "$(dirname "$0")/.." && pwd)/scripts/pkg-helpers.sh" 2>/dev/null || true
+
+# Determine target user and home directory
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
+else
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+  [[ -z "${TARGET_USER}" ]] && TARGET_USER="root"
+fi
+[[ "${TARGET_USER}" == "root" ]] && TARGET_HOME="/root" || TARGET_HOME=$(getent passwd "${TARGET_USER}" | cut -d: -f6)
+[[ -z "${TARGET_HOME}" ]] && TARGET_HOME="/home/${TARGET_USER}"
+echo "Installing for user: ${TARGET_USER} (home: ${TARGET_HOME})"
+mkdir -p "${TARGET_HOME}"
 
 # Install real-time and control system tools (additional to build-image.sh defaults)
 apt_update
@@ -27,7 +43,7 @@ apt_install \
     libssl3 || true
 
 # Create real-time testing script for 1kHz control loops
-cat > /home/servobox-usr/rt-control-test.sh << 'EOF'
+cat > ${TARGET_HOME}/rt-control-test.sh << 'EOF'
 #!/bin/bash
 # Real-time control loop testing script
 # Tests system performance for high-frequency control applications
@@ -54,11 +70,11 @@ echo "Real-time control system test completed!"
 echo "For 1kHz control loops, aim for < 100μs latency"
 EOF
 
-chmod +x /home/servobox-usr/rt-control-test.sh
-chown servobox-usr:servobox-usr /home/servobox-usr/rt-control-test.sh
+chmod +x ${TARGET_HOME}/rt-control-test.sh
+chown ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/rt-control-test.sh
 
 # Create system monitoring script for real-time control
-cat > /home/servobox-usr/rt-monitor.sh << 'EOF'
+cat > ${TARGET_HOME}/rt-monitor.sh << 'EOF'
 #!/bin/bash
 # Real-time system monitoring script
 # Monitors system performance for real-time control applications
@@ -103,13 +119,13 @@ echo "Real-time monitoring completed!"
 echo "Use 'cyclictest' for latency testing"
 EOF
 
-chmod +x /home/servobox-usr/rt-monitor.sh
-chown servobox-usr:servobox-usr /home/servobox-usr/rt-monitor.sh
+chmod +x ${TARGET_HOME}/rt-monitor.sh
+chown ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/rt-monitor.sh
 
 echo "Real-time control tools installation completed!"
 echo "Available tools:"
-echo "  - /home/servobox-usr/rt-control-test.sh (system performance test)"
-echo "  - /home/servobox-usr/rt-monitor.sh (system monitoring)"
+echo "  - ${TARGET_HOME}/rt-control-test.sh (system performance test)"
+echo "  - ${TARGET_HOME}/rt-monitor.sh (system monitoring)"
 echo "  - cyclictest (latency testing - from build-image.sh)"
 echo "  - stress-ng (system stress testing - from build-image.sh)"
 echo "  - htop (system monitoring - from build-image.sh)"

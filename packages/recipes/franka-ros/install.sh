@@ -18,8 +18,23 @@ else
   fi
 fi
 
+# Determine target user and home directory
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
+else
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+  [[ -z "${TARGET_USER}" ]] && TARGET_USER="root"
+fi
+[[ "${TARGET_USER}" == "root" ]] && TARGET_HOME="/root" || TARGET_HOME=$(getent passwd "${TARGET_USER}" | cut -d: -f6)
+[[ -z "${TARGET_HOME}" ]] && TARGET_HOME="/home/${TARGET_USER}"
+echo "Installing for user: ${TARGET_USER} (home: ${TARGET_HOME})"
+
 # Ensure ros-noetic environment exists (dependency)
-if [[ ! -d /home/servobox-usr/micromamba/envs/ros_noetic ]]; then
+if [[ ! -d "${TARGET_HOME}/micromamba/envs/ros_noetic" ]]; then
     echo "Error: ros_noetic environment not found. Please install the 'ros-noetic' package first."
     exit 1
 fi
@@ -37,12 +52,12 @@ apt_install git || apt-get install -y git || true
 
 # Create workspace directory
 echo "Creating workspace: ~/ws_franka_ros"
-mkdir -p /home/servobox-usr/ws_franka_ros/src
-chown -R servobox-usr:servobox-usr /home/servobox-usr/ws_franka_ros
+mkdir -p ${TARGET_HOME}/ws_franka_ros/src
+chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/ws_franka_ros
 
 # Clone franka_ros repository
 echo "Cloning franka_ros repository..."
-su - servobox-usr -c "
+su - ${TARGET_USER} -c "
     cd ~/ws_franka_ros/src
     if [ ! -d franka_ros ]; then
         git clone --recursive https://github.com/frankarobotics/franka_ros.git
@@ -55,24 +70,24 @@ if [[ -z "${RECIPE_DIR:-}" ]]; then
     RECIPE_DIR="$(cd "$(dirname "$0")" && pwd)"
 fi
 
-cp "${RECIPE_DIR}/build_franka_ros_control.sh" /home/servobox-usr/ws_franka_ros/
-chown servobox-usr:servobox-usr /home/servobox-usr/ws_franka_ros/build_franka_ros_control.sh
-chmod +x /home/servobox-usr/ws_franka_ros/build_franka_ros_control.sh
+cp "${RECIPE_DIR}/build_franka_ros_control.sh" ${TARGET_HOME}/ws_franka_ros/
+chown ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/ws_franka_ros/build_franka_ros_control.sh
+chmod +x ${TARGET_HOME}/ws_franka_ros/build_franka_ros_control.sh
 
 # Clean up any previous failed builds
 echo "Cleaning up any previous build artifacts..."
-su - servobox-usr -c "
+su - ${TARGET_USER} -c "
     cd ~/ws_franka_ros
     rm -rf build devel .catkin_workspace .catkin_tools logs external/libfranka/build || true
 " || true
 
 # Build franka_ros using the build script with error handling
 echo "Building franka_ros (this may take several minutes)..."
-if ! su - servobox-usr -c "
+if ! su - ${TARGET_USER} -c "
     cd ~/ws_franka_ros
     # Clear any conda environment pollution before running
     unset CPATH CPLUS_INCLUDE_PATH C_INCLUDE_PATH
-    /home/servobox-usr/.local/bin/micromamba run -n ros_noetic ./build_franka_ros_control.sh
+    ${TARGET_HOME}/.local/bin/micromamba run -n ros_noetic ./build_franka_ros_control.sh
 "; then
     echo "Error: franka_ros build failed"
     echo "This might be due to:"
@@ -90,14 +105,14 @@ fi
 
 # Verify installation
 echo "Verifying Franka ROS installation..."
-if [[ -f /home/servobox-usr/ws_franka_ros/devel/setup.bash ]]; then
+if [[ -f ${TARGET_HOME}/ws_franka_ros/devel/setup.bash ]]; then
     echo "✓ Workspace built successfully"
 else
     echo "✗ Error: Workspace setup.bash not found"
     exit 1
 fi
 
-if [[ -f /home/servobox-usr/ws_franka_ros/setup_env.sh ]]; then
+if [[ -f ${TARGET_HOME}/ws_franka_ros/setup_env.sh ]]; then
     echo "✓ Environment setup script created"
 else
     echo "⚠ Warning: setup_env.sh not found"
@@ -106,8 +121,8 @@ fi
 # Check for key packages
 EXPECTED_PACKAGES=("franka_hw" "franka_control" "franka_gripper" "franka_msgs")
 for pkg in "${EXPECTED_PACKAGES[@]}"; do
-    if [[ -d /home/servobox-usr/ws_franka_ros/devel/lib/$pkg ]] || \
-       [[ -d /home/servobox-usr/ws_franka_ros/devel/share/$pkg ]]; then
+    if [[ -d ${TARGET_HOME}/ws_franka_ros/devel/lib/$pkg ]] || \
+       [[ -d ${TARGET_HOME}/ws_franka_ros/devel/share/$pkg ]]; then
         echo "✓ Package $pkg built"
     else
         echo "⚠ Warning: Package $pkg may not be built correctly"

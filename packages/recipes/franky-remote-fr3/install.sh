@@ -18,15 +18,25 @@ else
   fi
 fi
 
-# Verify expected home directory exists
-if [[ ! -d /home/servobox-usr ]]; then
-  echo "Error: /home/servobox-usr does not exist" >&2
-  exit 1
+# Determine target user and home directory
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
+else
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+  [[ -z "${TARGET_USER}" ]] && TARGET_USER="root"
 fi
+[[ "${TARGET_USER}" == "root" ]] && TARGET_HOME="/root" || TARGET_HOME=$(getent passwd "${TARGET_USER}" | cut -d: -f6)
+[[ -z "${TARGET_HOME}" ]] && TARGET_HOME="/home/${TARGET_USER}"
+echo "Installing for user: ${TARGET_USER} (home: ${TARGET_HOME})"
+mkdir -p "${TARGET_HOME}"
 
 # Clone franky-remote repository in user space
 echo "Cloning franky-remote repository..."
-su - servobox-usr -c "
+su - ${TARGET_USER} -c "
     cd ~
     if [ ! -d franky-remote ]; then
         git clone https://github.com/kvasios/franky-remote.git
@@ -41,8 +51,8 @@ su - servobox-usr -c "
 
 # Install rpyc in the existing franky-fr3 environment
 echo "Installing rpyc in franky-fr3 environment..."
-if su - servobox-usr -c "
-    /home/servobox-usr/.local/bin/micromamba run -n franky-fr3 pip install rpyc
+if su - ${TARGET_USER} -c "
+    ${TARGET_HOME}/.local/bin/micromamba run -n franky-fr3 pip install rpyc
 "; then
     echo "✓ rpyc installed successfully"
 else
@@ -51,7 +61,7 @@ else
 fi
 
 # Set proper ownership
-chown -R servobox-usr:servobox-usr /home/servobox-usr/franky-remote 2>/dev/null || true
+chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/franky-remote 2>/dev/null || true
 
 echo ""
 echo "✓ Franky Remote for Franka Research 3 installation complete!"

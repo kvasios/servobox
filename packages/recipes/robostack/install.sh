@@ -28,16 +28,29 @@ fi
 apt_update
 apt_install curl bzip2 ca-certificates
 
-# Install micromamba for servobox-usr
+# Determine target user
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
+else
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+  [[ -z "${TARGET_USER}" ]] && TARGET_USER="root"
+fi
+echo "Installing for user: ${TARGET_USER}"
+
+# Install micromamba for target user
 # The -y flag tells the installer to:
 # 1. Install to ~/.local/bin/micromamba
 # 2. Run shell init automatically
 # 3. Configure conda-forge channels
-if su - servobox-usr -c 'command -v micromamba' &>/dev/null; then
-    echo "micromamba already exists for servobox-usr, skipping installation..."
+if su - ${TARGET_USER} -c 'command -v micromamba' &>/dev/null; then
+    echo "micromamba already exists for ${TARGET_USER}, skipping installation..."
 else
-    echo "Installing micromamba for servobox-usr..."
-    su - servobox-usr -c 'bash -c "$(curl -L micro.mamba.pm/install.sh)" -- -y'
+    echo "Installing micromamba for ${TARGET_USER}..."
+    su - ${TARGET_USER} -c 'bash -c "$(curl -L micro.mamba.pm/install.sh)" -- -y'
 fi
 
 # Install micromamba for root as well

@@ -18,10 +18,24 @@ else
   fi
 fi
 
+# Determine target user and home directory
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
+else
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+  [[ -z "${TARGET_USER}" ]] && TARGET_USER="root"
+fi
+[[ "${TARGET_USER}" == "root" ]] && TARGET_HOME="/root" || TARGET_HOME=$(getent passwd "${TARGET_USER}" | cut -d: -f6)
+[[ -z "${TARGET_HOME}" ]] && TARGET_HOME="/home/${TARGET_USER}"
+echo "Installing for user: ${TARGET_USER} (home: ${TARGET_HOME})"
+
 # Verify expected home directory exists
-if [[ ! -d /home/servobox-usr ]]; then
-  echo "Error: /home/servobox-usr does not exist" >&2
-  exit 1
+if [[ ! -d "${TARGET_HOME}" ]]; then
+  mkdir -p "${TARGET_HOME}"
 fi
 
 # Install system dependencies
@@ -30,12 +44,12 @@ apt_update
 apt_install curl wget unzip bzip2 ca-certificates
 
 # Install micromamba if not found
-if [[ ! -f /home/servobox-usr/.local/bin/micromamba ]]; then
+if [[ ! -f ${TARGET_HOME}/.local/bin/micromamba ]]; then
     echo "micromamba not found, installing..."
     
-    # Install micromamba for servobox-usr
-    echo "Installing micromamba for servobox-usr..."
-    su - servobox-usr -c 'bash -c "$(curl -L micro.mamba.pm/install.sh)" -- -y'
+    # Install micromamba for target user
+    echo "Installing micromamba for ${TARGET_USER}..."
+    su - ${TARGET_USER} -c 'bash -c "$(curl -L micro.mamba.pm/install.sh)" -- -y'
     
     echo "✓ micromamba installed successfully"
 else
@@ -44,23 +58,23 @@ fi
 
 # Clean up any previous franky-gen1 environments
 echo "Cleaning up any existing franky-gen1 environment..."
-su - servobox-usr -c "
-    if /home/servobox-usr/.local/bin/micromamba env list | grep -q '^franky-gen1'; then
+su - ${TARGET_USER} -c "
+    if ${TARGET_HOME}/.local/bin/micromamba env list | grep -q '^franky-gen1'; then
         echo 'Removing existing franky-gen1 environment...'
-        /home/servobox-usr/.local/bin/micromamba env remove -n franky-gen1 -y
+        ${TARGET_HOME}/.local/bin/micromamba env remove -n franky-gen1 -y
     fi
 " || true
 
 # Create franky-gen1 environment with Python 3.10
 echo "Creating franky-gen1 environment with Python 3.10..."
-su - servobox-usr -c "
-    /home/servobox-usr/.local/bin/micromamba create -n franky-gen1 python=3.10 -y -c conda-forge
+su - ${TARGET_USER} -c "
+    ${TARGET_HOME}/.local/bin/micromamba create -n franky-gen1 python=3.10 -y -c conda-forge
 "
 
 # Download and install franky wheels for libfranka 0.9.2
 echo "Downloading franky wheels for libfranka 0.9.2..."
 VERSION="0-9-2"
-su - servobox-usr -c "
+su - ${TARGET_USER} -c "
     cd ~
     # Clean up any previous downloads
     rm -rf libfranka_${VERSION}_wheels.zip dist
@@ -76,9 +90,9 @@ su - servobox-usr -c "
 
 # Install numpy first, then franky-control from local wheels
 echo "Installing numpy and franky-control..."
-if su - servobox-usr -c "
-    /home/servobox-usr/.local/bin/micromamba run -n franky-gen1 pip install numpy &&
-    /home/servobox-usr/.local/bin/micromamba run -n franky-gen1 pip install --no-index --find-links=~/dist franky-control
+if su - ${TARGET_USER} -c "
+    ${TARGET_HOME}/.local/bin/micromamba run -n franky-gen1 pip install numpy &&
+    ${TARGET_HOME}/.local/bin/micromamba run -n franky-gen1 pip install --no-index --find-links=~/dist franky-control
 "; then
     echo "✓ franky-control installed successfully"
 else
@@ -88,7 +102,7 @@ fi
 
 # Clone franky repository in user space
 echo "Cloning franky repository..."
-su - servobox-usr -c "
+su - ${TARGET_USER} -c "
     cd ~
     if [ ! -d franky ]; then
         git clone https://github.com/TimSchneider42/franky.git
@@ -103,15 +117,15 @@ su - servobox-usr -c "
 
 # Clean up downloaded files
 echo "Cleaning up downloaded files..."
-su - servobox-usr -c "
+su - ${TARGET_USER} -c "
     cd ~
     rm -f libfranka_${VERSION}_wheels.zip
     echo '✓ Cleaned up temporary files (kept dist/ folder for reference)'
 "
 
 # Set proper ownership
-chown -R servobox-usr:servobox-usr /home/servobox-usr/franky 2>/dev/null || true
-chown -R servobox-usr:servobox-usr /home/servobox-usr/dist 2>/dev/null || true
+chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/franky 2>/dev/null || true
+chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/dist 2>/dev/null || true
 
 # Clean up apt cache
 apt_cleanup || true

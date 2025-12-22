@@ -20,11 +20,21 @@ else
   fi
 fi
 
-# Verify expected home directory exists
-if [[ ! -d /home/servobox-usr ]]; then
-  echo "Error: /home/servobox-usr does not exist" >&2
-  exit 1
+# Determine target user and home directory
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
+else
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+  [[ -z "${TARGET_USER}" ]] && TARGET_USER="root"
 fi
+[[ "${TARGET_USER}" == "root" ]] && TARGET_HOME="/root" || TARGET_HOME=$(getent passwd "${TARGET_USER}" | cut -d: -f6)
+[[ -z "${TARGET_HOME}" ]] && TARGET_HOME="/home/${TARGET_USER}"
+echo "Installing for user: ${TARGET_USER} (home: ${TARGET_HOME})"
+mkdir -p "${TARGET_HOME}"
 
 # Verify ROS2 is installed
 if [[ ! -f /opt/ros/humble/setup.bash ]]; then
@@ -39,11 +49,11 @@ source /opt/ros/humble/setup.bash
 set -u
 
 # Create CRISP workspace if it doesn't exist
-CRISP_WS="/home/servobox-usr/crisp_ws"
+CRISP_WS="${TARGET_HOME}/crisp_ws"
 if [[ ! -d "${CRISP_WS}" ]]; then
   echo "Creating CRISP workspace at ${CRISP_WS}..."
   mkdir -p "${CRISP_WS}/src"
-  chown -R servobox-usr:servobox-usr "${CRISP_WS}"
+  chown -R ${TARGET_USER}:${TARGET_USER} "${CRISP_WS}"
 fi
 
 # Navigate to the CRISP workspace
@@ -73,7 +83,7 @@ source install/setup.bash || true
 set -u
 
 # Fix ownership
-chown -R servobox-usr:servobox-usr "${CRISP_WS}" || true
+chown -R ${TARGET_USER}:${TARGET_USER} "${CRISP_WS}" || true
 
 # Cleanup apt caches if available via helpers
 apt_cleanup || true

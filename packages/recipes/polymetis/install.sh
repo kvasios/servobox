@@ -18,17 +18,32 @@ else
   fi
 fi
 
+# Determine target user and home directory
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
+else
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+  [[ -z "${TARGET_USER}" ]] && TARGET_USER="root"
+fi
+[[ "${TARGET_USER}" == "root" ]] && TARGET_HOME="/root" || TARGET_HOME=$(getent passwd "${TARGET_USER}" | cut -d: -f6)
+[[ -z "${TARGET_HOME}" ]] && TARGET_HOME="/home/${TARGET_USER}"
+echo "Installing for user: ${TARGET_USER} (home: ${TARGET_HOME})"
+
 # Install micromamba if not found
-if [[ ! -f /home/servobox-usr/.local/bin/micromamba ]]; then
+if [[ ! -f ${TARGET_HOME}/.local/bin/micromamba ]]; then
     echo "micromamba not found, installing..."
     
     # Install prerequisites
     apt_update
     apt_install curl bzip2 ca-certificates
     
-    # Install micromamba for servobox-usr
-    echo "Installing micromamba for servobox-usr..."
-    su - servobox-usr -c 'bash -c "$(curl -L micro.mamba.pm/install.sh)" -- -y'
+    # Install micromamba for target user
+    echo "Installing micromamba for ${TARGET_USER}..."
+    su - ${TARGET_USER} -c 'bash -c "$(curl -L micro.mamba.pm/install.sh)" -- -y'
     
     echo "micromamba installed successfully"
 else
@@ -37,10 +52,10 @@ fi
 
 # Clean up any previous polymetis environments
 echo "Cleaning up any existing polymetis environments..."
-su - servobox-usr -c "
-    if /home/servobox-usr/.local/bin/micromamba env list | grep -q polymetis; then
+su - ${TARGET_USER} -c "
+    if ${TARGET_HOME}/.local/bin/micromamba env list | grep -q polymetis; then
         echo 'Removing existing polymetis environment...'
-        /home/servobox-usr/.local/bin/micromamba env remove -n polymetis -y
+        ${TARGET_HOME}/.local/bin/micromamba env remove -n polymetis -y
     fi
 " || true
 
@@ -51,27 +66,27 @@ apt_install libgl1-mesa-glx libglib2.0-0
 
 # Try the .yml file first with flexible channel priority
 echo "Setting up polymetis environment from exported specification..."
-cp "${RECIPE_DIR}/polymetis-env.yml" /home/servobox-usr/
-chown servobox-usr:servobox-usr /home/servobox-usr/polymetis-env.yml
+cp "${RECIPE_DIR}/polymetis-env.yml" ${TARGET_HOME}/
+chown ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/polymetis-env.yml
 
 # Install polymetis using the exported environment file with flexible channel priority
 echo "Installing polymetis via micromamba using exported environment..."
-if ! su - servobox-usr -c "
-    /home/servobox-usr/.local/bin/micromamba env create -f polymetis-env.yml --channel-priority flexible
+if ! su - ${TARGET_USER} -c "
+    ${TARGET_HOME}/.local/bin/micromamba env create -f polymetis-env.yml --channel-priority flexible
 "; then
     echo "YML approach failed, trying spec.txt approach..."
     # Fallback to spec.txt file
-    cp "${RECIPE_DIR}/polymetis-spec.txt" /home/servobox-usr/
-    chown servobox-usr:servobox-usr /home/servobox-usr/polymetis-spec.txt
+    cp "${RECIPE_DIR}/polymetis-spec.txt" ${TARGET_HOME}/
+    chown ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/polymetis-spec.txt
     
-    su - servobox-usr -c "
-        /home/servobox-usr/.local/bin/micromamba create -n polymetis --file polymetis-spec.txt
+    su - ${TARGET_USER} -c "
+        ${TARGET_HOME}/.local/bin/micromamba create -n polymetis --file polymetis-spec.txt
     "
 fi
 
 # Clone fairo repository for scripts and examples
 echo "Cloning fairo repository for scripts and examples..."
-su - servobox-usr -c "
+su - ${TARGET_USER} -c "
     cd ~
     if [ ! -d fairo ]; then
         git clone https://github.com/facebookresearch/fairo.git
@@ -83,8 +98,8 @@ su - servobox-usr -c "
 
 # Fix polymetis version detection issue
 echo "Fixing polymetis version detection..."
-su - servobox-usr -c "
-    /home/servobox-usr/.local/bin/micromamba run -n polymetis python -c '
+su - ${TARGET_USER} -c "
+    ${TARGET_HOME}/.local/bin/micromamba run -n polymetis python -c '
 import os
 import site
 site_packages = site.getsitepackages()[0]
@@ -98,7 +113,7 @@ print(\"✓ Fixed polymetis version detection\")
 
 # Verify installation
 echo "Verifying Polymetis installation..."
-if su - servobox-usr -c "/home/servobox-usr/.local/bin/micromamba run -n polymetis python -c 'import polymetis; print(\"✓ polymetis imported successfully\")'" 2>/dev/null; then
+if su - ${TARGET_USER} -c "${TARGET_HOME}/.local/bin/micromamba run -n polymetis python -c 'import polymetis; print(\"✓ polymetis imported successfully\")'" 2>/dev/null; then
     echo "✓ polymetis Python package installed successfully"
 else
     echo "✗ Error: polymetis Python package verification failed"
@@ -107,20 +122,20 @@ fi
 
 # Create environment setup script
 echo "Creating environment setup script..."
-cat > /home/servobox-usr/activate_polymetis.sh << 'EOF'
+cat > ${TARGET_HOME}/activate_polymetis.sh << 'EOF'
 #!/bin/bash
 # Polymetis environment activation script
 
 # Activate conda environment
-source /home/servobox-usr/.local/bin/micromamba activate polymetis
+source ${TARGET_HOME}/.local/bin/micromamba activate polymetis
 
 echo "Polymetis environment activated!"
 echo "Python version: $(python --version)"
 echo "Polymetis version: $(python -c 'import polymetis; print(polymetis.__version__)' 2>/dev/null || echo 'unknown')"
 EOF
 
-chown servobox-usr:servobox-usr /home/servobox-usr/activate_polymetis.sh
-chmod +x /home/servobox-usr/activate_polymetis.sh
+chown ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/activate_polymetis.sh
+chmod +x ${TARGET_HOME}/activate_polymetis.sh
 
 echo ""
 echo "Polymetis installation completed!"

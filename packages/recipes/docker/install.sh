@@ -55,12 +55,23 @@ apt_install \
     docker-buildx-plugin \
     docker-compose-plugin
 
-# Configure permissions for servobox-usr
-if id "servobox-usr" &>/dev/null; then
-    echo "Adding servobox-usr to docker group..."
-    usermod -aG docker servobox-usr
+# Determine target user for docker group
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
 else
-    echo "Warning: servobox-usr user not found, skipping group assignment."
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+fi
+
+# Configure permissions for target user
+if [[ -n "${TARGET_USER}" ]] && id "${TARGET_USER}" &>/dev/null; then
+    echo "Adding ${TARGET_USER} to docker group..."
+    usermod -aG docker "${TARGET_USER}"
+else
+    echo "Warning: No suitable user found for docker group assignment."
 fi
 
 apt_cleanup

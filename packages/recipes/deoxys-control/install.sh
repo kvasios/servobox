@@ -20,11 +20,21 @@ else
   fi
 fi
 
-# Verify expected home directory exists (do not create it here)
-if [[ ! -d /home/servobox-usr ]]; then
-  echo "Error: /home/servobox-usr does not exist" >&2
-  exit 1
+# Determine target user and home directory
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
+else
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+  [[ -z "${TARGET_USER}" ]] && TARGET_USER="root"
 fi
+[[ "${TARGET_USER}" == "root" ]] && TARGET_HOME="/root" || TARGET_HOME=$(getent passwd "${TARGET_USER}" | cut -d: -f6)
+[[ -z "${TARGET_HOME}" ]] && TARGET_HOME="/home/${TARGET_USER}"
+echo "Installing for user: ${TARGET_USER} (home: ${TARGET_HOME})"
+mkdir -p "${TARGET_HOME}"
 
 # Refresh shared library cache
 ldconfig || true
@@ -72,7 +82,7 @@ apt_install libreadline-dev bzip2 libmotif-dev libglfw3 || \
   apt-get install -y libreadline-dev bzip2 libmotif-dev libglfw3
 
 # Clone deoxys_control dev branch into user home (shallow)
-cd /home/servobox-usr
+cd ${TARGET_HOME}
 if [[ -d deoxys_control ]]; then
   echo "Updating existing deoxys_control repository..."
   cd deoxys_control
@@ -80,7 +90,7 @@ if [[ -d deoxys_control ]]; then
   git checkout dev
   git pull origin dev || true
 else
-  echo "Cloning deoxys_control (shallow) into /home/servobox-usr/deoxys_control..."
+  echo "Cloning deoxys_control (shallow) into ${TARGET_HOME}/deoxys_control..."
   git clone --depth 1 --single-branch --branch dev https://github.com/kvasios/deoxys_control.git deoxys_control
   cd deoxys_control
 fi
@@ -91,11 +101,11 @@ git submodule update --init --recursive zmqpp spdlog yaml-cpp || \
   git submodule update --init --recursive
 
 # Ensure proper ownership
-chown -R servobox-usr:servobox-usr /home/servobox-usr/deoxys_control || true
+chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/deoxys_control || true
 
 # Build zmqpp from submodule (required, not available as system package)
 echo "Building zmqpp from submodule..."
-cd /home/servobox-usr/deoxys_control/zmqpp || { 
+cd ${TARGET_HOME}/deoxys_control/zmqpp || { 
   echo "Error: zmqpp submodule not found" >&2
   exit 1
 }
@@ -112,11 +122,11 @@ cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j"$(nproc)"
 make install
 ldconfig
-cd /home/servobox-usr/deoxys_control
+cd ${TARGET_HOME}/deoxys_control
 
 # Build deoxys_control server-side components
 echo "Building deoxys_control server-side (BUILD_FRANKA=1)..."
-cd /home/servobox-usr/deoxys_control/deoxys || { 
+cd ${TARGET_HOME}/deoxys_control/deoxys || { 
   echo "Error: deoxys directory not found" >&2
   exit 1
 }
@@ -150,8 +160,8 @@ make install
 ldconfig
 
 # Ensure proper ownership
-cd /home/servobox-usr/deoxys_control
-chown -R servobox-usr:servobox-usr /home/servobox-usr/deoxys_control || true
+cd ${TARGET_HOME}/deoxys_control
+chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/deoxys_control || true
 
 # Cleanup apt caches if available via helpers
 apt_cleanup || true

@@ -20,6 +20,21 @@ else
   fi
 fi
 
+# Determine target user and home directory
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
+else
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+  [[ -z "${TARGET_USER}" ]] && TARGET_USER="root"
+fi
+[[ "${TARGET_USER}" == "root" ]] && TARGET_HOME="/root" || TARGET_HOME=$(getent passwd "${TARGET_USER}" | cut -d: -f6)
+[[ -z "${TARGET_HOME}" ]] && TARGET_HOME="/home/${TARGET_USER}"
+echo "Installing for user: ${TARGET_USER} (home: ${TARGET_HOME})"
+
 # Clean up any previous broken states
 echo "Cleaning up any previous installation remnants..."
 apt-get clean || true
@@ -99,12 +114,12 @@ rosdep update
 
 # Set up environment
 # Wrap ROS2 setup.bash with set +u/-u to avoid "unbound variable" errors from COLCON_TRACE
-echo "# Source ROS2 Humble" >> /home/servobox-usr/.bashrc
-echo "if [ -f /opt/ros/humble/setup.bash ]; then" >> /home/servobox-usr/.bashrc
-echo "  set +u  # Temporarily disable nounset for ROS2 setup scripts" >> /home/servobox-usr/.bashrc
-echo "  source /opt/ros/humble/setup.bash" >> /home/servobox-usr/.bashrc
-echo "  set -u  # Re-enable nounset" >> /home/servobox-usr/.bashrc
-echo "fi" >> /home/servobox-usr/.bashrc
+echo "# Source ROS2 Humble" >> ${TARGET_HOME}/.bashrc
+echo "if [ -f /opt/ros/humble/setup.bash ]; then" >> ${TARGET_HOME}/.bashrc
+echo "  set +u  # Temporarily disable nounset for ROS2 setup scripts" >> ${TARGET_HOME}/.bashrc
+echo "  source /opt/ros/humble/setup.bash" >> ${TARGET_HOME}/.bashrc
+echo "  set -u  # Re-enable nounset" >> ${TARGET_HOME}/.bashrc
+echo "fi" >> ${TARGET_HOME}/.bashrc
 
 echo "# Source ROS2 Humble" >> /root/.bashrc
 echo "if [ -f /opt/ros/humble/setup.bash ]; then" >> /root/.bashrc
@@ -114,16 +129,16 @@ echo "  set -u  # Re-enable nounset" >> /root/.bashrc
 echo "fi" >> /root/.bashrc
 
 # Create workspace directory for control system development
-mkdir -p /home/servobox-usr/ros2_ws/src
-chown -R servobox-usr:servobox-usr /home/servobox-usr/ros2_ws
+mkdir -p ${TARGET_HOME}/ros2_ws/src
+chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/ros2_ws
 
 # Create a high-frequency control example workspace
-mkdir -p /home/servobox-usr/control_ws/src
-chown -R servobox-usr:servobox-usr /home/servobox-usr/control_ws
+mkdir -p ${TARGET_HOME}/control_ws/src
+chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/control_ws
 
 # Set up ROS 2 environment
-echo "export ROS_DOMAIN_ID=0" >> /home/servobox-usr/.bashrc
-echo "export RCUTILS_LOGGING_USE_STDOUT=1" >> /home/servobox-usr/.bashrc
+echo "export ROS_DOMAIN_ID=0" >> ${TARGET_HOME}/.bashrc
+echo "export RCUTILS_LOGGING_USE_STDOUT=1" >> ${TARGET_HOME}/.bashrc
 
 # Verify ROS 2 installation
 echo "Verifying ROS 2 Humble installation..."

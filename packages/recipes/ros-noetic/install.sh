@@ -18,26 +18,41 @@ else
   fi
 fi
 
+# Determine target user and home directory
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
+else
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+  [[ -z "${TARGET_USER}" ]] && TARGET_USER="root"
+fi
+[[ "${TARGET_USER}" == "root" ]] && TARGET_HOME="/root" || TARGET_HOME=$(getent passwd "${TARGET_USER}" | cut -d: -f6)
+[[ -z "${TARGET_HOME}" ]] && TARGET_HOME="/home/${TARGET_USER}"
+echo "Installing for user: ${TARGET_USER} (home: ${TARGET_HOME})"
+
 # Ensure micromamba is installed (dependency)
-if [[ ! -f /home/servobox-usr/.local/bin/micromamba ]]; then
+if [[ ! -f "${TARGET_HOME}/.local/bin/micromamba" ]]; then
     echo "Error: micromamba is not installed. Please install the 'robostack' package first."
     exit 1
 fi
 
 # Clean cache proactively to prevent timeout issues
 echo "Cleaning micromamba cache to prevent download timeouts..."
-su - servobox-usr -c "
-    export MAMBA_EXE='/home/servobox-usr/.local/bin/micromamba'
-    export MAMBA_ROOT_PREFIX='/home/servobox-usr/micromamba'
+su - ${TARGET_USER} -c "
+    export MAMBA_EXE='${TARGET_HOME}/.local/bin/micromamba'
+    export MAMBA_ROOT_PREFIX='${TARGET_HOME}/micromamba'
     eval \"\$(\${MAMBA_EXE} shell hook --shell bash)\"
     \${MAMBA_EXE} clean -a -y
 "
 
 # Create or update ROS Noetic environment
 echo "Setting up ROS Noetic environment (ros_noetic)..."
-su - servobox-usr -c "
-    export MAMBA_EXE='/home/servobox-usr/.local/bin/micromamba'
-    export MAMBA_ROOT_PREFIX='/home/servobox-usr/micromamba'
+su - ${TARGET_USER} -c "
+    export MAMBA_EXE='${TARGET_HOME}/.local/bin/micromamba'
+    export MAMBA_ROOT_PREFIX='${TARGET_HOME}/micromamba'
     eval \"\$(\${MAMBA_EXE} shell hook --shell bash)\"
     
     # Clean up any conflicting directory that might exist
@@ -52,9 +67,9 @@ su - servobox-usr -c "
 
 # Install development tools
 echo "Installing development tools..."
-su - servobox-usr -c "
-    export MAMBA_EXE='/home/servobox-usr/.local/bin/micromamba'
-    export MAMBA_ROOT_PREFIX='/home/servobox-usr/micromamba'
+su - ${TARGET_USER} -c "
+    export MAMBA_EXE='${TARGET_HOME}/.local/bin/micromamba'
+    export MAMBA_ROOT_PREFIX='${TARGET_HOME}/micromamba'
     eval \"\$(\${MAMBA_EXE} shell hook --shell bash)\"
     \${MAMBA_EXE} install -n ros_noetic -c conda-forge -c robostack-noetic \
         compilers cmake pkg-config make ninja \

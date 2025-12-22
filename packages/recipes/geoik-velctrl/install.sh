@@ -48,14 +48,29 @@ else
   echo "ruckig already installed; skipping (set FORCE=1 to rebuild)"
 fi
 
+# Determine target user and home directory
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
+else
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+  [[ -z "${TARGET_USER}" ]] && TARGET_USER="root"
+fi
+[[ "${TARGET_USER}" == "root" ]] && TARGET_HOME="/root" || TARGET_HOME=$(getent passwd "${TARGET_USER}" | cut -d: -f6)
+[[ -z "${TARGET_HOME}" ]] && TARGET_HOME="/home/${TARGET_USER}"
+echo "Installing for user: ${TARGET_USER} (home: ${TARGET_HOME})"
+
 # Create user home directory if missing
 echo "Setting up project directory..."
-mkdir -p /home/servobox-usr
-cd /home/servobox-usr || { echo "Error: /home/servobox-usr not available" >&2; exit 1; }
+mkdir -p "${TARGET_HOME}"
+cd "${TARGET_HOME}" || { echo "Error: ${TARGET_HOME} not available" >&2; exit 1; }
 
 # Clone geoik-velctrl from GitHub
 echo "Cloning geoik-velctrl repository..."
-PROJECT_DIR="/home/servobox-usr/geoik-velctrl"
+PROJECT_DIR="${TARGET_HOME}/geoik-velctrl"
 rm -rf "${PROJECT_DIR}"
 git clone https://github.com/kvasios/geoik-velctrl.git "${PROJECT_DIR}"
 cd "${PROJECT_DIR}"
@@ -139,7 +154,9 @@ cmake --build .
 EOF
 
 # Set proper ownership
-chown -R servobox-usr:servobox-usr "${PROJECT_DIR}"
+if [[ "${TARGET_USER}" != "root" ]]; then
+  chown -R "${TARGET_USER}:${TARGET_USER}" "${PROJECT_DIR}"
+fi
 chmod +x "${PROJECT_DIR}/franka_velocity_server"
 
 echo "geoik-velctrl installation completed!"

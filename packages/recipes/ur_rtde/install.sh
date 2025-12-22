@@ -18,11 +18,23 @@ else
   fi
 fi
 
-# Verify expected home directory exists
-if [[ ! -d /home/servobox-usr ]]; then
-  echo "Error: /home/servobox-usr does not exist" >&2
-  exit 1
+# Determine target user and home directory
+if [[ -n "${SERVOBOX_INSTALL_USER:-}" ]]; then
+  TARGET_USER="${SERVOBOX_INSTALL_USER}"
+elif [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+  TARGET_USER="${SUDO_USER}"
+elif id "servobox-usr" &>/dev/null; then
+  TARGET_USER="servobox-usr"
+else
+  TARGET_USER=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home/ {print $1; exit}')
+  [[ -z "${TARGET_USER}" ]] && TARGET_USER="root"
 fi
+[[ "${TARGET_USER}" == "root" ]] && TARGET_HOME="/root" || TARGET_HOME=$(getent passwd "${TARGET_USER}" | cut -d: -f6)
+[[ -z "${TARGET_HOME}" ]] && TARGET_HOME="/home/${TARGET_USER}"
+echo "Installing for user: ${TARGET_USER} (home: ${TARGET_HOME})"
+
+# Verify expected home directory exists
+mkdir -p "${TARGET_HOME}"
 
 # Install system-wide C++ library first
 echo "Installing system-wide librtde from PPA..."
@@ -40,15 +52,15 @@ apt_install librtde librtde-dev
 echo "✓ System-wide librtde installed successfully"
 
 # Install micromamba if not found
-if [[ ! -f /home/servobox-usr/.local/bin/micromamba ]]; then
+if [[ ! -f ${TARGET_HOME}/.local/bin/micromamba ]]; then
     echo "micromamba not found, installing..."
     
     # Install prerequisites
     apt_install curl bzip2 ca-certificates
     
-    # Install micromamba for servobox-usr
-    echo "Installing micromamba for servobox-usr..."
-    su - servobox-usr -c 'bash -c "$(curl -L micro.mamba.pm/install.sh)" -- -y'
+    # Install micromamba for target user
+    echo "Installing micromamba for ${TARGET_USER}..."
+    su - ${TARGET_USER} -c 'bash -c "$(curl -L micro.mamba.pm/install.sh)" -- -y'
     
     echo "✓ micromamba installed successfully"
 else
@@ -57,23 +69,23 @@ fi
 
 # Clean up any previous ur_rtde environments
 echo "Cleaning up any existing ur_rtde environment..."
-su - servobox-usr -c "
-    if /home/servobox-usr/.local/bin/micromamba env list | grep -q '^ur_rtde'; then
+su - ${TARGET_USER} -c "
+    if ${TARGET_HOME}/.local/bin/micromamba env list | grep -q '^ur_rtde'; then
         echo 'Removing existing ur_rtde environment...'
-        /home/servobox-usr/.local/bin/micromamba env remove -n ur_rtde -y
+        ${TARGET_HOME}/.local/bin/micromamba env remove -n ur_rtde -y
     fi
 " || true
 
 # Create ur_rtde environment with Python 3.10
 echo "Creating ur_rtde environment with Python 3.10..."
-su - servobox-usr -c "
-    /home/servobox-usr/.local/bin/micromamba create -n ur_rtde python=3.10 -y -c conda-forge
+su - ${TARGET_USER} -c "
+    ${TARGET_HOME}/.local/bin/micromamba create -n ur_rtde python=3.10 -y -c conda-forge
 "
 
 # Install ur_rtde via pip
 echo "Installing ur_rtde Python package..."
-if su - servobox-usr -c "
-    /home/servobox-usr/.local/bin/micromamba run -n ur_rtde pip install ur_rtde
+if su - ${TARGET_USER} -c "
+    ${TARGET_HOME}/.local/bin/micromamba run -n ur_rtde pip install ur_rtde
 "; then
     echo "✓ ur_rtde Python package installed successfully"
 else
@@ -83,7 +95,7 @@ fi
 
 # Clone ur_rtde repository in user space
 echo "Cloning ur_rtde repository..."
-su - servobox-usr -c "
+su - ${TARGET_USER} -c "
     cd ~
     if [ ! -d ur_rtde ]; then
         git clone https://gitlab.com/sdurobotics/ur_rtde.git
@@ -102,7 +114,7 @@ apt_install cmake build-essential libboost-dev libboost-system-dev libboost-thre
 
 # Build C++ examples
 echo "Building C++ examples..."
-cd /home/servobox-usr/ur_rtde/examples/cpp
+cd ${TARGET_HOME}/ur_rtde/examples/cpp
 
 # Clean previous build if exists
 if [[ -d build ]]; then
@@ -119,7 +131,7 @@ if cmake .. -DCMAKE_BUILD_TYPE=Release; then
 else
   echo "⚠ Warning: CMake configuration failed, skipping C++ examples build"
   echo "Python bindings are still available via micromamba environment"
-  cd /home/servobox-usr
+  cd ${TARGET_HOME}
 fi
 
 # Build examples
@@ -134,10 +146,10 @@ if [[ -f Makefile ]]; then
 fi
 
 # Return to home directory
-cd /home/servobox-usr
+cd ${TARGET_HOME}
 
 # Set proper ownership
-chown -R servobox-usr:servobox-usr /home/servobox-usr/ur_rtde 2>/dev/null || true
+chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/ur_rtde 2>/dev/null || true
 
 # Clean up apt cache
 apt_cleanup || true
