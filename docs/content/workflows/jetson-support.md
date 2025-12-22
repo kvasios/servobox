@@ -151,3 +151,29 @@ Expect Ubuntu 22.04 and a `*-tegra` kernel.
 For installing the real-time kernel follow the instructions:
 
 - [Installing Real-Time Kernel — NVIDIA Jetson Linux Developer Guide (R36.4.4)](https://docs.nvidia.com/jetson/archives/r36.4.4/DeveloperGuide/SD/Kernel/RealTimeKernel.html)
+
+!!! warning "RT kernel + NVMe boot pitfall (initrd mismatch)"
+    On Jetson (e.g. Orin Nano, JetPack 6 / L4T R36.x), a **PREEMPT_RT kernel can reboot immediately** if it shares the stock initrd. The default `/boot/initrd` is built for the **generic tegra** kernel. When you select an RT kernel, early NVMe/Tegra modules may not load, rootfs mount fails, and the watchdog resets with no useful error.
+
+    Fix: generate a **kernel-matched initrd** for the RT kernel (e.g. `update-initramfs -c -k <rt-kernel>`) and point the RT entry in `/boot/extlinux/extlinux.conf` to that **RT-specific initrd**. Do not share initrd images between generic and RT kernels.
+
+!!! note "Allow real-time permissions (after RT kernel is running)"
+    Create a realtime group and add the user that runs the robot:
+
+    ```bash
+    sudo addgroup realtime
+    sudo usermod -a -G realtime "$(whoami)"
+    ```
+
+    Add limits to `/etc/security/limits.conf`:
+
+    ```
+    @realtime soft rtprio 99
+    @realtime soft priority 99
+    @realtime soft memlock 102400
+    @realtime hard rtprio 99
+    @realtime hard priority 99
+    @realtime hard memlock 102400
+    ```
+
+    Log out and log back in to apply the limits.
