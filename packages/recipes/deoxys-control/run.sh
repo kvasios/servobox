@@ -1,30 +1,53 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Deoxys Control run script
-# Starts a tmux session with franka-interface and gripper-interface
+# Prefers tmux (split pane: franka-interface + gripper-interface). If tmux is not
+# available (e.g. minimal Jetson image), runs both in the background until Enter.
+
+set -euo pipefail
 
 SESSION_NAME="deoxys-control"
+DEOXYS_DIR="${HOME}/deoxys_control/deoxys"
+CONFIG="${DEOXYS_DIR}/config/servobox.yml"
+CONTROL_CONFIG="${DEOXYS_DIR}/config/control_config.yml"
 
-# Check if the session already exists
-if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-    echo "Tmux session '$SESSION_NAME' already exists. Attaching..."
-    tmux attach-session -t "$SESSION_NAME"
-    exit 0
+if [[ ! -d "${DEOXYS_DIR}" ]] || [[ ! -f "${DEOXYS_DIR}/build/franka-interface" ]]; then
+  echo "Error: deoxys_control not built. Run: servobox pkg-install deoxys-control" >&2
+  exit 1
 fi
 
-# Create a new tmux session with the franka-interface in the first pane
-tmux new-session -d -s "$SESSION_NAME" -n "deoxys"
+if command -v tmux &>/dev/null; then
+  # Use tmux: attach to existing session or create one
+  if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    echo "Tmux session '$SESSION_NAME' already exists. Attaching..."
+    exec tmux attach-session -t "$SESSION_NAME"
+  fi
 
-# Run franka-interface in the first (left) pane
-tmux send-keys -t "$SESSION_NAME:0.0" "cd ~/deoxys_control/deoxys/" C-m
-tmux send-keys -t "$SESSION_NAME:0.0" "./build/franka-interface ./config/servobox.yml" C-m
+  tmux new-session -d -s "$SESSION_NAME" -n "deoxys"
+  tmux send-keys -t "$SESSION_NAME:0.0" "cd ${DEOXYS_DIR}" C-m
+  tmux send-keys -t "$SESSION_NAME:0.0" "./build/franka-interface ${CONFIG} ${CONTROL_CONFIG}" C-m
+  tmux split-window -h -t "$SESSION_NAME:0"
+  tmux send-keys -t "$SESSION_NAME:0.1" "cd ${DEOXYS_DIR}" C-m
+  tmux send-keys -t "$SESSION_NAME:0.1" "./build/gripper-interface ${CONFIG}" C-m
+  exec tmux attach-session -t "$SESSION_NAME"
+fi
 
-# Split the window vertically (left/right)
-tmux split-window -h -t "$SESSION_NAME:0"
+# No tmux: run both interfaces in background, wait for Enter then stop
+echo "tmux not found; running franka-interface and gripper-interface in background."
+echo "Press Enter to stop both and exit."
+LOG_DIR="${HOME}/.deoxys-control-logs"
+mkdir -p "${LOG_DIR}"
 
-# Run gripper-interface in the second (right) pane
-tmux send-keys -t "$SESSION_NAME:0.1" "cd ~/deoxys_control/deoxys/" C-m
-tmux send-keys -t "$SESSION_NAME:0.1" "./build/gripper-interface ./config/servobox.yml" C-m
+nohup "${DEOXYS_DIR}/build/franka-interface" "${CONFIG}" "${CONTROL_CONFIG}" &>"${LOG_DIR}/franka-interface.log" &
+FPID=$!
+nohup "${DEOXYS_DIR}/build/gripper-interface" "${CONFIG}" &>"${LOG_DIR}/gripper-interface.log" &
+GPID=$!
 
-# Attach to the session
-tmux attach-session -t "$SESSION_NAME"
+cleanup() {
+  kill "$FPID" "$GPID" 2>/dev/null || true
+  wait "$FPID" "$GPID" 2>/dev/null || true
+  exit 0
+}
+trap cleanup EXIT INT TERM
 
+read -r
+cleanup

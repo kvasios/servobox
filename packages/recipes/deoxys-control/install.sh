@@ -77,9 +77,9 @@ echo "Installing system libraries..."
 apt_install libeigen3-dev libyaml-cpp-dev libspdlog-dev || \
   apt-get install -y libeigen3-dev libyaml-cpp-dev libspdlog-dev
 
-# Additional dependencies
-apt_install libreadline-dev bzip2 libmotif-dev libglfw3 || \
-  apt-get install -y libreadline-dev bzip2 libmotif-dev libglfw3
+# Additional dependencies (tmux used by run.sh for split-pane session)
+apt_install libreadline-dev bzip2 libmotif-dev libglfw3 tmux || \
+  apt-get install -y libreadline-dev bzip2 libmotif-dev libglfw3 tmux
 
 # Clone deoxys_control dev branch into user home (shallow)
 cd ${TARGET_HOME}
