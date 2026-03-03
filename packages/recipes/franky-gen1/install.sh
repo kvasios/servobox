@@ -38,10 +38,22 @@ if [[ ! -d "${TARGET_HOME}" ]]; then
   mkdir -p "${TARGET_HOME}"
 fi
 
+# Detect architecture (wheels are x86_64 only; aarch64 must build from source)
+ARCH=$(uname -m)
+if [[ "${ARCH}" == "aarch64" ]]; then
+  echo "Detected aarch64: building franky from source (no prebuilt wheels)."
+  BUILD_FROM_SOURCE=1
+else
+  BUILD_FROM_SOURCE=0
+fi
+
 # Install system dependencies
 echo "Installing system dependencies..."
 apt_update
 apt_install curl wget unzip bzip2 ca-certificates
+if [[ "${BUILD_FROM_SOURCE}" -eq 1 ]]; then
+  apt_install build-essential cmake git libeigen3-dev pybind11-dev
+fi
 
 # Install micromamba if not found
 if [[ ! -f ${TARGET_HOME}/.local/bin/micromamba ]]; then
@@ -71,38 +83,58 @@ su - ${TARGET_USER} -c "
     ${TARGET_HOME}/.local/bin/micromamba create -n franky-gen1 python=3.10 -y -c conda-forge
 "
 
-# Download and install franky wheels for libfranka 0.9.2
-echo "Downloading franky wheels for libfranka 0.9.2..."
-VERSION="0-9-2"
-su - ${TARGET_USER} -c "
+if [[ "${BUILD_FROM_SOURCE}" -eq 1 ]]; then
+  # aarch64: build franky from source (requires libfranka-gen1 installed first)
+  echo "Cloning franky repository (with submodules for ruckig)..."
+  su - ${TARGET_USER} -c "
     cd ~
-    # Clean up any previous downloads
-    rm -rf libfranka_${VERSION}_wheels.zip dist
-    
-    # Download wheels
-    wget https://github.com/TimSchneider42/franky/releases/latest/download/libfranka_${VERSION}_wheels.zip
-    
-    # Unzip wheels
-    unzip libfranka_${VERSION}_wheels.zip
-    
-    echo '✓ Franky wheels downloaded and extracted'
-"
+    if [ ! -d franky ]; then
+        git clone --recurse-submodules https://github.com/TimSchneider42/franky.git
+        echo '✓ franky repository cloned successfully'
+    else
+        echo 'franky directory already exists, updating and initializing submodules...'
+        cd franky
+        git fetch origin
+        git pull origin master || true
+        git submodule update --init --recursive
+    fi
+  "
 
-# Install numpy first, then franky-control from local wheels
-echo "Installing numpy and franky-control..."
-if su - ${TARGET_USER} -c "
+  echo "Building and installing franky (pip install .)..."
+  if ! su - ${TARGET_USER} -c "
+    cd ~/franky &&
+    ${TARGET_HOME}/.local/bin/micromamba run -n franky-gen1 pip install numpy &&
+    ${TARGET_HOME}/.local/bin/micromamba run -n franky-gen1 pip install .
+  "; then
+    echo "✗ Error: franky build/install failed (ensure libfranka-gen1 is installed)" >&2
+    exit 1
+  fi
+  echo "✓ franky built and installed successfully"
+else
+  # x86_64: use prebuilt wheels for libfranka 0.9.2
+  echo "Downloading franky wheels for libfranka 0.9.2..."
+  VERSION="0-9-2"
+  su - ${TARGET_USER} -c "
+    cd ~
+    rm -rf libfranka_${VERSION}_wheels.zip dist
+    wget https://github.com/TimSchneider42/franky/releases/latest/download/libfranka_${VERSION}_wheels.zip
+    unzip libfranka_${VERSION}_wheels.zip
+    echo '✓ Franky wheels downloaded and extracted'
+  "
+
+  echo "Installing numpy and franky-control from wheels..."
+  if ! su - ${TARGET_USER} -c "
     ${TARGET_HOME}/.local/bin/micromamba run -n franky-gen1 pip install numpy &&
     ${TARGET_HOME}/.local/bin/micromamba run -n franky-gen1 pip install --no-index --find-links=~/dist franky-control
-"; then
-    echo "✓ franky-control installed successfully"
-else
-    echo "✗ Error: franky-control installation failed"
+  "; then
+    echo "✗ Error: franky-control installation failed" >&2
     exit 1
-fi
+  fi
+  echo "✓ franky-control installed successfully"
 
-# Clone franky repository in user space
-echo "Cloning franky repository..."
-su - ${TARGET_USER} -c "
+  # Clone franky repository (reference, no submodules needed)
+  echo "Cloning franky repository..."
+  su - ${TARGET_USER} -c "
     cd ~
     if [ ! -d franky ]; then
         git clone https://github.com/TimSchneider42/franky.git
@@ -113,19 +145,19 @@ su - ${TARGET_USER} -c "
         git fetch origin
         git pull origin master || true
     fi
-"
+  "
 
-# Clean up downloaded files
-echo "Cleaning up downloaded files..."
-su - ${TARGET_USER} -c "
+  echo "Cleaning up downloaded files..."
+  su - ${TARGET_USER} -c "
     cd ~
     rm -f libfranka_${VERSION}_wheels.zip
     echo '✓ Cleaned up temporary files (kept dist/ folder for reference)'
-"
+  "
+fi
 
 # Set proper ownership
 chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/franky 2>/dev/null || true
-chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/dist 2>/dev/null || true
+[[ -d "${TARGET_HOME}/dist" ]] && chown -R ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/dist 2>/dev/null || true
 
 # Clean up apt cache
 apt_cleanup || true
@@ -136,7 +168,7 @@ echo ""
 echo "Environment: franky-gen1 (micromamba)"
 echo "libfranka version: 0.9.2"
 echo "Repository: ~/franky"
-echo "Wheels: ~/dist"
+[[ "${BUILD_FROM_SOURCE}" -eq 0 ]] && echo "Wheels: ~/dist"
 echo ""
 echo "To use:"
 echo "  micromamba activate franky-gen1"

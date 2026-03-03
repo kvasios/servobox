@@ -638,8 +638,29 @@ cmd_remote_pkg_install() {
       install_package_remote "$p" "${recipes_dir}" "${verbose_flag}" "${force_flag}"
     done
   else
-    # Install single package
-    install_package_remote "${target}" "${recipes_dir}" "${verbose_flag}" "${force_flag}"
+    # Install single package (with dependencies in order, same as VM install)
+    local install_order=()
+    local pm_args=()
+    if [[ "${custom_is_dir}" == "1" && -n "${custom_path}" ]]; then
+      pm_args=(--recipe-dir "${recipes_dir}")
+    fi
+    if [[ -x "${PACKAGES_PM:-}" ]]; then
+      while IFS= read -r pkg; do
+        [[ -n "$pkg" ]] && install_order+=("$pkg")
+      done < <("${PACKAGES_PM}" "${pm_args[@]}" install-order "${target}" 2>/dev/null) || true
+    fi
+    if [[ ${#install_order[@]} -eq 0 ]]; then
+      install_order=("${target}")
+    else
+      echo "Resolving dependencies for ${target}..."
+      echo "Will install ${#install_order[@]} packages in order: ${install_order[*]}"
+      echo ""
+    fi
+    for p in "${install_order[@]}"; do
+      echo "Installing package: $p"
+      install_package_remote "$p" "${recipes_dir}" "${verbose_flag}" "${force_flag}" || exit 1
+      echo ""
+    done
   fi
   
   echo ""

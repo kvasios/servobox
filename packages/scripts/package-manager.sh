@@ -38,6 +38,7 @@ Usage:
 Commands:
   list                    List all available packages
   deps <package>          Show dependency tree for a package
+  install-order <package> Print packages in install order (one per line; for remote install)
   build <package>         Build a specific package
   validate                Validate all package recipes
   install <package> <img> Install package (with dependencies) into image
@@ -689,6 +690,23 @@ cmd_deps() {
   fi
 }
 
+# Print packages in install order, one per line (for remote install dependency resolution)
+cmd_install_order() {
+  local package="$1"
+  
+  if [[ -z "$package" ]]; then
+    error "Package name required"
+  fi
+  
+  validate_package "$package"
+  local install_order
+  install_order=$(resolve_dependencies "$package")
+  for pkg in $install_order; do
+    pkg=$(echo "$pkg" | xargs)
+    [[ -n "$pkg" ]] && echo "$pkg"
+  done
+}
+
 # Parse command line arguments
 parse_args() {
   while [[ $# -gt 0 ]]; do
@@ -750,6 +768,7 @@ main() {
   case "$cmd" in
     list) cmd_list;;
     deps) cmd_deps "${remaining_args[@]}";;
+    install-order) cmd_install_order "${remaining_args[@]}";;
     build) cmd_build "${remaining_args[@]}";;
     validate) cmd_validate;;
     install) cmd_install "${remaining_args[@]}";;
