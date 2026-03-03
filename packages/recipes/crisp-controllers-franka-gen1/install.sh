@@ -54,7 +54,7 @@ fi
 echo "Using pixi at: ${PIXI}"
 
 REPO_DIR="${TARGET_HOME}/pixi_panda_ros2"
-REPO_URL="https://github.com/lvjonok/pixi_panda_ros2.git"
+REPO_URL="https://github.com/kvasios/pixi_panda_ros2.git"
 
 echo "Fetching pixi_panda_ros2..."
 if [[ -d "${REPO_DIR}/.git" ]]; then
