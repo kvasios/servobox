@@ -64,6 +64,17 @@ echo "Installing system dependencies..."
 apt_update
 apt_install libgl1-mesa-glx libglib2.0-0
 
+# This recipe uses x86_64-only conda lockfiles; Polymetis has no linux-aarch64 packages.
+# VM pkg-install (x86_64) works; remote Jetson/ARM does not.
+ARCH=$(uname -m)
+if [[ "${ARCH}" != "x86_64" ]]; then
+  echo ""
+  echo "Polymetis conda packages are not available for this architecture (${ARCH})."
+  echo "This recipe supports x86_64 only (e.g. VM pkg-install)."
+  echo "On Jetson/ARM you would need to build Polymetis from source."
+  exit 1
+fi
+
 # Try the .yml file first with flexible channel priority
 echo "Setting up polymetis environment from exported specification..."
 cp "${RECIPE_DIR}/polymetis-env.yml" ${TARGET_HOME}/

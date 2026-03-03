@@ -704,14 +704,16 @@ install_package_remote() {
 
   # Run installation on remote. Use stdin from /dev/null so apt/dpkg triggers
   # (e.g. man-db, libc-bin) never block waiting for input when run over SSH.
-  # Use env so PACKAGE_HELPERS is passed through sudo (sudo often strips env).
+  # Use env so PACKAGE_HELPERS and RECIPE_DIR are passed through sudo (sudo often strips env).
+  # RECIPE_DIR matches package-manager.sh and build-image.sh so install scripts get it consistently.
   local user=$(get_remote_user)
   local port=$(get_remote_port)
   local ssh_opts="-o StrictHostKeyChecking=no -o ConnectTimeout=10"
-  local run_cmd="cd ${remote_tmp} && chmod +x ${install_script} && sudo ./${install_script} </dev/null"
+  local env_vars="RECIPE_DIR=${remote_tmp}"
   if [[ -f "${helpers_src}" ]]; then
-    run_cmd="cd ${remote_tmp} && chmod +x ${install_script} && sudo env PACKAGE_HELPERS=${remote_tmp}/pkg-helpers.sh ./${install_script} </dev/null"
+    env_vars="${env_vars} PACKAGE_HELPERS=${remote_tmp}/pkg-helpers.sh"
   fi
+  local run_cmd="cd ${remote_tmp} && chmod +x ${install_script} && sudo env ${env_vars} ./${install_script} </dev/null"
   ssh -t ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"
 
   local exit_code=$?
