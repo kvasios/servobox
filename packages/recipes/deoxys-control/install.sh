@@ -14,9 +14,9 @@ if [[ -n "${PACKAGE_HELPERS:-}" && -f "${PACKAGE_HELPERS}" ]]; then
   . "${PACKAGE_HELPERS}"
 else
   # Fallback to local helpers when running directly
-  if [[ -f "$(cd "$(dirname "$0")" && pwd)/scripts/pkg-helpers.sh" ]]; then
+  if [[ -f "$(cd "$(dirname "$0")/../.." && pwd)/scripts/pkg-helpers.sh" ]]; then
     # shellcheck source=/dev/null
-    . "$(cd "$(dirname "$0")" && pwd)/scripts/pkg-helpers.sh"
+    . "$(cd "$(dirname "$0")/../.." && pwd)/scripts/pkg-helpers.sh"
   fi
 fi
 
