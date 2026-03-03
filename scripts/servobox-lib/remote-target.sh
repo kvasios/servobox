@@ -675,6 +675,16 @@ install_package_remote() {
     echo "Error: Failed to copy recipe to remote target" >&2
     return 1
   fi
+
+  # Copy pkg-helpers.sh so install scripts can use apt_update/apt_install etc.
+  local packages_dir
+  packages_dir="$(dirname "${recipes_dir}")"
+  local helpers_src="${packages_dir}/scripts/pkg-helpers.sh"
+  if [[ -f "${helpers_src}" ]]; then
+    if ! remote_copy_to "${helpers_src}" "${remote_tmp}/pkg-helpers.sh"; then
+      echo "Warning: Failed to copy pkg-helpers.sh to remote (install may fail if recipe needs it)" >&2
+    fi
+  fi
   
   # Find install script
   local install_script=""
@@ -692,13 +702,16 @@ install_package_remote() {
   echo "Running install script: ${install_script}"
   echo ""
 
-  # Run installation on remote with interactive sudo
-  # Use direct SSH with TTY for proper sudo password handling
+  # Run installation on remote with interactive sudo.
+  # Use env so PACKAGE_HELPERS is passed through sudo (sudo often strips env).
   local user=$(get_remote_user)
   local port=$(get_remote_port)
   local ssh_opts="-o StrictHostKeyChecking=no -o ConnectTimeout=10"
-  
-  ssh -t ${ssh_opts} -p "${port}" "${user}@${ip}" "cd ${remote_tmp} && chmod +x ${install_script} && sudo ./${install_script}"
+  local run_cmd="cd ${remote_tmp} && chmod +x ${install_script} && sudo ./${install_script}"
+  if [[ -f "${helpers_src}" ]]; then
+    run_cmd="cd ${remote_tmp} && chmod +x ${install_script} && sudo env PACKAGE_HELPERS=${remote_tmp}/pkg-helpers.sh ./${install_script}"
+  fi
+  ssh -t ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"
 
   local exit_code=$?
   
