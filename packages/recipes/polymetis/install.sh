@@ -64,60 +64,62 @@ echo "Installing system dependencies..."
 apt_update
 apt_install libgl1-mesa-glx libglib2.0-0
 
-# This recipe uses x86_64-only conda lockfiles; Polymetis has no linux-aarch64 packages.
-# VM pkg-install (x86_64) works; remote Jetson/ARM does not.
+# Polymetis conda packages are x86_64 only. Build-from-source on aarch64 hits
+# dependency mismatches (protobuf/grpc versions, C++14 vs C++17) and the
+# fairo/polymetis repo has been archived since 2023.
 ARCH=$(uname -m)
 if [[ "${ARCH}" != "x86_64" ]]; then
   echo ""
-  echo "Polymetis conda packages are not available for this architecture (${ARCH})."
-  echo "This recipe supports x86_64 only (e.g. VM pkg-install)."
-  echo "On Jetson/ARM you would need to build Polymetis from source."
+  echo "Polymetis is not supported on ${ARCH} (Jetson/ARM)."
+  echo ""
+  echo "  • Conda packages: x86_64 only"
+  echo "  • Build from source: has known protobuf/grpc/C++ compatibility issues"
+  echo ""
+  echo "Use a ServoBox x86_64 VM (pkg-install without remote target) for polymetis."
+  echo "For manual aarch64 attempts: https://facebookresearch.github.io/fairo/polymetis/installation.html"
+  echo ""
   exit 1
 fi
 
-# Try the .yml file first with flexible channel priority
+# === x86_64: install from conda packages ===
 echo "Setting up polymetis environment from exported specification..."
 cp "${RECIPE_DIR}/polymetis-env.yml" ${TARGET_HOME}/
 chown ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/polymetis-env.yml
 
-# Install polymetis using the exported environment file with flexible channel priority
 echo "Installing polymetis via micromamba using exported environment..."
 if ! su - ${TARGET_USER} -c "
-    ${TARGET_HOME}/.local/bin/micromamba env create -f polymetis-env.yml --channel-priority flexible
+  ${TARGET_HOME}/.local/bin/micromamba env create -f polymetis-env.yml --channel-priority flexible
 "; then
-    echo "YML approach failed, trying spec.txt approach..."
-    # Fallback to spec.txt file
-    cp "${RECIPE_DIR}/polymetis-spec.txt" ${TARGET_HOME}/
-    chown ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/polymetis-spec.txt
-    
-    su - ${TARGET_USER} -c "
-        ${TARGET_HOME}/.local/bin/micromamba create -n polymetis --file polymetis-spec.txt
-    "
+  echo "YML approach failed, trying spec.txt approach..."
+  cp "${RECIPE_DIR}/polymetis-spec.txt" ${TARGET_HOME}/
+  chown ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/polymetis-spec.txt
+
+  su - ${TARGET_USER} -c "
+    ${TARGET_HOME}/.local/bin/micromamba create -n polymetis --file polymetis-spec.txt
+  "
 fi
 
-# Clone fairo repository for scripts and examples
 echo "Cloning fairo repository for scripts and examples..."
 su - ${TARGET_USER} -c "
-    cd ~
-    if [ ! -d fairo ]; then
-        git clone https://github.com/facebookresearch/fairo.git
-        echo '✓ fairo repository cloned successfully'
-    else
-        echo 'fairo directory already exists, skipping clone...'
-    fi
+  cd ~
+  if [ ! -d fairo ]; then
+    git clone https://github.com/facebookresearch/fairo.git
+    echo '✓ fairo repository cloned successfully'
+  else
+    echo 'fairo directory already exists, skipping clone...'
+  fi
 "
 
-# Fix polymetis version detection issue
 echo "Fixing polymetis version detection..."
 su - ${TARGET_USER} -c "
-    ${TARGET_HOME}/.local/bin/micromamba run -n polymetis python -c '
+  ${TARGET_HOME}/.local/bin/micromamba run -n polymetis python -c '
 import os
 import site
 site_packages = site.getsitepackages()[0]
 version_file = os.path.join(site_packages, \"polymetis\", \"_version.py\")
 # Create a simple version file that just returns a version
 with open(version_file, \"w\") as f:
-    f.write(\"__version__ = \\\"0.2\\\"\\n\")
+  f.write(\"__version__ = \\\"0.2\\\"\\n\")
 print(\"✓ Fixed polymetis version detection\")
 '
 "
@@ -133,7 +135,7 @@ fi
 
 # Create environment setup script
 echo "Creating environment setup script..."
-cat > ${TARGET_HOME}/activate_polymetis.sh << 'EOF'
+cat > ${TARGET_HOME}/activate_polymetis.sh << EOF
 #!/bin/bash
 # Polymetis environment activation script
 
@@ -141,8 +143,8 @@ cat > ${TARGET_HOME}/activate_polymetis.sh << 'EOF'
 source ${TARGET_HOME}/.local/bin/micromamba activate polymetis
 
 echo "Polymetis environment activated!"
-echo "Python version: $(python --version)"
-echo "Polymetis version: $(python -c 'import polymetis; print(polymetis.__version__)' 2>/dev/null || echo 'unknown')"
+echo "Python version: \$(python --version)"
+echo "Polymetis version: \$(python -c 'import polymetis; print(polymetis.__version__)' 2>/dev/null || echo 'unknown')"
 EOF
 
 chown ${TARGET_USER}:${TARGET_USER} ${TARGET_HOME}/activate_polymetis.sh

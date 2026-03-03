@@ -734,7 +734,9 @@ install_package_remote() {
   if [[ -f "${helpers_src}" ]]; then
     env_vars="${env_vars} PACKAGE_HELPERS=${remote_tmp}/pkg-helpers.sh"
   fi
-  local run_cmd="cd ${remote_tmp} && chmod +x ${install_script} && sudo env ${env_vars} ./${install_script} </dev/null"
+  # Run sudo -v first (in same SSH session) to prompt for password once;
+  # subsequent sudo in the install script reuses the cached credentials.
+  local run_cmd="sudo -v && cd ${remote_tmp} && chmod +x ${install_script} && sudo env ${env_vars} ./${install_script} </dev/null"
   ssh -t ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"
 
   local exit_code=$?
