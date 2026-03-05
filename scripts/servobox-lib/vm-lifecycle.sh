@@ -506,6 +506,13 @@ cmd_init() {
     fi
   fi
   
+  # Ensure /dev/kvm permissions are compatible with libvirt/QEMU (persistent fix if needed).
+  if ! ensure_kvm_device_permissions; then
+    echo "" >&2
+    echo "Error: host KVM acceleration is not usable; cannot proceed with VM initialization." >&2
+    exit 1
+  fi
+  
   # Ensure libvirt's default network is available (unless using custom bridge)
   ensure_default_network
   
@@ -577,6 +584,13 @@ cmd_start() {
       echo "Please run: sudo systemctl start libvirtd" >&2
       exit 1
     fi
+  fi
+
+  # Ensure /dev/kvm permissions are compatible with libvirt/QEMU (persistent fix if needed).
+  if ! ensure_kvm_device_permissions; then
+    echo "" >&2
+    echo "Error: host KVM acceleration is not usable; cannot start VM." >&2
+    exit 1
   fi
   
   # Only start an already-defined domain

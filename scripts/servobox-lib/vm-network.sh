@@ -611,12 +611,12 @@ runcmd:
     systemctl enable ssh || systemctl enable sshd || true
     systemctl start ssh || systemctl start sshd || true
     
-    # Quick DNS fallback (non-blocking)
-    if [[ ! -f /etc/resolv.conf ]] || ! grep -q "nameserver" /etc/resolv.conf 2>/dev/null; then
-      mkdir -p /etc
-      echo "nameserver 8.8.8.8" > /etc/resolv.conf 2>/dev/null || true
-      echo "nameserver 1.1.1.1" >> /etc/resolv.conf 2>/dev/null || true
-    fi
+    # Ensure DNS works out-of-the-box on the default libvirt NAT network.
+    # Some base images ship a static /etc/resolv.conf (e.g. pointing at 169.254.x.y)
+    # which breaks name resolution even though NAT connectivity is fine.
+    systemctl enable systemd-resolved || true
+    systemctl start systemd-resolved || true
+    ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf || true
     
     # Note: macvtap configuration service is installed via cloud-init write_files
     # and auto-enabled during network-setup via virt-customize

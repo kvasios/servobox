@@ -394,6 +394,8 @@ NPYAML
       --run-command "sed -i 's/^# End of file$/@realtime soft rtprio 99\\n@realtime soft priority 99\\n@realtime soft memlock 102400\\n@realtime hard rtprio 99\\n@realtime hard priority 99\\n@realtime hard memlock 102400\\n# End of file/' /etc/security/limits.conf" \
       --run-command 'grep -q pam_limits.so /etc/pam.d/common-session || echo "session required pam_limits.so" >> /etc/pam.d/common-session' \
       --run-command 'grep -q pam_limits.so /etc/pam.d/common-session-noninteractive || echo "session required pam_limits.so" >> /etc/pam.d/common-session-noninteractive' \
+      --run-command 'systemctl enable systemd-networkd systemd-resolved || true' \
+      --run-command 'ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf || true' \
       --run-command 'systemctl enable ssh || systemctl enable sshd || true' \
       --run-command 'systemctl enable qemu-guest-agent || true')
     if ! "${vc_cmd[@]}" >/dev/null 2>&1; then 

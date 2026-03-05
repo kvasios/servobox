@@ -65,6 +65,20 @@ virsh start my-vm
 sudo chown -R libvirt-qemu:kvm /var/lib/libvirt/images/servobox/
 ```
 
+If you see an error like `Could not access KVM kernel module: Permission denied`,
+check `/dev/kvm` permissions (it should typically be `root:kvm` with mode `0660`):
+
+```console
+ls -l /dev/kvm
+
+# Persistent fix (recommended)
+sudo tee /etc/udev/rules.d/99-kvm-permissions.rules >/dev/null <<'EOF'
+SUBSYSTEM=="misc", KERNEL=="kvm", GROUP="kvm", MODE="0660"
+EOF
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=misc --sysname-match=kvm
+```
+
 ### Can't SSH into VM
 
 Wait 1-2 minutes for cloud-init on first boot. Then:

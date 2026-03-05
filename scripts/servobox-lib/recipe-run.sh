@@ -160,7 +160,11 @@ exec_recipe_in_vm() {
   script_content=$(cat "$run_script")
   
   # Execute the script in the VM with proper environment
-  ssh -t "servobox-usr@${vm_ip}" "bash -l -c '
+  ssh -t \
+    -o UserKnownHostsFile=/dev/null \
+    -o StrictHostKeyChecking=no \
+    -o UpdateHostKeys=no \
+    "servobox-usr@${vm_ip}" "bash -l -c '
     echo \"=== Starting recipe ${recipe_name} ===\"
     echo \"Working directory: \$(pwd)\"
     echo \"User: \$(whoami)\"
@@ -236,7 +240,11 @@ exec_command_in_vm() {
   fi
   
   # Execute the command directly via SSH (no verbose output)
-  ssh "servobox-usr@${vm_ip}" "bash -l -c '${command}'"
+  ssh \
+    -o UserKnownHostsFile=/dev/null \
+    -o StrictHostKeyChecking=no \
+    -o UpdateHostKeys=no \
+    "servobox-usr@${vm_ip}" "bash -l -c '${command}'"
 }
 
 # Main recipe run command
