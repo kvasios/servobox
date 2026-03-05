@@ -34,8 +34,14 @@ sudo apt install servobox
 To update an existing installation later:
 
 ```console
+# Refresh package lists after a new release is published
 sudo apt update
+
+# Upgrade ServoBox only (no full-system upgrade required)
 sudo apt install --only-upgrade servobox
+
+# Verify which version APT sees and the selected candidate
+apt-cache policy servobox
 ```
 
 ### Option B: From Release

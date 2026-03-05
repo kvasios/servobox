@@ -102,6 +102,9 @@ virsh console servobox-vm  # check: systemctl status ssh
 ### Package installation fails
 
 ```console
+# Check if APT sees the latest ServoBox version
+apt-cache policy servobox
+
 # Try with verbose output
 servobox pkg-install package-name --verbose
 

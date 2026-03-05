@@ -42,6 +42,9 @@ sudo apt install servobox
 # Upgrade later
 sudo apt update
 sudo apt install --only-upgrade servobox
+
+# Debug version visibility
+apt-cache policy servobox
 ```
 
 ### 2. Configure Host (Required for RT)
