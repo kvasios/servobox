@@ -168,8 +168,10 @@ Usage:
   servobox test [--name NAME] [--duration SECONDS] [--stress-ng]
                                        Run cyclictest on the VM (--stress-ng enables host stress)
   servobox rt-verify [--name NAME]    Verify RT configuration is properly applied
-  servobox pkg-install <pkg|config> [--name NAME] [--verbose|-v] [--list] [--custom PATH]
+  servobox pkg-install <pkg|config> [--name NAME] [--verbose|-v] [--offline] [--list] [--custom PATH]
                                        Install a package or packages from a config (.conf/.config)
+                                       Default mode installs via SSH in a running VM (live logs)
+                                       Use --offline for legacy virt-customize image installation
                                        Use --list to show available configs and packages
                                        Use --custom to point to:
                                          - A custom recipe directory (e.g., ~/my-recipes)

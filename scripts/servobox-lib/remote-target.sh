@@ -677,6 +677,16 @@ install_package_remote() {
   local force_flag="$4"
   
   local recipe_dir="${recipes_dir}/${pkg_name}"
+  if [[ ! -d "${recipe_dir}" ]]; then
+    # Support --custom pointing directly to a single recipe directory.
+    if [[ -f "${recipes_dir}/recipe.conf" && ( -f "${recipes_dir}/install.sh" || -f "${recipes_dir}/install-online.sh" ) ]]; then
+      local recipe_name=""
+      recipe_name=$(grep -E '^name=' "${recipes_dir}/recipe.conf" 2>/dev/null | cut -d'"' -f2 | xargs || true)
+      if [[ -z "${recipe_name}" || "${recipe_name}" == "${pkg_name}" ]]; then
+        recipe_dir="${recipes_dir}"
+      fi
+    fi
+  fi
   
   if [[ ! -d "${recipe_dir}" ]]; then
     echo "Error: Recipe '${pkg_name}' not found in ${recipes_dir}" >&2

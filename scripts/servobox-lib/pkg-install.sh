@@ -5,6 +5,144 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
+get_vm_tracking_file() {
+  echo "${HOME}/.local/share/servobox/tracking/${NAME}.servobox-packages"
+}
+
+is_package_tracked_for_vm() {
+  local package="$1"
+  local tracking_file
+  tracking_file=$(get_vm_tracking_file)
+  [[ -f "${tracking_file}" ]] && grep -q "^${package}$" "${tracking_file}" 2>/dev/null
+}
+
+mark_package_tracked_for_vm() {
+  local package="$1"
+  local tracking_file
+  tracking_file=$(get_vm_tracking_file)
+  mkdir -p "$(dirname "${tracking_file}")"
+  if ! grep -q "^${package}$" "${tracking_file}" 2>/dev/null; then
+    echo "${package}" >> "${tracking_file}"
+  fi
+}
+
+ensure_vm_shutdown_for_offline_install() {
+  if virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi running; then
+    echo "VM ${NAME} is running; shutting it down for offline package install..."
+    if ! virsh_cmd shutdown "${NAME}" >/dev/null 2>&1; then
+      echo "Warning: Failed to initiate VM shutdown" >&2
+    fi
+    for i in {1..60}; do
+      if virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi "shut off"; then break; fi
+      sleep 1
+    done
+    if ! virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi "shut off"; then
+      echo "Warning: VM did not shut down cleanly; forcing destroy..." >&2
+      if ! virsh_cmd destroy "${NAME}" >/dev/null 2>&1; then
+        echo "Error: Failed to force destroy VM ${NAME}" >&2
+        exit 1
+      fi
+    fi
+  fi
+}
+
+ensure_vm_running_for_online_install() {
+  if ! virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
+    echo "Error: VM '${NAME}' does not exist." >&2
+    echo "Use 'servobox init --name ${NAME}' to create the VM first." >&2
+    exit 1
+  fi
+
+  PKG_INSTALL_STARTED_VM=0
+  local vm_state
+  vm_state=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
+
+  case "${vm_state}" in
+    "shut off")
+      echo "VM '${NAME}' is not running. Starting it for package installation..."
+      if ! virsh_cmd start "${NAME}" >/dev/null 2>&1; then
+        echo "Error: Failed to start VM '${NAME}'" >&2
+        exit 1
+      fi
+      PKG_INSTALL_STARTED_VM=1
+      ;;
+    "in shutdown")
+      echo "VM '${NAME}' is currently shutting down. Waiting..."
+      for i in {1..60}; do
+        vm_state=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
+        if [[ "${vm_state}" == "shut off" ]]; then
+          break
+        fi
+        sleep 1
+      done
+      vm_state=$(virsh_cmd domstate "${NAME}" 2>/dev/null || echo "unknown")
+      if [[ "${vm_state}" != "shut off" ]]; then
+        echo "Error: VM '${NAME}' did not finish shutting down in time" >&2
+        exit 1
+      fi
+      echo "Starting VM '${NAME}' for package installation..."
+      if ! virsh_cmd start "${NAME}" >/dev/null 2>&1; then
+        echo "Error: Failed to start VM '${NAME}'" >&2
+        exit 1
+      fi
+      PKG_INSTALL_STARTED_VM=1
+      ;;
+    "paused")
+      echo "Error: VM '${NAME}' is paused." >&2
+      echo "Use 'virsh -c qemu:///system resume ${NAME}' or restart the VM." >&2
+      exit 1
+      ;;
+    "running")
+      ;;
+    *)
+      echo "Error: VM '${NAME}' is in unknown state: ${vm_state}" >&2
+      exit 1
+      ;;
+  esac
+
+  echo "Waiting for VM networking..."
+  PKG_INSTALL_VM_IP=""
+  for i in {1..60}; do
+    PKG_INSTALL_VM_IP=$(vm_ip || true)
+    if [[ -n "${PKG_INSTALL_VM_IP}" ]]; then
+      break
+    fi
+    sleep 2
+  done
+  if [[ -z "${PKG_INSTALL_VM_IP}" ]]; then
+    echo "Error: VM '${NAME}' is running but has no IP address assigned." >&2
+    exit 1
+  fi
+
+  echo "VM IP: ${PKG_INSTALL_VM_IP}"
+  wait_for_sshd "${PKG_INSTALL_VM_IP}" 60 || true
+}
+
+restore_vm_state_after_online_install() {
+  if [[ "${PKG_INSTALL_STARTED_VM:-0}" -ne 1 ]]; then
+    return 0
+  fi
+  if ! virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi running; then
+    return 0
+  fi
+
+  echo ""
+  echo "Stopping VM '${NAME}' (restoring previous state)..."
+  if ! virsh_cmd shutdown "${NAME}" >/dev/null 2>&1; then
+    echo "Warning: Failed to initiate VM shutdown after installation" >&2
+    return 1
+  fi
+  for i in {1..60}; do
+    if virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi "shut off"; then
+      echo "✓ VM '${NAME}' stopped"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Warning: VM '${NAME}' is still running after waiting for shutdown" >&2
+  return 1
+}
+
 cmd_pkg_install() {
   # Custom arg parsing for pkg-install (avoid global parse_args which treats
   # positional package names as unknown args)
@@ -12,6 +150,7 @@ cmd_pkg_install() {
   local verbose_flag=""
   local force_flag=""
   local list_only=0
+  local offline_install=0
   local custom_path=""
   local custom_is_dir=0
   local custom_is_config=0
@@ -28,6 +167,8 @@ cmd_pkg_install() {
         verbose_flag="--verbose"; shift ;;
       --force)
         force_flag="--force"; shift ;;
+      --offline)
+        offline_install=1; shift ;;
       -l|--list)
         list_only=1; shift ;;
       --custom)
@@ -52,21 +193,22 @@ cmd_pkg_install() {
         fi
         shift 2 ;;
       -h|--help)
-        echo "Usage: servobox pkg-install <package|config> [--name NAME] [--verbose] [--force] [--list] [--custom PATH]"
+        echo "Usage: servobox pkg-install <package|config> [--name NAME] [--verbose] [--force] [--offline] [--list] [--custom PATH]"
         echo ""
         echo "  --custom PATH    Path to custom recipe directory OR config file"
         echo "  --force          Force reinstallation even if package is already installed"
+        echo "  --offline        Use offline image customization (legacy mode)"
         exit 0 ;;
       --*)
         echo "Unknown option: $1" >&2
-        echo "Usage: servobox pkg-install <package|config> [--name NAME] [--verbose] [--force] [--list] [--custom PATH]" >&2
+        echo "Usage: servobox pkg-install <package|config> [--name NAME] [--verbose] [--force] [--offline] [--list] [--custom PATH]" >&2
         exit 1 ;;
       *)
         if [[ -z "${target}" ]]; then
           target="$1"; shift
         else
           echo "Unexpected argument: $1" >&2
-          echo "Usage: servobox pkg-install <package|config> [--name NAME] [--verbose] [--force] [--list] [--custom PATH]" >&2
+          echo "Usage: servobox pkg-install <package|config> [--name NAME] [--verbose] [--force] [--offline] [--list] [--custom PATH]" >&2
           exit 1
         fi ;;
     esac
@@ -180,13 +322,100 @@ cmd_pkg_install() {
       config_file="${REPO_ROOT}/packages/config/${target}.conf"
     fi
   fi
-  # If we found a config file, process it
+  local recipes_dir="${REPO_ROOT}/packages/recipes"
+  if [[ ${custom_is_dir} -eq 1 ]]; then
+    recipes_dir="${custom_path}"
+  fi
+
+  # Online mode (default): install over SSH into a running VM.
+  if [[ ${offline_install} -eq 0 ]]; then
+    local requested_packages=()
+    if [[ -n "${config_file}" ]]; then
+      echo "Installing packages from config: $(basename "${config_file}")"
+      mapfile -t requested_packages < <(grep -v '^#' "${config_file}" | grep -v '^$' || true)
+      if [[ ${#requested_packages[@]} -eq 0 ]]; then
+        echo "No packages in config ${target}"
+        exit 0
+      fi
+    else
+      # Single package: resolve dependency order the same way as remote install.
+      local install_order=()
+      local pm_args=()
+      if [[ ${custom_is_dir} -eq 1 ]]; then
+        pm_args=(--recipe-dir "${recipes_dir}")
+      fi
+      while IFS= read -r pkg; do
+        [[ -n "${pkg}" ]] && install_order+=("${pkg}")
+      done < <("${PACKAGES_PM}" "${pm_args[@]}" install-order "${target}" 2>/dev/null) || true
+      if [[ ${#install_order[@]} -eq 0 ]]; then
+        install_order=("${target}")
+      fi
+      requested_packages=("${install_order[@]}")
+      if [[ ${#requested_packages[@]} -gt 1 ]]; then
+        echo "Resolving dependencies for ${target}..."
+        echo "Will install ${#requested_packages[@]} packages in order: ${requested_packages[*]}"
+      fi
+    fi
+
+    ensure_vm_running_for_online_install
+
+    local old_target_ip="${SERVOBOX_TARGET_IP:-}"
+    local old_target_user="${SERVOBOX_TARGET_USER:-}"
+    local old_target_port="${SERVOBOX_TARGET_PORT:-}"
+    SERVOBOX_TARGET_IP="${PKG_INSTALL_VM_IP}"
+    SERVOBOX_TARGET_USER="servobox-usr"
+    SERVOBOX_TARGET_PORT="22"
+
+    local install_failed=0
+    for p in "${requested_packages[@]}"; do
+      echo ""
+      if [[ -z "${force_flag}" ]] && is_package_tracked_for_vm "${p}"; then
+        echo "Package ${p} is already installed, skipping (use --force to reinstall)"
+        continue
+      fi
+      echo "Installing package: ${p}"
+      if ! install_package_remote "${p}" "${recipes_dir}" "${verbose_flag}" "${force_flag}"; then
+        install_failed=1
+        break
+      fi
+      mark_package_tracked_for_vm "${p}"
+    done
+
+    if [[ -n "${old_target_ip}" ]]; then
+      SERVOBOX_TARGET_IP="${old_target_ip}"
+    else
+      unset SERVOBOX_TARGET_IP
+    fi
+    if [[ -n "${old_target_user}" ]]; then
+      SERVOBOX_TARGET_USER="${old_target_user}"
+    else
+      unset SERVOBOX_TARGET_USER
+    fi
+    if [[ -n "${old_target_port}" ]]; then
+      SERVOBOX_TARGET_PORT="${old_target_port}"
+    else
+      unset SERVOBOX_TARGET_PORT
+    fi
+
+    if [[ ${install_failed} -eq 1 ]]; then
+      echo ""
+      echo "Package installation failed. VM '${NAME}' remains running for troubleshooting." >&2
+      exit 1
+    fi
+
+    restore_vm_state_after_online_install || true
+    exit 0
+  fi
+
+  # If we found a config file, process it (offline mode)
   if [[ -n "${config_file}" ]]; then
     if [[ ! -f "${config_file}" ]]; then
       echo "Error: config not found: ${config_file}" >&2
       exit 1
     fi
     
+    ensure_vm_shutdown_for_offline_install
+
     echo "Installing packages from config: $(basename "${config_file}")"
     
     mapfile -t pkgs < <(grep -v '^#' "${config_file}" | grep -v '^$' || true)
@@ -224,25 +453,8 @@ cmd_pkg_install() {
     done
     exit 0
   fi
-  # Treat as single package
-  # Ensure the VM is shut down before offline customization
-  if virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi running; then
-    echo "VM ${NAME} is running; shutting it down for offline package install..."
-    if ! virsh_cmd shutdown "${NAME}" >/dev/null 2>&1; then
-      echo "Warning: Failed to initiate VM shutdown" >&2
-    fi
-    for i in {1..60}; do
-      if virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi "shut off"; then break; fi
-      sleep 1
-    done
-    if ! virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi "shut off"; then
-      echo "Warning: VM did not shut down cleanly; forcing destroy..." >&2
-      if ! virsh_cmd destroy "${NAME}" >/dev/null 2>&1; then
-        echo "Error: Failed to force destroy VM ${NAME}" >&2
-        exit 1
-      fi
-    fi
-  fi
+  # Treat as single package (offline mode)
+  ensure_vm_shutdown_for_offline_install
   
   # Install single package
   if [[ ${custom_is_dir} -eq 1 ]]; then

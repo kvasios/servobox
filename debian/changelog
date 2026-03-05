@@ -1,5 +1,7 @@
-servobox (0.3.0) unstable; urgency=medium
+servobox (3.0.0) unstable; urgency=medium
 
+  * VM pkg-install now uses SSH by default (live logs); add --offline for legacy
+    virt-customize image installation
   * Add remote target mode for Jetson, NUC, and other networked RT machines
     - Set SERVOBOX_TARGET_IP to operate on remote targets via SSH
     - SERVOBOX_TARGET_USER defaults to current user ($USER) for seamless SSH
