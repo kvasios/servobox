@@ -387,6 +387,7 @@ NPYAML
       --run-command 'getent group realtime >/dev/null 2>&1 || groupadd realtime' \
       --run-command 'id -u servobox-usr >/dev/null 2>&1 || useradd -m -s /bin/bash servobox-usr' \
       --run-command 'usermod -aG sudo,realtime servobox-usr || true' \
+      --run-command 'echo "servobox-usr ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/99-servobox-nopasswd && chmod 0440 /etc/sudoers.d/99-servobox-nopasswd' \
       --run-command 'echo "servobox-usr:servobox-pwd" | chpasswd' \
       --run-command 'mkdir -p /home/servobox-usr/.ssh && chown -R servobox-usr:servobox-usr /home/servobox-usr && chmod 700 /home/servobox-usr/.ssh' \
       --run-command 'mkdir -p /etc/ssh/sshd_config.d && printf "PasswordAuthentication yes\nPubkeyAuthentication yes\n" >/etc/ssh/sshd_config.d/99-servobox.conf' \
@@ -452,6 +453,7 @@ UNIT
     --run-command 'getent group realtime >/dev/null 2>&1 || groupadd realtime' \
     --run-command 'id -u servobox-usr >/dev/null 2>&1 || useradd -m -s /bin/bash servobox-usr' \
     --run-command 'usermod -aG sudo,realtime servobox-usr || true' \
+    --run-command 'echo "servobox-usr ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/99-servobox-nopasswd && chmod 0440 /etc/sudoers.d/99-servobox-nopasswd' \
     --run-command 'echo "servobox-usr:servobox-pwd" | chpasswd' \
     --run-command 'mkdir -p /home/servobox-usr/.ssh && chown -R servobox-usr:servobox-usr /home/servobox-usr && chmod 700 /home/servobox-usr/.ssh' \
     --run-command "sed -i '/^@realtime /d' /etc/security/limits.conf" \

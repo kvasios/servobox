@@ -75,9 +75,14 @@ else
   " </dev/null
 fi
 
+# Limit parallel make jobs to avoid OOM when compiling heavy packages (crisp_controllers, Pinocchio, etc.)
+# Default -j1 for VMs with limited RAM; set MAKEFLAGS=-j2 or higher if the target has plenty of memory.
+export MAKEFLAGS="${MAKEFLAGS:--j2}"
+
 echo "Running setup (pixi run -e jazzy setup)..."
 su - "${TARGET_USER}" -c "
   set -e
+  export MAKEFLAGS=\"${MAKEFLAGS}\"
   cd '${REPO_DIR}'
   '${PIXI}' run -e jazzy setup
 " </dev/null

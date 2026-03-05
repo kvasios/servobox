@@ -737,6 +737,7 @@ install_package_remote() {
   # (e.g. man-db, libc-bin) never block waiting for input when run over SSH.
   # Use env so PACKAGE_HELPERS and RECIPE_DIR are passed through sudo (sudo often strips env).
   # RECIPE_DIR matches package-manager.sh and build-image.sh so install scripts get it consistently.
+  # servobox init bakes NOPASSWD sudo for servobox-usr into the image, so no password is needed.
   local user=$(get_remote_user)
   local port=$(get_remote_port)
   local ssh_opts="-o StrictHostKeyChecking=no -o ConnectTimeout=10"
@@ -744,12 +745,20 @@ install_package_remote() {
   if [[ -f "${helpers_src}" ]]; then
     env_vars="${env_vars} PACKAGE_HELPERS=${remote_tmp}/pkg-helpers.sh"
   fi
-  # Run sudo -v first (in same SSH session) to prompt for password once;
-  # subsequent sudo in the install script reuses the cached credentials.
-  local run_cmd="sudo -v && cd ${remote_tmp} && chmod +x ${install_script} && sudo env ${env_vars} ./${install_script} </dev/null"
-  ssh -t ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"
-
-  local exit_code=$?
+  local run_cmd="cd ${remote_tmp} && chmod +x ${install_script} && sudo -n env ${env_vars} ./${install_script} </dev/null"
+  local exit_code=0
+  # Try passwordless sudo first (VM after init has NOPASSWD for servobox-usr)
+  if ! ssh ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"; then
+    exit_code=$?
+    # Fallback: if this is the default VM user and sshpass is available, use known VM password
+    # (helps existing VMs inited before NOPASSWD was baked into the image, or before cloud-init finished)
+    if [[ "${user}" == "servobox-usr" ]] && command -v sshpass >/dev/null 2>&1; then
+      run_cmd="sudo -v && cd ${remote_tmp} && chmod +x ${install_script} && sudo env ${env_vars} ./${install_script} </dev/null"
+      if sshpass -p "servobox-pwd" ssh -t ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"; then
+        exit_code=0
+      fi
+    fi
+  fi
   
   # Cleanup remote temp directory
   remote_exec "rm -rf ${remote_tmp}" 10 2>/dev/null || true
