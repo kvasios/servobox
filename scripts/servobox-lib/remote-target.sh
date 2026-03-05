@@ -754,24 +754,23 @@ install_package_remote() {
     fi
   fi
 
-  local exit_code=0
+  # Run install on remote; capture exit code immediately so we don't lose it (e.g. to cleanup or TTY quirks).
+  local exit_code
   if [[ ${use_sshpass} -eq 1 ]]; then
     # Fallback: use known VM password (helps existing VMs or slow cloud-init)
     local run_cmd="sudo -v && cd ${remote_tmp} && chmod +x ${install_script} && sudo env ${env_vars} ./${install_script} </dev/null"
-    if ! sshpass -p "servobox-pwd" ssh -t ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"; then
-      exit_code=$?
-    fi
+    sshpass -p "servobox-pwd" ssh -t ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"
+    exit_code=$?
   else
     # Passwordless sudo is available
     local run_cmd="cd ${remote_tmp} && chmod +x ${install_script} && sudo -n env ${env_vars} ./${install_script} </dev/null"
-    if ! ssh ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"; then
-      exit_code=$?
-    fi
+    ssh ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"
+    exit_code=$?
   fi
-  
+
   # Cleanup remote temp directory
   remote_exec "rm -rf ${remote_tmp}" 10 2>/dev/null || true
-  
+
   if [[ ${exit_code} -eq 0 ]]; then
     echo "✓ Package '${pkg_name}' installed successfully on ${ip}"
   else

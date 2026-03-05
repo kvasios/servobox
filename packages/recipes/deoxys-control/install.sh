@@ -143,9 +143,14 @@ cd build
 
 # Configure CMake
 # Note: CMakeLists.txt prefers system packages and falls back to bundled submodules
+# libfranka (research_interface) uses std::optional → require C++17. Force via flags
+# so the standard is used even if the project's CMakeLists sets a lower standard.
 echo "Configuring CMake..."
 cmake .. \
   -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_STANDARD=17 \
+  -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+  -DCMAKE_CXX_FLAGS="-std=c++17" \
   -DBUILD_FRANKA=ON \
   -DBUILD_DEOXYS=OFF \
   -DCMAKE_INSTALL_PREFIX=/usr/local

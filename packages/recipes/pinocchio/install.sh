@@ -41,8 +41,9 @@ apt-get install -y \
 mkdir -p ${TARGET_HOME}
 cd ${TARGET_HOME} || { echo "Error: ${TARGET_HOME} not available" >&2; exit 1; }
 
-# Clone (default to stable v2.7.1; allow PINOCCHIO_BRANCH override)
-PINOCCHIO_BRANCH=${PINOCCHIO_BRANCH:-v2.7.1}
+# Clone (default to v3.4.0; allow PINOCCHIO_BRANCH override)
+# Only init cmake submodule; skip robot-data (huge and unnecessary)
+PINOCCHIO_BRANCH=${PINOCCHIO_BRANCH:-v3.4.0}
 if [[ -d pinocchio ]]; then
   echo "pinocchio directory exists; checking git status..."
   if git -C pinocchio rev-parse --git-dir >/dev/null 2>&1; then
@@ -55,11 +56,11 @@ if [[ -d pinocchio ]]; then
 fi
 
 if [[ ! -d pinocchio ]]; then
-  git clone --recursive https://github.com/stack-of-tasks/pinocchio pinocchio
+  git clone https://github.com/stack-of-tasks/pinocchio pinocchio
 fi
 
 git -C pinocchio checkout ${PINOCCHIO_BRANCH}
-git -C pinocchio submodule update --init --recursive || true
+git -C pinocchio submodule update --init cmake
 
 # Build
 cd pinocchio
@@ -71,9 +72,31 @@ cmake .. \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr/local \
   -DBUILD_PYTHON_INTERFACE=OFF \
-  -DBUILD_TESTING=OFF
+  -DBUILD_TESTING=OFF \
+  -DBUILD_WITH_COLLISION_SUPPORT=OFF \
+  -DBUILD_WITH_AUTODIFF_SUPPORT=OFF \
+  -DBUILD_WITH_CASADI_SUPPORT=OFF \
+  -DBUILD_WITH_CODEGEN_SUPPORT=OFF
 
-make -j"$(nproc)"
+# Limit parallel jobs to avoid OOM (cc1plus is memory-hungry). Use memory-based cap
+# unless PINOCCHIO_MAKE_JOBS is set. ~2GB per job, leave ~1GB for system.
+if [[ -n "${PINOCCHIO_MAKE_JOBS:-}" ]]; then
+  MAKE_JOBS="${PINOCCHIO_MAKE_JOBS}"
+else
+  NPROC=$(nproc)
+  if [[ -f /proc/meminfo ]]; then
+    avail_kb=$(awk '/MemAvailable:/{print $2}' /proc/meminfo)
+    avail_gb=$((avail_kb / 1024 / 1024))
+    want_jobs=$(( (avail_gb - 1) / 2 ))
+    [[ ${want_jobs} -lt 1 ]] && want_jobs=1
+    [[ ${want_jobs} -gt ${NPROC} ]] && want_jobs=${NPROC}
+    MAKE_JOBS=${want_jobs}
+  else
+    MAKE_JOBS=2
+  fi
+fi
+echo "Building Pinocchio with -j${MAKE_JOBS} (avoids OOM from parallel cc1plus)."
+make -j"${MAKE_JOBS}"
 make install
 ldconfig
 

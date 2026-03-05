@@ -2,9 +2,9 @@
 set -euo pipefail
 
 # libfranka-fr3 installation script
-# This script builds and installs libfranka 0.16.1 from source with all dependencies
+# This script builds and installs libfranka 0.20.5 from source with all dependencies
 
-echo "Installing libfranka 0.16.1 for FR3 robot control..."
+echo "Installing libfranka 0.20.5 for FR3 robot control..."
 
 # Be non-interactive inside image customization
 export DEBIAN_FRONTEND=noninteractive
@@ -48,15 +48,16 @@ apt-get install -y \
     liburdfdom-headers-dev \
     liboctomap-dev \
     libboost-all-dev \
-    libfmt-dev
+    libfmt-dev \
+    libtinyxml2-dev
 
 # If libfranka already installed at the desired version, skip rebuild unless FORCE=1
-if dpkg-query -W -f='${Status} ${Version}\n' libfranka 2>/dev/null | awk '/installed/ {print $NF}' | grep -q '^0.16.1'; then
+if dpkg-query -W -f='${Status} ${Version}\n' libfranka 2>/dev/null | awk '/installed/ {print $NF}' | grep -q '^0.20.5'; then
   if [[ "${FORCE:-0}" != "1" ]]; then
-    echo "libfranka 0.16.1 already installed; skipping rebuild (set FORCE=1 to rebuild)"
+    echo "libfranka 0.20.5 already installed; skipping rebuild (set FORCE=1 to rebuild)"
     exit 0
   else
-    echo "FORCE=1 specified; rebuilding libfranka 0.16.1"
+    echo "FORCE=1 specified; rebuilding libfranka 0.20.5"
   fi
 fi
 
@@ -73,20 +74,20 @@ echo "Setting up build directories..."
 mkdir -p "${TARGET_HOME}"
 cd "${TARGET_HOME}" || { echo "Error: ${TARGET_HOME} not available" >&2; exit 1; }
 
-###### Build libfranka 0.16.1 ######
-echo "Building libfranka 0.16.1..."
+###### Build libfranka 0.20.5 ######
+echo "Building libfranka 0.20.5..."
 # Note: Using version-specific directory to avoid conflicts with libfranka-gen1
 # Always do a fresh clone to avoid ownership/permission issues with virt-customize
 echo "Cloning libfranka repository..."
-rm -rf libfranka-0.16.1
-git clone --recursive https://github.com/frankaemika/libfranka libfranka-0.16.1
-cd libfranka-0.16.1
-echo "Checking out libfranka 0.16.1..."
-git checkout 0.16.1
+rm -rf libfranka-0.20.5
+git clone --recursive https://github.com/frankaemika/libfranka libfranka-0.20.5
+cd libfranka-0.20.5
+echo "Checking out libfranka 0.20.5..."
+git checkout 0.20.5
 git submodule update --init --recursive
 cd - >/dev/null
 
-cd libfranka-0.16.1
+cd libfranka-0.20.5
 
 # Create build directory and configure
 echo "Building libfranka..."
@@ -112,8 +113,8 @@ ldconfig
 
 # Copy example executables to libfranka directory
 echo "Copying libfranka example executables..."
-find "${TARGET_HOME}/libfranka-0.16.1/build" -name "*_example" -type f -executable -exec cp {} "${TARGET_HOME}/libfranka-0.16.1/" \; 2>/dev/null || true
-find "${TARGET_HOME}/libfranka-0.16.1/build" -name "*_test" -type f -executable -exec cp {} "${TARGET_HOME}/libfranka-0.16.1/" \; 2>/dev/null || true
+find "${TARGET_HOME}/libfranka-0.20.5/build" -name "*_example" -type f -executable -exec cp {} "${TARGET_HOME}/libfranka-0.20.5/" \; 2>/dev/null || true
+find "${TARGET_HOME}/libfranka-0.20.5/build" -name "*_test" -type f -executable -exec cp {} "${TARGET_HOME}/libfranka-0.20.5/" \; 2>/dev/null || true
 
 # Setup realtime group and limits
 echo "Setting up realtime group and limits..."
@@ -130,10 +131,10 @@ if ! grep -q "@realtime soft rtprio" /etc/security/limits.conf; then
 fi
 
 # Create a README with usage instructions
-cat > "${TARGET_HOME}/libfranka-0.16.1/README.md" << EOF
+cat > "${TARGET_HOME}/libfranka-0.20.5/README.md" << EOF
 # libfranka-fr3 Examples and Tests
 
-This directory contains libfranka 0.16.1 example executables and source code for FR3 robot control.
+This directory contains libfranka 0.20.5 example executables and source code for FR3 robot control.
 
 ## Example Executables
 
@@ -157,12 +158,12 @@ EOF
 
 # Set proper ownership
 if [[ "${TARGET_USER}" != "root" ]]; then
-  chown -R "${TARGET_USER}:${TARGET_USER}" "${TARGET_HOME}/libfranka-0.16.1"
+  chown -R "${TARGET_USER}:${TARGET_USER}" "${TARGET_HOME}/libfranka-0.20.5"
   chown "${TARGET_USER}:${TARGET_USER}" "${TARGET_HOME}/.bashrc" 2>/dev/null || true
 fi
-chmod +x "${TARGET_HOME}/libfranka-0.16.1"/*_example "${TARGET_HOME}/libfranka-0.16.1"/*_test 2>/dev/null || true
+chmod +x "${TARGET_HOME}/libfranka-0.20.5"/*_example "${TARGET_HOME}/libfranka-0.20.5"/*_test 2>/dev/null || true
 
-echo "libfranka 0.16.1 installation completed!"
+echo "libfranka 0.20.5 installation completed!"
 echo "libfranka is now available for FR3 robot control"
-echo "Examples and tests are available in: ${TARGET_HOME}/libfranka-0.16.1"
+echo "Examples and tests are available in: ${TARGET_HOME}/libfranka-0.20.5"
 
