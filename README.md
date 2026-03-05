@@ -66,7 +66,7 @@ nproc  # Must have 6,ideally 8+ cores for safe RT isolation
 
 # Edit /etc/default/grub and set (example for 8-core system):
 sudo vim /etc/default/grub # or any editor
-# add GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0"
+# add GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,2-5 nohz_full=2-5 rcu_nocbs=2-5 irqaffinity=0-1"
 
 sudo update-grub
 sudo reboot

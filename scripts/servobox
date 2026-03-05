@@ -49,6 +49,8 @@ HOST_NICS=()        # optional: array of host NICs for direct macvtap attachment
 ASK_NIC=0           # default: no interactive prompt (use --choose-nic or network-setup for interactive)
 TEST_DURATION=60
 ENABLE_STRESS=0      # default: don't stress host during test (use --stress-ng to enable)
+STRESS_CPUSET=""     # optional host CPU set for stress-ng (e.g., 6-15)
+STRESS_PROFILE="safe" # stress-ng profile: safe, balanced, aggressive
 RT_MODE="balanced"   # RT optimization level: balanced, performance, extreme
 BASE_OVERRIDE=""    # optional path to local .qcow2 or .qcow2.xz
 LIBVIRT_IMAGES_BASE="/var/lib/libvirt/images"
@@ -123,6 +125,8 @@ parse_args() {
       --debug) DEBUG=1; shift 1;;
       --duration) TEST_DURATION="$2"; shift 2;;
       --stress-ng) ENABLE_STRESS=1; shift 1;;
+      --stress-cpuset) STRESS_CPUSET="$2"; shift 2;;
+      --stress-profile) STRESS_PROFILE="$2"; shift 2;;
       --ip) STATIC_IP_CIDR="$2"; shift 2;;
       --performance) RT_MODE="performance"; shift 1;;
       --extreme) RT_MODE="extreme"; shift 1;;
@@ -165,7 +169,7 @@ Usage:
   servobox destroy [--name NAME] [-f|--force]
                                        Power off and remove the VM and storage
   servobox network-setup [--name NAME] Interactive wizard to configure network (up to 2 host NICs)
-  servobox test [--name NAME] [--duration SECONDS] [--stress-ng]
+  servobox test [--name NAME] [--duration SECONDS] [--stress-ng] [--stress-cpuset LIST] [--stress-profile MODE]
                                        Run cyclictest on the VM (--stress-ng enables host stress)
   servobox rt-verify [--name NAME]    Verify RT configuration is properly applied
   servobox pkg-install <pkg|config> [--name NAME] [--verbose|-v] [--offline] [--list] [--custom PATH]
@@ -250,6 +254,8 @@ Examples:
   servobox start                                    # Balanced mode (default)
   servobox start --performance                      # Lock frequencies for lower latency
   servobox test --duration 60
+  servobox test --duration 60 --stress-ng --stress-cpuset 6-15
+  servobox test --duration 60 --stress-ng --stress-profile balanced
   servobox run polymetis                            # Run polymetis recipe
   servobox run "sudo pkill -9 run_server"           # Kill a process in VM
 EOF

@@ -5,6 +5,117 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
+cpulist_count() {
+  local cpulist="$1"
+  local token
+  local count=0
+
+  IFS=',' read -ra _parts <<< "${cpulist}"
+  for token in "${_parts[@]}"; do
+    if [[ "${token}" == *-* ]]; then
+      local start="${token%-*}"
+      local end="${token#*-}"
+      count=$((count + end - start + 1))
+    elif [[ -n "${token}" ]]; then
+      count=$((count + 1))
+    fi
+  done
+
+  echo "${count}"
+}
+
+derive_stress_cpuset() {
+  local total_cpus="$1"
+
+  # User override takes precedence.
+  if [[ -n "${STRESS_CPUSET:-}" ]]; then
+    echo "${STRESS_CPUSET}"
+    return 0
+  fi
+
+  # Keep stress away from housekeeping + VM RT cores if RT layout helper exists.
+  if declare -F get_rt_cpu_layout >/dev/null 2>&1; then
+    get_rt_cpu_layout "${total_cpus}" || return 1
+    local vm_rt_end=$((RT_START_CPU + VCPUS - 1))
+    if [[ ${vm_rt_end} -gt ${RT_END_CPU} ]]; then
+      vm_rt_end=${RT_END_CPU}
+    fi
+
+    local stress_start=$((vm_rt_end + 1))
+    local stress_end=$((total_cpus - 1))
+    if [[ ${stress_start} -le ${stress_end} ]]; then
+      echo "${stress_start}-${stress_end}"
+      return 0
+    fi
+  fi
+
+  # No dedicated non-RT cores available for stress.
+  echo ""
+}
+
+validate_stress_profile() {
+  local profile="${STRESS_PROFILE:-safe}"
+  case "${profile}" in
+    safe|balanced|aggressive)
+      ;;
+    *)
+      echo "Warning: Unknown --stress-profile '${profile}', using 'safe'" >&2
+      STRESS_PROFILE="safe"
+      ;;
+  esac
+}
+
+get_mem_available_mb() {
+  awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo 2>/dev/null
+}
+
+derive_stress_settings() {
+  local cpu_count="$1"
+  local mem_available_mb="$2"
+
+  local profile="${STRESS_PROFILE:-safe}"
+  local workers=1
+  local cpu_load=65
+  local vm_workers=1
+  local mem_target_mb=512
+
+  if [[ -z "${mem_available_mb}" || "${mem_available_mb}" -lt 256 ]]; then
+    mem_available_mb=1024
+  fi
+
+  case "${profile}" in
+    safe)
+      workers=$((cpu_count / 2))
+      if [[ ${workers} -lt 1 ]]; then workers=1; fi
+      cpu_load=60
+      vm_workers=1
+      mem_target_mb=$((mem_available_mb / 10))   # ~10% of available RAM
+      if [[ ${mem_target_mb} -lt 256 ]]; then mem_target_mb=256; fi
+      if [[ ${mem_target_mb} -gt 1536 ]]; then mem_target_mb=1536; fi
+      ;;
+    balanced)
+      workers=$(((cpu_count * 3) / 4))
+      if [[ ${workers} -lt 1 ]]; then workers=1; fi
+      cpu_load=72
+      vm_workers=1
+      mem_target_mb=$((mem_available_mb * 15 / 100)) # ~15% of available RAM
+      if [[ ${mem_target_mb} -lt 384 ]]; then mem_target_mb=384; fi
+      if [[ ${mem_target_mb} -gt 3072 ]]; then mem_target_mb=3072; fi
+      ;;
+    aggressive)
+      workers=${cpu_count}
+      cpu_load=85
+      vm_workers=2
+      mem_target_mb=$((mem_available_mb / 4))    # ~25% of available RAM
+      if [[ ${mem_target_mb} -lt 512 ]]; then mem_target_mb=512; fi
+      if [[ ${mem_target_mb} -gt 6144 ]]; then mem_target_mb=6144; fi
+      ;;
+  esac
+
+  if [[ ${workers} -gt ${cpu_count} ]]; then workers=${cpu_count}; fi
+  echo "${workers} ${cpu_load} ${vm_workers} ${mem_target_mb}"
+}
+
 run_latency_test() {
   echo "Running 1kHz real-time latency test on VM ${NAME}..."
   
@@ -87,26 +198,46 @@ EOF
   STRESS_PID=""
   if [[ "${ENABLE_STRESS}" -eq 1 ]]; then
     if command -v stress-ng >/dev/null 2>&1; then
+      validate_stress_profile
+
       # Introspect system resources
       local total_cpus=$(nproc)
       local total_mem_mb=$(free -m | awk '/^Mem:/{print $2}')
+      local mem_available_mb
+      mem_available_mb=$(get_mem_available_mb)
+      local stress_cpuset
+      stress_cpuset=$(derive_stress_cpuset "${total_cpus}")
+      local stress_cpu_count=0
+      if [[ -n "${stress_cpuset}" ]]; then
+        stress_cpu_count=$(cpulist_count "${stress_cpuset}")
+      fi
+
+      if [[ -z "${stress_cpuset}" || ${stress_cpu_count} -lt 1 ]]; then
+        echo "Warning: No non-RT host cores left for stress-ng (VM uses available RT partition)." >&2
+        echo "Skipping host stress. Use --stress-cpuset to override if desired." >&2
+      else
+        local stress_workers stress_cpu_load stress_vm_workers stress_mem_mb
+        read -r stress_workers stress_cpu_load stress_vm_workers stress_mem_mb < <(derive_stress_settings "${stress_cpu_count}" "${mem_available_mb}")
+
+        echo "Starting host stress test (concurrent with guest test)..."
+        echo "Host resources: ${total_cpus} CPUs, ${total_mem_mb} MB RAM"
+        echo "Host available memory: ${mem_available_mb:-unknown} MB"
+        echo "Stress profile: ${STRESS_PROFILE}"
+        echo "Stressing host cores: ${stress_cpuset} (${stress_cpu_count} CPUs)"
+        echo "Stress settings: workers=${stress_workers}, cpu-load=${stress_cpu_load}%, vm-workers=${stress_vm_workers}, vm-bytes=${stress_mem_mb}M"
       
-      # Calculate 80% utilization
-      local stress_cpus=$(echo "scale=0; ${total_cpus} * 0.8 / 1" | bc)
-      local stress_mem_mb=$(echo "scale=0; ${total_mem_mb} * 0.8 / 1" | bc)
-      
-      # Ensure at least 1 CPU and reasonable memory
-      if [[ ${stress_cpus} -lt 1 ]]; then stress_cpus=1; fi
-      if [[ ${stress_mem_mb} -lt 256 ]]; then stress_mem_mb=256; fi
-      
-      echo "Starting host stress test (concurrent with guest test)..."
-      echo "Host resources: ${total_cpus} CPUs, ${total_mem_mb} MB RAM"
-      echo "Stressing: ${stress_cpus} CPUs (~80%), ${stress_mem_mb} MB RAM (~80%)"
-      
-      # Start stress test in background with CPU + memory stress
-      stress-ng --cpu ${stress_cpus} --vm 2 --vm-bytes ${stress_mem_mb}M --timeout ${TEST_DURATION} >/dev/null 2>&1 &
-      STRESS_PID=$!
-      echo "Host stress test started (PID: ${STRESS_PID})"
+        # Start stress only on designated non-RT host cores with conservative defaults.
+        # nice lowers priority to reduce the chance of host lockups under heavy stress.
+        nice -n 10 taskset -c "${stress_cpuset}" stress-ng \
+          --cpu "${stress_workers}" \
+          --cpu-load "${stress_cpu_load}" \
+          --vm "${stress_vm_workers}" \
+          --vm-bytes "${stress_mem_mb}M" \
+          --vm-keep \
+          --timeout "${TEST_DURATION}" >/dev/null 2>&1 &
+        STRESS_PID=$!
+        echo "Host stress test started (PID: ${STRESS_PID})"
+      fi
     else
       echo "Warning: --stress-ng requested but stress-ng not available on host" >&2
       echo "Install with: sudo apt install stress-ng" >&2

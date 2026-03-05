@@ -628,7 +628,7 @@ cmd_start() {
     echo "ServoBox needs sudo to configure:" >&2
     echo "  • CPU pinning and affinity" >&2
     echo "  • Real-time thread priorities (SCHED_FIFO)" >&2
-    echo "  • IRQ affinity (isolate interrupts to CPU 0)" >&2
+    echo "  • IRQ affinity (isolate interrupts to housekeeping CPUs)" >&2
     echo "  • CPU frequency governor (performance mode)" >&2
     echo "" >&2
     echo "Options:" >&2

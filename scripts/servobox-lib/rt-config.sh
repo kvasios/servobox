@@ -5,12 +5,95 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
+# Resolve a deterministic CPU layout for RT VMs.
+# Default policy on multi-core hosts:
+# - Housekeeping CPUs: 0-1
+# - RT-isolated CPUs: 2..N
+# Fallback on small hosts keeps CPU 0 as housekeeping.
+get_rt_cpu_layout() {
+  local host_cores="${1:-$(nproc)}"
+
+  if [[ ${host_cores} -lt 2 ]]; then
+    echo "Error: host must provide at least 2 CPU cores for RT pinning" >&2
+    return 1
+  fi
+
+  HK_CPUSET="0"
+  RT_START_CPU=1
+  if [[ ${host_cores} -ge 4 ]]; then
+    HK_CPUSET="0-1"
+    RT_START_CPU=2
+  fi
+
+  RT_END_CPU=$((host_cores - 1))
+  if [[ ${RT_START_CPU} -gt ${RT_END_CPU} ]]; then
+    HK_CPUSET="0"
+    RT_START_CPU=1
+  fi
+
+  RT_AVAILABLE=$((RT_END_CPU - RT_START_CPU + 1))
+  RT_CPUSET=$(seq -s, "${RT_START_CPU}" "${RT_END_CPU}")
+}
+
+expand_cpulist() {
+  local cpulist="$1"
+  local part
+  local first=1
+
+  IFS=',' read -ra _parts <<< "${cpulist}"
+  for part in "${_parts[@]}"; do
+    if [[ "${part}" == *-* ]]; then
+      local start="${part%-*}"
+      local end="${part#*-}"
+      for c in $(seq "${start}" "${end}"); do
+        if [[ ${first} -eq 1 ]]; then
+          printf "%s" "${c}"
+          first=0
+        else
+          printf " %s" "${c}"
+        fi
+      done
+    else
+      if [[ ${first} -eq 1 ]]; then
+        printf "%s" "${part}"
+        first=0
+      else
+        printf " %s" "${part}"
+      fi
+    fi
+  done
+}
+
+cpulist_to_mask() {
+  local cpulist="$1"
+  python3 - "${cpulist}" <<'PY'
+import sys
+
+cpulist = sys.argv[1]
+mask = 0
+for token in cpulist.split(','):
+    token = token.strip()
+    if not token:
+        continue
+    if '-' in token:
+        start, end = token.split('-', 1)
+        for cpu in range(int(start), int(end) + 1):
+            mask |= (1 << cpu)
+    else:
+        mask |= (1 << int(token))
+
+print(format(mask, "x"))
+PY
+}
+
 # Calculate IRQBALANCE_BANNED_CPUS mask for host RT isolation
 cmd_irqbalance_mask() {
   shift || true  # Remove the command name
   
   local host_cores=$(nproc)
+  get_rt_cpu_layout "${host_cores}"
   local vm_name="${NAME}"  # Use default from global
+  local isolated_min="${RT_START_CPU}"
   local isolated_max=""
   local vm_vcpus=""
   local auto_detected=0
@@ -34,8 +117,8 @@ cmd_irqbalance_mask() {
   if virsh_cmd dominfo "${vm_name}" >/dev/null 2>&1; then
     vm_vcpus=$(virsh_cmd dominfo "${vm_name}" 2>/dev/null | grep "CPU(s):" | awk '{print $2}')
     if [[ -n "${vm_vcpus}" && "${vm_vcpus}" =~ ^[0-9]+$ ]]; then
-      # Isolate VM vCPUs + 1 for headroom
-      isolated_max=$((vm_vcpus + 1))
+      # Isolate VM vCPUs on host RT cores (after housekeeping cores)
+      isolated_max=$((isolated_min + vm_vcpus - 1))
       auto_detected=1
       echo "ℹ️  Auto-detected from VM '${vm_name}': ${vm_vcpus} vCPUs"
     fi
@@ -43,9 +126,12 @@ cmd_irqbalance_mask() {
   
   # Fallback: use default VM vCPU count
   if [[ -z "${isolated_max}" ]]; then
-    isolated_max=5  # Default: 4 vCPUs + 1 for headroom
+    isolated_max=$((isolated_min + 3))  # Default: 4 vCPUs
+    if [[ ${isolated_max} -ge ${host_cores} ]]; then
+      isolated_max=$((host_cores - 1))
+    fi
     auto_detected=1
-    echo "ℹ️  No VM found, using default: 4 vCPUs (isolating cores 1-5)"
+    echo "ℹ️  No VM found, using default: 4 vCPUs (isolating cores ${isolated_min}-${isolated_max})"
   fi
   
   # Validate isolated_max
@@ -55,14 +141,15 @@ cmd_irqbalance_mask() {
     exit 1
   fi
   
-  if [[ ${isolated_max} -lt 1 ]]; then
-    echo "Error: Must isolate at least core 1" >&2
+  if [[ ${isolated_max} -lt ${isolated_min} ]]; then
+    echo "Error: Must isolate at least core ${isolated_min}" >&2
     exit 1
   fi
   
   # Calculate both formats (cpulist is simpler, bitmask for compatibility)
-  local cpulist="1-${isolated_max}"
-  local mask=$(python3 -c "mask = sum(1 << i for i in range(1, ${isolated_max} + 1)); print(hex(mask))")
+  local cpulist="${isolated_min}-${isolated_max}"
+  local mask
+  mask=$(cpulist_to_mask "${cpulist}")
   
   echo "═══════════════════════════════════════════════════════════════"
   echo "         IRQBALANCE CONFIGURATION FOR RT ISOLATION"
@@ -76,13 +163,13 @@ cmd_irqbalance_mask() {
   fi
   echo "Host Configuration:"
   echo "  • Total HOST cores: ${host_cores}"
-  echo "  • Cores to isolate: 1-${isolated_max} (for RT VMs)"
-  echo "  • Remaining cores: 0, $((isolated_max + 1))-$((host_cores - 1)) (for host tasks)"
+  echo "  • Cores to isolate: ${isolated_min}-${isolated_max} (for RT VMs)"
+  echo "  • Housekeeping cores: ${HK_CPUSET} (for host IRQs/emulator tasks)"
   echo ""
   echo "Generated Configuration (use either format):"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "IRQBALANCE_BANNED_CPULIST=${cpulist}  (recommended - simple!)"
-  echo "IRQBALANCE_BANNED_CPUS=${mask}        (alternative - bitmask)"
+  echo "IRQBALANCE_BANNED_CPUS=0x${mask}      (alternative - bitmask)"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
   echo "How to apply this configuration:"
@@ -98,18 +185,18 @@ cmd_irqbalance_mask() {
   echo ""
   echo "4. Verify the configuration (after a few seconds):"
   echo "   cat /proc/interrupts | head -20"
-  echo "   # Cores 1-${isolated_max} should have minimal interrupt activity"
+  echo "   # Cores ${isolated_min}-${isolated_max} should have minimal interrupt activity"
   echo ""
   echo "Note: This configuration persists across reboots automatically."
   echo ""
   echo "VM Mapping:"
   if [[ -n "${vm_vcpus}" ]]; then
     echo "  • VM '${vm_name}' has ${vm_vcpus} vCPUs"
-    echo "  • These will be pinned to HOST cores 1-${vm_vcpus}"
-    echo "  • Isolating up to core ${isolated_max} gives headroom for host tasks"
+    echo "  • These will be pinned to HOST cores ${isolated_min}-${isolated_max}"
+    echo "  • Housekeeping remains on HOST cores ${HK_CPUSET}"
   else
-    echo "  • VM vCPUs will be pinned to HOST cores 1-N"
-    echo "  • Default VM (4 vCPUs) → HOST cores 1-4"
+    echo "  • VM vCPUs will be pinned to HOST cores ${isolated_min}-N"
+    echo "  • Default VM (4 vCPUs) → HOST cores ${isolated_min}-${isolated_max}"
   fi
   echo "  • ServoBox handles this mapping automatically during 'servobox start'"
   echo ""
@@ -121,14 +208,13 @@ apply_rt_xml_config() {
   
   # Get host CPU topology
   local host_cores=$(nproc)
-  local rt_cores=$((host_cores - 1))
+  get_rt_cpu_layout "${host_cores}"
   
-  # Calculate isolated cores for vCPUs (1 to rt_cores)
-  local vcpu_cpuset=$(seq -s, 1 ${rt_cores})
-  if [[ ${VCPUS} -gt ${rt_cores} ]]; then
-    echo "Warning: Requested ${VCPUS} vCPUs but only ${rt_cores} host cores available for RT isolation"
-    echo "         Using cores 1-${rt_cores}"
-    vcpu_cpuset=$(seq -s, 1 ${rt_cores})
+  # Calculate isolated cores for vCPUs
+  local vcpu_cpuset="${RT_CPUSET}"
+  if [[ ${VCPUS} -gt ${RT_AVAILABLE} ]]; then
+    echo "Warning: Requested ${VCPUS} vCPUs but only ${RT_AVAILABLE} host cores available for RT isolation"
+    echo "         Using cores ${RT_CPUSET}"
   fi
   
   # Export current XML
@@ -160,8 +246,8 @@ apply_rt_xml_config() {
     
     # Add vcpu pinning for each vCPU
     for vcpu in $(seq 0 $((VCPUS-1))); do
-      local host_cpu=$((vcpu + 1))
-      if [[ ${host_cpu} -lt ${host_cores} ]]; then
+      local host_cpu=$((RT_START_CPU + vcpu))
+      if [[ ${host_cpu} -le ${RT_END_CPU} ]]; then
         xmlstarlet ed -L \
           -s "/domain/cputune" -t elem -n "vcpupin" \
           -i "/domain/cputune/vcpupin[last()]" -t attr -n "vcpu" -v "${vcpu}" \
@@ -170,17 +256,17 @@ apply_rt_xml_config() {
       fi
     done
     
-    # Add emulatorpin to CPU 0
+    # Keep emulator thread(s) on housekeeping CPU set
     xmlstarlet ed -L \
       -s "/domain/cputune" -t elem -n "emulatorpin" \
-      -i "/domain/cputune/emulatorpin" -t attr -n "cpuset" -v "0" \
+      -i "/domain/cputune/emulatorpin" -t attr -n "cpuset" -v "${HK_CPUSET}" \
       "${xml_file}" 2>/dev/null || true
     
-    # Add iothreadpin to CPU 0
+    # Keep IO thread(s) on housekeeping CPU set
     xmlstarlet ed -L \
       -s "/domain/cputune" -t elem -n "iothreadpin" \
       -i "/domain/cputune/iothreadpin" -t attr -n "iothread" -v "1" \
-      -i "/domain/cputune/iothreadpin" -t attr -n "cpuset" -v "0" \
+      -i "/domain/cputune/iothreadpin" -t attr -n "cpuset" -v "${HK_CPUSET}" \
       "${xml_file}" 2>/dev/null || true
     
     # Update clock configuration
@@ -210,14 +296,14 @@ apply_rt_xml_config() {
     local cputune_xml="  <cputune>\n"
     # Add vcpupin for each vCPU
     for vcpu in $(seq 0 $((VCPUS-1))); do
-      local host_cpu=$((vcpu + 1))
-      if [[ ${host_cpu} -lt ${host_cores} ]]; then
+      local host_cpu=$((RT_START_CPU + vcpu))
+      if [[ ${host_cpu} -le ${RT_END_CPU} ]]; then
         cputune_xml+="    <vcpupin vcpu='${vcpu}' cpuset='${host_cpu}'/>\n"
       fi
     done
     # Add emulatorpin and iothreadpin
-    cputune_xml+="    <emulatorpin cpuset='0'/>\n"
-    cputune_xml+="    <iothreadpin iothread='1' cpuset='0'/>\n"
+    cputune_xml+="    <emulatorpin cpuset='${HK_CPUSET}'/>\n"
+    cputune_xml+="    <iothreadpin iothread='1' cpuset='${HK_CPUSET}'/>\n"
     cputune_xml+="  </cputune>"
     
     sed -i "/<\/domain>/i\\${cputune_xml}" "${xml_file}"
@@ -235,9 +321,9 @@ apply_rt_xml_config() {
   echo "Redefining VM with RT-optimized XML..."
   if virsh_cmd define "${xml_file}" >/dev/null 2>&1; then
     echo "✓ RT XML configuration applied successfully"
-    echo "  • CPU pinning: vCPUs 0-$((VCPUS-1)) → host CPUs 1-${VCPUS}"
-    echo "  • Emulator thread pinned to CPU 0"
-    echo "  • IOThread pinned to CPU 0"
+    echo "  • CPU pinning: vCPUs 0-$((VCPUS-1)) → host CPUs ${RT_START_CPU}-${RT_END_CPU}"
+    echo "  • Emulator thread pinned to CPUs ${HK_CPUSET}"
+    echo "  • IOThread pinned to CPUs ${HK_CPUSET}"
     echo "  • Memory locking enabled"
     echo "  • Enhanced clock configuration (kvmclock, TSC)"
   else
@@ -333,14 +419,14 @@ pin_vcpus() {
   
   # Get host CPU topology
   HOST_CORES=$(nproc)
-  RT_CORES=$((HOST_CORES - 1))  # Reserve one core for host
+  get_rt_cpu_layout "${HOST_CORES}"
   
-  echo "Host has ${HOST_CORES} cores, using cores 1-${RT_CORES} for VM"
+  echo "Host has ${HOST_CORES} cores, using housekeeping CPUs ${HK_CPUSET} and RT CPUs ${RT_CPUSET} for VM"
   
   # Pin vCPUs to host cores
   for vcpu in $(seq 0 $((VCPUS-1))); do
-    host_cpu=$((vcpu + 1))
-    if [[ $host_cpu -lt $HOST_CORES ]]; then
+    host_cpu=$((RT_START_CPU + vcpu))
+    if [[ ${host_cpu} -le ${RT_END_CPU} ]]; then
       echo "Pinning vCPU ${vcpu} to host CPU ${host_cpu}"
       virsh_cmd vcpupin "${NAME}" ${vcpu} ${host_cpu} >/dev/null
     fi
@@ -428,9 +514,18 @@ pin_vcpus() {
   # Configure CPU governor (and optionally lock frequency) based on RT mode
   local rt_mode="${RT_MODE:-balanced}"
   
+  local rt_vm_end_cpu=$((RT_START_CPU + VCPUS - 1))
+  if [[ ${rt_vm_end_cpu} -gt ${RT_END_CPU} ]]; then
+    rt_vm_end_cpu=${RT_END_CPU}
+  fi
+  local governor_targets="${HK_CPUSET}"
+  if [[ ${rt_vm_end_cpu} -ge ${RT_START_CPU} ]]; then
+    governor_targets+=",${RT_START_CPU}-${rt_vm_end_cpu}"
+  fi
+  
   if [[ "${rt_mode}" == "balanced" ]]; then
-    echo "Setting CPU governor to performance mode (balanced) for RT cores and CPU 0..."
-    for cpu in 0 $(seq 1 ${VCPUS}); do
+    echo "Setting CPU governor to performance mode for housekeeping + VM RT CPUs..."
+    for cpu in $(expand_cpulist "${governor_targets}"); do
       if [[ -f "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor" ]]; then
         if echo performance | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor >/dev/null 2>&1; then
           echo "  ✓ CPU ${cpu} set to performance mode"
@@ -444,7 +539,7 @@ pin_vcpus() {
     
   elif [[ "${rt_mode}" == "performance" ]]; then
     echo "Setting CPU governor and locking frequencies (performance mode)..."
-    for cpu in 0 $(seq 1 ${VCPUS}); do
+    for cpu in $(expand_cpulist "${governor_targets}"); do
       if [[ -f "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor" ]]; then
         if echo performance | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor >/dev/null 2>&1; then
           echo "  ✓ CPU ${cpu} set to performance mode"
@@ -466,7 +561,7 @@ pin_vcpus() {
     
   elif [[ "${rt_mode}" == "extreme" ]]; then
     echo "Setting CPU governor and applying extreme optimizations..."
-    for cpu in 0 $(seq 1 ${VCPUS}); do
+    for cpu in $(expand_cpulist "${governor_targets}"); do
       if [[ -f "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor" ]]; then
         if echo performance | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor >/dev/null 2>&1; then
           echo "  ✓ CPU ${cpu} set to performance mode"
@@ -524,11 +619,10 @@ pin_vcpus() {
   # Configure IRQ affinity to keep interrupts off RT cores
   echo "Configuring IRQ affinity (keeping IRQs off RT cores)..."
   
-  # Calculate the CPU mask for CPU 0 only
-  # For 20 cores, we need a hex mask with only bit 0 set
-  # Format: 00000001 (or just 1, but some systems need zero-padding)
-  local cpu0_mask="1"
-  local cpu0_mask_list="0"  # For smp_affinity_list format
+  # Route host IRQs onto housekeeping CPUs (default: 0-1 on 4+ core hosts).
+  local irq_cpulist="${HK_CPUSET}"
+  local irq_mask
+  irq_mask=$(cpulist_to_mask "${irq_cpulist}")
   
   local irq_count=0
   local irq_success=0
@@ -544,32 +638,32 @@ pin_vcpus() {
     [[ "$irq_num" == "default_smp_affinity" ]] && continue
     
     # Try smp_affinity_list first (easier and more reliable)
-    if echo "$cpu0_mask_list" | sudo tee "${irq_dir}smp_affinity_list" >/dev/null 2>&1; then
+    if echo "${irq_cpulist}" | sudo tee "${irq_dir}smp_affinity_list" >/dev/null 2>&1; then
       irq_list_success=$((irq_list_success + 1))
     fi
     
     # Also try smp_affinity (hex format)
-    if echo "$cpu0_mask" | sudo tee "${irq_dir}smp_affinity" >/dev/null 2>&1; then
+    if echo "${irq_mask}" | sudo tee "${irq_dir}smp_affinity" >/dev/null 2>&1; then
       irq_success=$((irq_success + 1))
     fi
   done
   
   echo "✓ Configured IRQs: ${irq_success} via smp_affinity, ${irq_list_success} via smp_affinity_list (total: ${irq_count})"
   
-  # Verify by checking how many IRQs are actually set to CPU 0 only
+  # Verify by checking how many IRQs are actually set to housekeeping CPU set
   echo "Verifying IRQ isolation..."
-  local cpu0_only=$(sudo grep -h "^0$" /proc/irq/*/smp_affinity_list 2>/dev/null | wc -l)
+  local irq_on_housekeeping=$(sudo grep -h "^${irq_cpulist}$" /proc/irq/*/smp_affinity_list 2>/dev/null | wc -l)
   local total_checkable=$(sudo ls /proc/irq/*/smp_affinity_list 2>/dev/null | wc -l)
   
-  echo "✓ ${cpu0_only}/${total_checkable} IRQs isolated to CPU 0"
+  echo "✓ ${irq_on_housekeeping}/${total_checkable} IRQs isolated to CPUs ${irq_cpulist}"
   
-  if [[ ${cpu0_only} -lt $((total_checkable / 2)) ]]; then
+  if [[ ${irq_on_housekeeping} -lt $((total_checkable / 2)) ]]; then
     echo "⚠️  Note: Some IRQs may not support affinity control (built-in IRQs)"
     echo "   This is normal - critical device IRQs will still be isolated"
   fi
   
   echo "CPU pinning completed!"
-  echo "VM vCPUs pinned to cores 1-${RT_CORES}, QEMU threads isolated, IRQs on CPU 0"
+  echo "VM vCPUs pinned to cores ${RT_START_CPU}-${RT_END_CPU}, QEMU threads isolated, IRQs on CPUs ${irq_cpulist}"
 }
 
 # Verify RT configuration is actually applied
@@ -714,22 +808,24 @@ verify_rt_config() {
   echo ""
   
   # Check IRQ affinity
-  echo "📌 IRQ Affinity Check (sample of 10 IRQs):"
-  local cpu0_only=0
+  local host_cores=$(nproc)
+  get_rt_cpu_layout "${host_cores}"
+  echo "📌 IRQ Affinity Check:"
+  local housekeeping_only=0
   local other=0
   for irq_dir in /proc/irq/*/smp_affinity_list; do
     [[ -f "$irq_dir" ]] || continue
     local affinity=$(sudo cat "$irq_dir" 2>/dev/null || cat "$irq_dir" 2>/dev/null)
-    if [[ "$affinity" == "0" ]]; then
-      cpu0_only=$((cpu0_only + 1))
+    if [[ "${affinity}" == "${HK_CPUSET}" ]]; then
+      housekeeping_only=$((housekeeping_only + 1))
     else
       other=$((other + 1))
     fi
   done
-  echo "  IRQs on CPU 0 only: ${cpu0_only}"
+  echo "  IRQs on housekeeping CPUs (${HK_CPUSET}): ${housekeeping_only}"
   echo "  IRQs on other CPUs: ${other}"
-  if [[ ${cpu0_only} -eq 0 ]]; then
-    echo "  ❌ WARNING: No IRQs isolated to CPU 0!"
+  if [[ ${housekeeping_only} -eq 0 ]]; then
+    echo "  ❌ WARNING: No IRQs isolated to housekeeping CPUs ${HK_CPUSET}!"
   fi
   echo ""
   
