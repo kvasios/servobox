@@ -740,23 +740,32 @@ install_package_remote() {
   # servobox init bakes NOPASSWD sudo for servobox-usr into the image, so no password is needed.
   local user=$(get_remote_user)
   local port=$(get_remote_port)
-  local ssh_opts="-o StrictHostKeyChecking=no -o ConnectTimeout=10"
+  local ssh_opts=$(get_ssh_opts)
   local env_vars="RECIPE_DIR=${remote_tmp}"
   if [[ -f "${helpers_src}" ]]; then
     env_vars="${env_vars} PACKAGE_HELPERS=${remote_tmp}/pkg-helpers.sh"
   fi
-  local run_cmd="cd ${remote_tmp} && chmod +x ${install_script} && sudo -n env ${env_vars} ./${install_script} </dev/null"
-  local exit_code=0
-  # Try passwordless sudo first (VM after init has NOPASSWD for servobox-usr)
-  if ! ssh ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"; then
-    exit_code=$?
-    # Fallback: if this is the default VM user and sshpass is available, use known VM password
-    # (helps existing VMs inited before NOPASSWD was baked into the image, or before cloud-init finished)
+
+  # Check if passwordless sudo works for this user
+  local use_sshpass=0
+  if ! ssh ${ssh_opts} -p "${port}" "${user}@${ip}" "sudo -n true" 2>/dev/null; then
     if [[ "${user}" == "servobox-usr" ]] && command -v sshpass >/dev/null 2>&1; then
-      run_cmd="sudo -v && cd ${remote_tmp} && chmod +x ${install_script} && sudo env ${env_vars} ./${install_script} </dev/null"
-      if sshpass -p "servobox-pwd" ssh -t ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"; then
-        exit_code=0
-      fi
+      use_sshpass=1
+    fi
+  fi
+
+  local exit_code=0
+  if [[ ${use_sshpass} -eq 1 ]]; then
+    # Fallback: use known VM password (helps existing VMs or slow cloud-init)
+    local run_cmd="sudo -v && cd ${remote_tmp} && chmod +x ${install_script} && sudo env ${env_vars} ./${install_script} </dev/null"
+    if ! sshpass -p "servobox-pwd" ssh -t ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"; then
+      exit_code=$?
+    fi
+  else
+    # Passwordless sudo is available
+    local run_cmd="cd ${remote_tmp} && chmod +x ${install_script} && sudo -n env ${env_vars} ./${install_script} </dev/null"
+    if ! ssh ${ssh_opts} -p "${port}" "${user}@${ip}" "${run_cmd}"; then
+      exit_code=$?
     fi
   fi
   
