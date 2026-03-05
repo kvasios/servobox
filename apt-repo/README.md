@@ -12,9 +12,13 @@ apt-repo/
 │       │   └── binary-amd64/
 │       │       ├── Packages
 │       │       ├── Packages.gz
-│       │       └── servobox_*.deb
 │       └── Release
-└── servobox-apt-key.gpg
+├── pool/
+│   └── main/
+│       └── s/
+│           └── servobox/
+│               └── servobox_*.deb
+└── servobox-archive-keyring.gpg
 ```
 
 ## How It Works
@@ -38,18 +42,22 @@ CI must use a **stable** GPG signing key (do not generate a new key per run).
 Add the repository to your system:
 
 ```bash
-# Add the GPG key using wget (pre-installed on Ubuntu)
-wget -qO- https://kvasios.github.io/servobox/apt-repo/servobox-apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/servobox-apt-keyring.gpg
+# Install the repository keyring
+sudo wget -O /usr/share/keyrings/servobox-archive-keyring.gpg https://kvasios.github.io/servobox/apt-repo/servobox-archive-keyring.gpg
 
 # Or if you prefer curl:
-# curl -sSL https://kvasios.github.io/servobox/apt-repo/servobox-apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/servobox-apt-keyring.gpg
+# sudo curl -fsSL -o /usr/share/keyrings/servobox-archive-keyring.gpg https://kvasios.github.io/servobox/apt-repo/servobox-archive-keyring.gpg
 
 # Add the repository
-echo "deb [signed-by=/usr/share/keyrings/servobox-apt-keyring.gpg] https://kvasios.github.io/servobox/apt-repo/ stable main" | sudo tee /etc/apt/sources.list.d/servobox.list
+echo "deb [signed-by=/usr/share/keyrings/servobox-archive-keyring.gpg] https://kvasios.github.io/servobox/apt-repo/ stable main" | sudo tee /etc/apt/sources.list.d/servobox.list
 
 # Update and install
 sudo apt update
 sudo apt install servobox
+
+# Upgrade later to newest published version
+sudo apt update
+sudo apt install --only-upgrade servobox
 ```
 
 ### For Developers

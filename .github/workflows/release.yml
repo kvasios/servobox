@@ -128,6 +128,7 @@ jobs:
             git rm -rf . >/dev/null 2>&1 || true
             mkdir -p apt-repo/dists/stable/main/binary-amd64
             mkdir -p apt-repo/dists/stable/main/source
+            mkdir -p apt-repo/pool/main/s/servobox
           fi
 
           # Refresh scripts/README on the apt-repo branch (keep dists/ contents intact)
@@ -138,7 +139,14 @@ jobs:
           chmod +x apt-repo/add-package-to-repo.sh apt-repo/setup-apt-repo.sh
 
           # Export public key for users (served via Pages)
-          gpg --armor --export "servobox-apt@users.noreply.github.com" > apt-repo/servobox-apt-key.gpg
+          signing_key_fpr="$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')"
+          if [[ -z "${signing_key_fpr}" ]]; then
+            echo "ERROR: no imported signing key fingerprint found."
+            exit 1
+          fi
+          rm -f apt-repo/servobox-apt-key.gpg
+          gpg --export "${signing_key_fpr}" > apt-repo/servobox-archive-keyring.gpg
+          gpg --armor --export "${signing_key_fpr}" > apt-repo/servobox-archive-keyring.asc
 
           # Add new package(s) and regenerate metadata
           ./apt-repo/add-package-to-repo.sh ../*.deb

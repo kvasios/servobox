@@ -38,10 +38,13 @@ fi
 
 # Export public key for users to add to their keyring
 echo "Exporting public key..."
-gpg --armor --export "${GPG_KEY_ID}" > "${REPO_DIR}/servobox-apt-key.gpg"
+gpg --export "${GPG_KEY_ID}" > "${REPO_DIR}/servobox-archive-keyring.gpg"
+gpg --armor --export "${GPG_KEY_ID}" > "${REPO_DIR}/servobox-archive-keyring.asc"
 
 echo "APT repository structure created in: ${REPO_DIR}/"
-echo "Public key exported to: ${REPO_DIR}/servobox-apt-key.gpg"
+echo "Public keys exported to:"
+echo " - ${REPO_DIR}/servobox-archive-keyring.gpg"
+echo " - ${REPO_DIR}/servobox-archive-keyring.asc"
 echo ""
 echo "Next steps:"
 echo "1. Commit the ${REPO_DIR}/ directory to your repository"

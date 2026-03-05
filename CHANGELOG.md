@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.0.0 (TBD)
+## 0.3.0 (TBD)
 
 ### Changed
 - **VM pkg-install**: Now installs via SSH by default (live progress output). Use `--offline` for legacy virt-customize image installation. VM is auto-started if needed; previous state is restored after install.

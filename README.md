@@ -26,15 +26,22 @@ ServoBox gives you Ubuntu 22.04 VMs with PREEMPT_RT kernel, automatic CPU pinnin
 **Install via APT**
 
 ```bash
-# Add the ServoBox APT repository using wget (pre-installed on Ubuntu)
-wget -qO- https://www.servobox.dev/apt-repo/servobox-apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/servobox-apt-keyring.gpg
+# Install ServoBox keyring
+sudo wget -O /usr/share/keyrings/servobox-archive-keyring.gpg https://www.servobox.dev/apt-repo/servobox-archive-keyring.gpg
 
 # Add the repository to your sources list
-echo "deb [signed-by=/usr/share/keyrings/servobox-apt-keyring.gpg] https://www.servobox.dev/apt-repo/ stable main" | sudo tee /etc/apt/sources.list.d/servobox.list
+echo "deb [signed-by=/usr/share/keyrings/servobox-archive-keyring.gpg] https://www.servobox.dev/apt-repo/ stable main" | sudo tee /etc/apt/sources.list.d/servobox.list
 
 # Update package lists and install
 sudo apt update
 sudo apt install servobox
+
+# Upgrade to latest published release later
+sudo apt update
+sudo apt install --only-upgrade servobox
+
+# Check which version APT sees and from where
+apt-cache policy servobox
 ```
 
 **Create your VM**

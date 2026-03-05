@@ -1,4 +1,4 @@
-servobox (3.0.0) unstable; urgency=medium
+servobox (0.3.0) unstable; urgency=medium
 
   * VM pkg-install now uses SSH by default (live logs); add --offline for legacy
     virt-customize image installation
