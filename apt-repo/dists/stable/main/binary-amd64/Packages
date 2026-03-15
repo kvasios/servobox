@@ -7,10 +7,10 @@ Depends: iproute2, net-tools, wget, xz-utils, qemu-kvm, qemu-utils, libvirt-daem
 Recommends: sshpass, osinfo-db, bridge-utils, ethtool
 Suggests: virt-viewer
 Filename: pool/main/s/servobox/servobox_0.3.0_amd64.deb
-Size: 88484
-MD5sum: 4e8551155b99e529f7258acfac8c24ff
-SHA1: 8a2a91b7238ccdf6e03a62e00b6c4d12b17b9ada
-SHA256: 2b10a855273b712159527c5fad2e0b1487f0750d14a19ca230901d0bb4fdfd4e
+Size: 88580
+MD5sum: e569e132e16b9453a3ef9678fcb4a1ed
+SHA1: 02dd50e77cf255b78e6091e00e3f8d492d8f49a6
+SHA256: 99f5c97abfea7f8b9dc618a4cfa939d3966b9c688f5a2e80fe7443bffba3a7b2
 Section: utils
 Priority: optional
 Description: One-command launcher for real-time VMs (Ubuntu 22.04 PREEMPT_RT)
