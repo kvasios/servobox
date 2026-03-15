@@ -1,177 +1,139 @@
 # Installation
 
-This guide walks you through installing ServoBox and configuring your host system for real-time performance.
+This guide covers host requirements, installation methods, and the one host-side RT configuration step that ServoBox depends on for deterministic latency.
 
-## Prerequisites
+## Requirements
 
-### System Requirements
+- **Host OS:** Ubuntu 22.04 or greater
+- **CPU:** 6 cores minimum, 8+ recommended
+- **Memory:** 8 GB minimum, 16+ GB recommended
+- **Disk:** 16 GB free space for the default VM
+- **Virtualization:** KVM/QEMU with Intel VT-x or AMD-V enabled
 
-- **OS**: Ubuntu 20.04 or newer (host) (tested with 22.04)
-- **CPU**: 6+, ideally 8+ cores (4 cores for VM)  
-- **Memory**: 8GB+, ideally 16GB RAM
-- **Disk**: 40GB+ free space (default VM size, can be configured for less)
-- **Virtualization**: KVM/QEMU support (Intel VT-x or AMD-V)
+## Install ServoBox
 
-
-## Step 1: Install ServoBox
-
-### Option A: Via APT Repository (Recommended)
-
-Add the ServoBox APT repository and install:
+### APT repository (recommended)
 
 ```console
-# Install ServoBox keyring
 sudo wget -O /usr/share/keyrings/servobox-archive-keyring.gpg https://www.servobox.dev/apt-repo/servobox-archive-keyring.gpg
-
-# Add the repository to your sources list
 echo "deb [signed-by=/usr/share/keyrings/servobox-archive-keyring.gpg] https://www.servobox.dev/apt-repo/ stable main" | sudo tee /etc/apt/sources.list.d/servobox.list
-
-# Update package lists and install
 sudo apt update
 sudo apt install servobox
 ```
 
-To update an existing installation later:
+To upgrade later:
 
 ```console
-# Refresh package lists after a new release is published
 sudo apt update
-
-# Upgrade ServoBox only (no full-system upgrade required)
 sudo apt install --only-upgrade servobox
-
-# Verify which version APT sees and the selected candidate
 apt-cache policy servobox
 ```
 
-### Option B: From Release
+### GitHub release package
 
-Download the latest release:
-
-```console
-# Check https://github.com/kvasios/servobox/releases for the latest version
-wget https://github.com/kvasios/servobox/releases/download/v0.1.2/servobox_0.1.2_amd64.deb
-```
-
-Install the package:
+APT is the easiest path, but you can also install the current release package directly:
 
 ```console
-sudo apt install -f ./servobox_0.1.2_amd64.deb
+wget https://github.com/kvasios/servobox/releases/download/v0.3.0/servobox_0.3.0_amd64.deb
+sudo apt install -f ./servobox_0.3.0_amd64.deb
 ```
 
-### Option C: From Source
-
-Clone the repository:
+### Build from source
 
 ```console
 git clone https://github.com/kvasios/servobox.git
 cd servobox
-```
-
-Build the package:
-
-```console
 dpkg-buildpackage -us -uc -B
-```
-
-Install:
-
-```console
 sudo dpkg -i ../servobox_*.deb
 ```
 
-## Step 2: Configure Host for RT Performance
+## Host RT Setup Required For Deterministic Latency
 
-!!! warning "Required Step"
-    This step is **required** for real-time performance. Without CPU isolation, you will experience latency spikes.
+!!! warning "Required for low-latency workloads"
+    ServoBox automates the VM-side setup, but the host still needs isolated CPU cores. Without host isolation you should expect latency spikes.
 
-### Check Your CPU Count First
-
-**IMPORTANT:** Before configuring CPU isolation, check how many CPU cores your system has:
+### 1. Check CPU count
 
 ```console
 nproc
-# Example output: 8 (means you have 8 CPU cores: 0-7), which means you are good.
 ```
 
-### Edit GRUB Configuration
+If you have fewer than 6 CPU cores, ServoBox may still run, but you will have very limited room for safe isolation.
 
-⚠️ Again proceed here if your CPU cores are 6+,ideally 8+ as stated above.
+### 2. Edit the GRUB kernel command line
 
-Edit your GRUB configuration:
+Open `/etc/default/grub` and update `GRUB_CMDLINE_LINUX_DEFAULT`.
 
 ```console
 sudo vim /etc/default/grub
 ```
 
-Modify or add the `GRUB_CMDLINE_LINUX_DEFAULT` line. **Example for an 8-core system:**
+Example for an 8-core host:
 
 ```text
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0-1"
 ```
 
-### Understanding the Parameters
+Meaning of the important parameters:
 
-- `isolcpus=managed_irq,domain,1-4` - Isolate CPUs 1-4 from scheduler
-- `nohz_full=1-4` - Disable timer ticks on isolated CPUs
-- `rcu_nocbs=1-4` - Move RCU callbacks off isolated CPUs
-- `irqaffinity=0` - Pin IRQs to CPU 0
+- `isolcpus=managed_irq,domain,1-4`: reserves CPUs `1-4` away from normal scheduling
+- `nohz_full=1-4`: removes periodic scheduler ticks from those CPUs
+- `rcu_nocbs=1-4`: moves RCU work off those CPUs
+- `irqaffinity=0-1`: keeps interrupts on the non-isolated host cores
 
-Apply the configuration and reboot:
+Adjust the CPU ranges to match your machine. Keep at least one or two non-isolated cores for the host.
+
+### 3. Apply and reboot
 
 ```console
 sudo update-grub
 sudo reboot
 ```
 
-### Verify Isolation
+### 4. Verify the host isolation state
 
-After reboot, check that CPUs are isolated:
+After reboot:
 
 ```console
 cat /sys/devices/system/cpu/isolated
-# Should output: 1-4 (or your configured range)
 ```
 
-## Step 3: Verify Installation
+The output should match the CPU range you isolated, such as `1-4`.
 
-Check that ServoBox is installed:
+## Sanity Check
+
+Confirm that ServoBox is installed and available:
 
 ```console
 servobox --help
 ```
 
-You should see the ServoBox help message with available commands.
+## Next Step
 
-
-## Next Steps
-
-- [Run Guide](run.md) - Create and manage your first RT VM
- 
+Continue with the [First Run guide](run.md) to create your first VM, verify the RT setup, and install a stack.
 
 ## Troubleshooting
 
-### Permission denied accessing `/var/lib/libvirt`
+### Permission denied accessing libvirt resources
 
-First, check if you're already in the required groups:
+Check your groups:
 
 ```console
-groups $USER
-# Look for 'libvirt' and 'kvm' in the output
+groups "$USER"
 ```
 
-If you don't see `libvirt` and `kvm` in the list, add your user to the libvirt group:
+If needed:
 
 ```console
-sudo usermod -aG libvirt $USER
+sudo usermod -aG libvirt "$USER"
 newgrp libvirt
 ```
 
-### Virtualization not working
+### Virtualization not available
 
-1. Check BIOS/UEFI settings - ensure VT-x/AMD-V is enabled
-2. Verify kernel modules are loaded: `lsmod | grep kvm`
-3. Reinstall QEMU/KVM packages
+1. Make sure VT-x or AMD-V is enabled in BIOS/UEFI.
+2. Check that KVM modules are loaded with `lsmod | grep kvm`.
+3. Reinstall the KVM/libvirt packages if the system is incomplete.
 
-See the [Troubleshooting Guide](../reference/troubleshooting.md) for more help.
+For broader diagnostics, see [Troubleshooting](../reference/troubleshooting.md).
 

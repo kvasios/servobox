@@ -1,358 +1,245 @@
 # Package Management
 
-ServoBox includes a package manager for installing pre-configured robotics software stacks into VM images.
+ServoBox packages are recipe-driven install workflows for common robotics stacks, libraries, and utility toolchains.
 
 ## Overview
 
-The ServoBox package manager provides:
+The package system provides:
 
-- **Pre-built installation recipes** for common robotics software
-- **Automatic internal dependency resolution** - installs prerequisites in the correct order
-- **Offline installation** - packages are installed into VM images without booting
+- prebuilt recipes for common robotics software
+- dependency resolution between ServoBox packages
+- a unified install workflow for local VMs and remote RT targets
+- optional custom recipe directories for your own stacks
+
+## Default Install Mode In 0.3.0
+
+Starting with `0.3.0`, `servobox pkg-install` installs over SSH by default and shows live progress output. For local VMs, ServoBox starts the VM automatically if needed and restores the previous state afterward.
+
+The older image-mutation workflow still exists behind `--offline`.
 
 ## Quick Start
 
 ```console
-# List available packages
+# See what is available
 servobox pkg-install --list
 
-# Install a package (dependencies are automatically installed)
-servobox pkg-install libfranka-gen1 #or libfranka-fr3
+# Install into the default VM
+servobox pkg-install docker
 
-# Install franky for your robot type
-servobox pkg-install franky-fr3     # For Franka Research 3
-servobox pkg-install franky-gen1    # For Franka Panda Gen1
+# Install a robotics stack
+servobox pkg-install deoxys-control
 
-# Install ur_rtde for Universal Robots
-servobox pkg-install ur_rtde        # For UR robots (RTDE interface)
-
-# Install with verbose output
+# Show detailed logs
 servobox pkg-install ros2-humble --verbose
 
-# Use custom recipe directory
-servobox pkg-install --custom ~/my-recipes my-package
-
-# Force reinstall a package
-servobox pkg-install libfranka-gen1 --force
+# See what is already installed
+servobox pkg-installed
 ```
 
-## Commands
+## Common Commands
 
-### Install Packages
+### Install a package
 
 ```console
-servobox pkg-install <package> [--name NAME] [--verbose] [--force] [--custom PATH]
+servobox pkg-install <package|config> [--name NAME] [--verbose|-v] [--offline] [--list] [--custom PATH]
 ```
 
-- `--name NAME`: Target VM name (default: servobox-vm)
-- `--verbose`: Show detailed installation output
-- `--force`: Force reinstall even if already installed
-- `--custom PATH`: Use custom recipe directory
+Key options:
 
-### List Installed Packages
+- `--name NAME`: target a specific VM
+- `--verbose` or `-v`: show more detailed installation output
+- `--offline`: use the legacy image-based install flow
+- `--list`: show available packages and configs
+- `--custom PATH`: point to a custom recipe directory or config file
+
+### Show installed packages
 
 ```console
-servobox pkg-installed [--name NAME] [--verbose]
+servobox pkg-installed [--name NAME] [--verbose|-v]
 ```
 
-### Preview Dependencies
+### Preview dependencies from the repo
 
 ```console
-# Show dependency tree and installation order
 packages/scripts/package-manager.sh deps <package>
 ```
 
+## Remote Target Mode
+
+The same package workflow can target an existing RT machine over SSH:
+
+```console
+export SERVOBOX_TARGET_IP=192.168.1.50
+servobox pkg-install docker
+servobox pkg-installed
+```
+
+Optional environment variables:
+
+- `SERVOBOX_TARGET_USER`: SSH user, defaults to `$USER`
+- `SERVOBOX_TARGET_PORT`: SSH port, defaults to `22`
+
+This is useful for Jetson, NUC, and similar RT-capable systems where you want ServoBox recipes without creating a local VM.
+
+## Install Modes
+
+### Live install over SSH
+
+This is the default in `0.3.0`.
+
+- works with local VMs and remote RT targets
+- shows live installation progress
+- is the recommended mode for most users
+
+### Offline image install
+
+Use this only if you specifically want the older image-based flow:
+
+```console
+servobox pkg-install --offline docker
+```
+
+This mode is local-VM only.
+
 ## Available Packages
 
-### Complete Suites
-
-These packages provide complete robotics software stacks:
+### Complete suites
 
 | Package | Description | Dependencies |
 |---------|-------------|--------------|
-| **polymetis** | Polymetis - Facebook's robot learning framework with Franka support (via micromamba) | None |
-| **deoxys-control** | deoxys_control for AI robot agent dev/research | libfranka-gen1/fr3 |
-| **serl-franka-controllers** | SERL Franka compliant Cartesian impedance controllers for RL (via RoboStack/micromamba) | franka-ros |
-| **crisp-controllers** | CRISP ROS2 controllers from utiasDSL for real-time robotic control | franka-ros2 |
+| `polymetis` | Polymetis server stack for Franka-based workflows | None |
+| `deoxys-control` | `deoxys_control` for research and agent development | `libfranka-gen1` or `libfranka-fr3` depending on target |
+| `serl-franka-controllers` | SERL Franka compliant Cartesian impedance controllers | `franka-ros` |
+| `crisp-controllers` | CRISP ROS2 controllers for real-time robotic control | `franka-ros2` |
 
-### Main Frameworks
-
-Core robotics frameworks and libraries:
+### Frameworks and libraries
 
 | Package | Description | Dependencies |
 |---------|-------------|--------------|
-| **ros2-humble** | ROS 2 Humble - Headless control system with ros-base and dev tools | build-essential |
-| **ros-noetic** | ROS Noetic installed through RoboStack/micromamba with desktop tools and development environment | robostack |
-| **franka-ros** | Franka Emika ROS integration for control (via RoboStack/micromamba) | ros-noetic |
-| **franka-ros2** | Franka Robotics ROS2 packages for Franka Emika Panda robot integration | ros2-humble, libfranka-fr3 |
-| **franky-fr3** | Franky - High-level control library for Franka Research 3 with Python support (via micromamba) | None |
-| **franky-gen1** | Franky - High-level control library for Franka Panda Gen1 with Python support (via micromamba) | None |
-| **franky-remote-fr3** | Franky Remote - Remote Control for Franka Research 3 | franky-fr3 |
-| **franky-remote-gen1** | Franky Remote - Remote Control for Franka Panda Gen1 | franky-gen1 |
-| **ur_rtde** | Universal Robots Real-Time Data Exchange (RTDE) interface with C++ and Python support (via micromamba) | None |
-| **pinocchio** | Pinocchio rigid body dynamics library (built from source) | None |
-| **robostack** | RoboStack with micromamba - Conda-based ROS environment manager | None |
+| `ros2-humble` | ROS 2 Humble headless environment and development tools | `build-essential` |
+| `ros-noetic` | ROS Noetic via RoboStack/micromamba | `robostack` |
+| `franka-ros` | Franka ROS integration | `ros-noetic` |
+| `franka-ros2` | Franka ROS2 packages | `ros2-humble`, `libfranka-fr3` |
+| `franky-fr3` | Franky for Franka Research 3 | None |
+| `franky-gen1` | Franky for Franka Panda Gen1 | None |
+| `franky-remote-fr3` | Franky remote control for FR3 | `franky-fr3` |
+| `franky-remote-gen1` | Franky remote control for Panda Gen1 | `franky-gen1` |
+| `ur_rtde` | Universal Robots RTDE interface | None |
+| `pinocchio` | Pinocchio rigid body dynamics library | None |
+| `robostack` | RoboStack with micromamba | None |
 
 ### Utilities
 
-Essential tools and libraries:
-
 | Package | Description | Dependencies |
 |---------|-------------|--------------|
-| **build-essential** | Essential build tools and development environment (gcc, g++, make, cmake, python3-dev, etc.) | None |
-| **libfranka-gen1** | libfranka 0.9.2 for Panda robot control | None |
-| **libfranka-fr3** | libfranka 0.16.1 for FR3 robot control | pinocchio |
-| **rt-control-tools** | Real-time control and communication software tools (monitoring, testing, analysis) | None |
-| **example-custom** | Example custom package showing how to create recipes | None |
+| `build-essential` | Essential build tools and development packages | None |
+| `docker` | Docker Engine, CLI, and Compose | None |
+| `libfranka-gen1` | `libfranka` 0.9.2 for Panda Gen1 | None |
+| `libfranka-fr3` | `libfranka` 0.16.1 for FR3 | `pinocchio` |
+| `rt-control-tools` | Real-time testing and control utilities | None |
+| `example-custom` | Example custom recipe | None |
 
-### Testing Status
+### Testing status
 
-**✅ Runtime Tested:** libfranka-gen1, polymetis, franka-ros (on Franka gen1 hardware)  
-**⚠️ Build Tested Only:** libfranka-fr3, franka-ros2, and others (need hardware validation)
-
-### Package Locations
-
-After installation, software is typically located in:
-- `~/libfranka/` - libfranka libraries
-- `/opt/ros/humble/` - ROS2 installation
-- `~/deoxys_control/` - Deoxys control stack
-- `~/franky/` - Franky repository (examples and reference)
-- `~/ur_rtde/` - ur_rtde repository (examples and reference)
-- `~/.local/bin/micromamba` - micromamba (for franky, ur_rtde, polymetis, robostack packages)
-- Custom packages usually install to `~/`
+- **Runtime tested:** `libfranka-gen1`, `polymetis`, `franka-ros` on Franka gen1 hardware
+- **Build tested only:** `libfranka-fr3`, `franka-ros2`, and several other recipes that still need runtime validation
 
 ## Dependency Resolution
 
-The package manager automatically resolves and installs dependencies in the correct order:
+ServoBox resolves ServoBox package dependencies automatically:
 
 ```console
-# Install deoxys-control (automatically installs build-essential, libfranka-gen1)
 servobox pkg-install deoxys-control
-
-# Install serl-franka-controllers (automatically installs ros-noetic, franka-ros)
 servobox pkg-install serl-franka-controllers
 ```
 
 ## Creating Custom Recipes
 
-Learn how to create custom package recipes for ServoBox.
+Custom recipes let you keep private packages outside the main ServoBox repository while still using the same install workflow.
 
-### Recipe Structure
+### Recipe structure
 
-A recipe consists of two files in `packages/recipes/<package-name>/`:
-
-```
-packages/recipes/my-package/
-├── recipe.conf        # Metadata (required)
-├── install.sh         # Installation script (required)
-└── run.sh            # Optional: Execution script
+```text
+my-recipes/my-package/
+├── recipe.conf
+├── install.sh
+└── run.sh
 ```
 
-### Quick Start
+- `recipe.conf` is required
+- `install.sh` is required
+- `run.sh` is optional
 
-#### 1. Create Recipe Directory
+### Minimal example
 
-**Option A: In ServoBox repository (for contributing)**
-```console
-cd /path/to/servobox
-mkdir -p packages/recipes/my-package
-cd packages/recipes/my-package
-```
+Create a custom recipe directory:
 
-**Option B: In your home directory (for testing/private recipes)**
 ```console
 mkdir -p ~/my-recipes/my-package
 cd ~/my-recipes/my-package
 ```
 
-#### 2. Write recipe.conf
+`recipe.conf`:
 
 ```bash
 name="my-package"
 version="1.0.0"
-description="My custom robotics package"
-dependencies=""  # Optional: e.g., "build-essential ros2-humble"
+description="My custom package"
+dependencies="build-essential"
 ```
 
-#### 3. Write install.sh
+`install.sh`:
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Installing my-package..."
-
-# Install dependencies
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y build-essential cmake libeigen3-dev
+apt-get install -y cmake git
 
-# Clone repository
 cd /home/servobox-usr
 git clone https://github.com/user/my-package.git
 cd my-package
-
-# Build
 mkdir -p build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
+make -j"$(nproc)"
 sudo make install
-
-# Set ownership
-chown -R servobox-usr:servobox-usr /home/servobox-usr/my-package
-
-echo "✅ my-package installed successfully!"
 ```
 
-#### 4. Make Executable and Test
+Test it:
 
 ```console
 chmod +x install.sh
-
-# Test installation
-servobox pkg-install my-package --verbose
-# Or for custom directory:
 servobox pkg-install --custom ~/my-recipes my-package --verbose
 ```
 
-### Recipe Files Explained
+### Tips
 
-#### recipe.conf
-
-Required fields:
-```bash
-name="package-name"              # Package identifier (must match directory name)
-version="1.0.0"                  # Package version
-description="Short description"  # One-line description
-```
-
-Optional fields:
-```bash
-dependencies="pkg1 pkg2"         # Space-separated ServoBox packages
-```
-
-#### install.sh
-
-**Requirements:**
-- Must be executable (`chmod +x`)
-- Must use bash (`#!/usr/bin/env bash`)
-- Should use `set -euo pipefail` for safety
-- Should print status messages
-
-**Best practices:**
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-echo "Installing my-package..."
-export DEBIAN_FRONTEND=noninteractive
-
-# Install apt dependencies
-apt-get update
-apt-get install -y cmake git libeigen3-dev
-
-# Work in user home directory
-cd /home/servobox-usr
-
-# Clone, build, install
-git clone https://github.com/user/my-package.git
-cd my-package
-mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc)
-sudo make install
-sudo ldconfig
-
-echo "✅ my-package installed successfully!"
-```
-
-#### run.sh (Optional)
-
-For packages with executable components:
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-
-echo "Starting my-package..."
-cd /home/servobox-usr/my-package
-./my-executable --config config.yaml
-```
-
-### Custom Recipe Development
-
-Use `--custom` to test recipes from your home directory without modifying system directories:
-
-```console
-mkdir -p ~/my-recipes/my-package
-# Edit recipe files...
-servobox pkg-install --custom ~/my-recipes my-package
-```
-
-This approach lets you:
-- ✅ Develop without sudo access
-- ✅ Test privately before sharing
-- ✅ Iterate quickly
-- ✅ Keep recipes in separate Git repos
-
-### Sharing Your Recipes
-
-#### Contribute to ServoBox
-
-We welcome contributions! If you've created a useful robotics software stack recipe, consider contributing it to the main ServoBox repository:
-
-1. **Fork** the ServoBox repository
-2. **Add** your recipe to `packages/recipes/`
-3. **Test** thoroughly
-4. **Submit** a pull request
-
-#### Keep Private
-
-For company-specific or proprietary recipes, you can:
-- Keep them in private Git repositories
-- Share internally with your team
-- Use the `--custom` flag to install from your own recipe directories
+- declare dependencies in `recipe.conf`
+- make install scripts idempotent when possible
+- use `set -euo pipefail`
+- print useful progress messages
+- test on a fresh VM before sharing recipes with others
 
 ## Troubleshooting
 
-### Common Issues
+If installation fails:
 
-**Package installation fails:**
 ```console
-# Check VM exists and is shut down
 servobox status
-
-# Try with verbose output
 servobox pkg-install <package> --verbose
 ```
 
-**Dependency not found:**
-- Dependencies must be declared in `recipe.conf`
-- Use `packages/scripts/package-manager.sh deps <package>` to check dependency tree
+If a recipe or dependency cannot be found:
 
-**Recipe not found:**
 ```console
-# List available packages
 servobox pkg-install --list
-
-# Check recipe exists
-ls packages/recipes/
+packages/scripts/package-manager.sh deps <package>
 ```
-
-## Best Practices
-
-1. **Declare dependencies** in `recipe.conf` - let the package manager handle installation order
-2. **Preview dependencies** with `package-manager.sh deps <package>`
-3. **Keep install scripts idempotent** - safe to run multiple times
-4. **Test recipes** on a fresh VM before sharing
-5. **Use custom recipe directories** for development/testing
-6. **Error handling**: Use `set -euo pipefail` in scripts
-7. **Progress feedback**: Print status messages during installation
-8. **Version pinning**: Use specific versions/tags in recipes
-9. **Cleanup**: Remove temporary files after installation
 
 ## See Also
 
-- [Commands Reference](commands.md) - Command details
-- [FAQ](../reference/faq.md) - Common questions and troubleshooting
+- [Commands Reference](commands.md)
+- [FAQ](../reference/faq.md)
 

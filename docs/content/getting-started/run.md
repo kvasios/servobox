@@ -1,78 +1,116 @@
-# ServoBox Run Guide
+# First Run
 
-Get up and running with a real-time VM, verify performance, set up networking, and install control stacks. For in-depth options, follow the links to the User Guide.
+This is the canonical first-use workflow for ServoBox after installation and host RT setup.
 
-## 1) Create your first RT VM
+## Create Your First VM
 
 ```console
 servobox init
 ```
 
-- Defaults: name `servobox-vm`, 4 vCPUs, 8GB RAM, 40GB disk, NAT `192.168.122.100`.
-- First run downloads the base image (cached afterwards).
+Defaults:
 
-Start it:
+- VM name: `servobox-vm`
+- vCPUs: `4`
+- memory: `8192` MiB
+- disk: `16` GB
+- primary NAT IP: `192.168.122.100/24`
+
+The first run downloads the base RT image if it is not already cached.
+
+If you want to customize the VM from the start:
+
+```console
+servobox init --name my-vm --vcpus 6 --mem 16384 --disk 80
+```
+
+## Start And Verify
+
+Start the VM in the default balanced mode:
 
 ```console
 servobox start
 ```
 
-- VM lifecycle details: [Commands Reference](../user-guide/commands.md)
-
-## 2) Verify RT configuration and latency
+Verify the RT configuration and latency behavior:
 
 ```console
-servobox rt-verify          # Check pinning, IRQs, kernel params
-servobox test --duration 30 # Quick cyclictest
+servobox rt-verify
+servobox test --duration 30 --stress-ng
 ```
 
-## 3) Networking
-
-Configure or change networking after creation:
+If you need tighter spike behavior, you can use:
 
 ```console
-servobox network-setup  # Interactive NIC wizard
+servobox start --performance
 ```
 
-- Network configuration: [Networking](../user-guide/networking.md)
+`--performance` and `--extreme` reduce spike frequency, but the practical VM latency ceiling is still around the same order of magnitude. See [RT Tuning](../reference/rt-tuning.md) for the full details.
 
-## 4) Install packages and run stacks
+## Install Your First Stack
 
-The package installer adds pre-configured robotics stacks into your VM image and resolves dependencies automatically.
-
-Basics:
+`pkg-install` now installs into a running target over SSH by default in `0.3.0`, so you get live progress output.
 
 ```console
-# Discover packages
 servobox pkg-install --list
+servobox pkg-install deoxys-control
+servobox run deoxys-control
+```
 
-# Install a stack (deps auto-installed)
-servobox pkg-install serl-franka-controllers
+Useful variations:
 
-# Run a stack's launch helper
-servobox run serl-franka-controllers
+```console
+# Install on a specific VM
+servobox pkg-install --name my-vm docker
 
-# Target a specific VM
-servobox pkg-install --name my-vm libfranka-gen1
-
-# Use custom/local recipes
-servobox pkg-install --custom ~/my-recipes my-package
+# Keep the legacy image-based installation mode
+servobox pkg-install --offline docker
 
 # Show detailed progress
 servobox pkg-install ros2-humble --verbose
 ```
 
-- Details: [Package Management](../user-guide/package-management.md)
-- Catalog: [Available Packages](../user-guide/package-management.md#available-packages)
+For the full package workflow, see [Package Management](../user-guide/package-management.md).
 
-## 5) SSH access
+## Networking
+
+If your VM needs direct access to a robot or another device NIC, use the interactive wizard:
 
 ```console
+servobox network-setup
+```
+
+You can also attach NICs during VM creation:
+
+```console
+servobox init --host-nic eth0
+servobox init --host-nic eth0 --host-nic eth1
+```
+
+More details: [Networking](../user-guide/networking.md)
+
+## SSH Access
+
+```console
+servobox ssh
 servobox ssh --name my-vm
 ```
 
-SSH details are covered in the [Network Configuration](../user-guide/networking.md) guide.
+## Remote Target Mode
 
-## Troubleshooting
+ServoBox `0.3.0` can also operate on an existing RT machine over SSH instead of a local VM.
 
-- Quick diagnostics and common fixes: [Troubleshooting](../reference/troubleshooting.md)
+```console
+export SERVOBOX_TARGET_IP=192.168.1.50
+servobox status
+servobox rt-verify
+servobox pkg-install docker
+```
+
+Remote mode is useful for Jetson, NUC, or similar RT-capable systems where you want the same ServoBox package and verification workflow without creating a local VM.
+
+## Next Step
+
+- Browse the full [Commands Reference](../user-guide/commands.md)
+- Review [Package Management](../user-guide/package-management.md)
+- Use [Troubleshooting](../reference/troubleshooting.md) if verification fails

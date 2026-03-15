@@ -1,238 +1,107 @@
-# ServoBox 🦾📦
+# ServoBox
 
-<div align="center">
-  <img src="assets/images/servobox.png" alt="ServoBox Logo" width="300">
-</div>
+ServoBox gives you Ubuntu 22.04 PREEMPT_RT environments for robotics without forcing your whole workstation onto an RT kernel. Use it to spin up local RT VMs with automatic CPU pinning and IRQ isolation, or target existing RT machines over SSH in `0.3.0`.
 
-**Launch real-time VMs for robotics in a few steps.**
+## Fastest Path
 
-ServoBox gives you Ubuntu 22.04 VMs with PREEMPT_RT kernel, automatic CPU pinning, and IRQ isolation. No manual configuration needed.
+If you are new to ServoBox, follow this path:
 
-<div style="text-align: center; margin: 2rem 0;">
-  <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; margin: 0 auto;">
-    <iframe 
-      style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" 
-      src="https://www.youtube.com/embed/EWkQHdm_uto?si=qQz0mVsXja7nM4f8" 
-      title="YouTube video player" 
-      frameborder="0" 
-      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-      referrerpolicy="strict-origin-when-cross-origin" 
-      allowfullscreen>
-    </iframe>
-  </div>
-</div>
+1. [Install ServoBox](getting-started/installation.md#install-servobox)
+2. [Configure your host for RT isolation](getting-started/installation.md#host-rt-setup-required-for-deterministic-latency)
+3. [Create your first VM](getting-started/run.md#create-your-first-vm)
+4. [Verify latency and RT configuration](getting-started/run.md#start-and-verify)
+5. [Install a stack or package](getting-started/run.md#install-your-first-stack)
 
----
+## Quick Start
 
-## 🚀 Quick Start
+### Prerequisites
 
-**Prerequisites:** Ubuntu 22.04+ or 24.04, 6, ideally 8+ cores, 8GB, ideally 16GB+ RAM, hardware virtualization enabled (Intel VT-x or AMD-V)
+- Ubuntu 22.04 or 24.04 on the host
+- 6 CPU cores minimum, 8+ recommended
+- 8 GB RAM minimum, 16+ GB recommended
+- Hardware virtualization enabled
 
-### 1. Install ServoBox
+### 1. Install
 
 ```console
-# Install ServoBox keyring and repository
 sudo wget -O /usr/share/keyrings/servobox-archive-keyring.gpg https://www.servobox.dev/apt-repo/servobox-archive-keyring.gpg
 echo "deb [signed-by=/usr/share/keyrings/servobox-archive-keyring.gpg] https://www.servobox.dev/apt-repo/ stable main" | sudo tee /etc/apt/sources.list.d/servobox.list
-
-# Install
 sudo apt update
 sudo apt install servobox
-
-# Upgrade later
-sudo apt update
-sudo apt install --only-upgrade servobox
-
-# Debug version visibility
-apt-cache policy servobox
 ```
 
-### 2. Configure Host (Required for RT)
+### 2. Configure the host once
 
-```console
-# ⚠️ **WARNING:** Check your CPU count first with:
-nproc  
+Host-side CPU isolation is required if you want deterministic VM latency. Follow the exact steps in [Installation](getting-started/installation.md#host-rt-setup-required-for-deterministic-latency).
 
-#You need 6+, ideally 8+ cores
-```
-
-```console
-# Edit GRUB for CPU isolation
-sudo vim /etc/default/grub # or with any other editor
-
-# Add the following settings to the GRUB_CMDLINE_LINUX_DEFAULT variable
-# GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0"
-```
-Finalize with:
-
-```console
-sudo update-grub
-sudo reboot
-```
-
-### 3. Create Your First RT VM
+### 3. Create, start, and verify
 
 ```console
 servobox init
-```
-
-### 4. Start and Test
-
-```console
-# Configure networking for communication with network devices if needed (interactive wizard)
-servobox network-setup
-```
-
-```console
-# Start VM (balanced mode - default)
 servobox start
-
-# Or use performance mode for <100μs max latency (locks CPU frequencies)
-# servobox start --performance
-```
-```console
-# Test RT performance
+servobox rt-verify
 servobox test --duration 30 --stress-ng
 ```
-**That's it!** You now have a real-time, low-latency VM ready for control.
 
-!!! tip "Performance Modes"
-    - **Balanced** (default): avg ~4μs, max ~100-120μs, normal power - **recommended**
-    - **Performance** (`--performance`): avg ~3μs, max ~100μs (fewer spikes), +20W
-    - **Extreme** (`--extreme`): avg ~3μs, max ~100μs (rare spikes), high power
-    
-    The ~100μs ceiling is the VM latency limit. Performance/Extreme modes reduce spike frequency for tighter timing guarantees. See [RT Tuning Reference](reference/rt-tuning.md#performance-modes) for details.
-
-### 5. Install & run your favorite stack!
+### 4. Install and run a stack
 
 ```console
-# Install robotics software
+servobox pkg-install --list
 servobox pkg-install deoxys-control
 servobox run deoxys-control
 ```
 
----
+## What ServoBox Helps With
 
-## What ServoBox Does
+- Running real-time control loops inside isolated Ubuntu RT environments
+- Keeping the host available for perception, planning, development, and GPU workloads
+- Installing common robotics stacks with `servobox pkg-install`
+- Verifying RT behavior with `servobox rt-verify` and `servobox test`
+- Working against remote RT targets such as Jetson or NUC systems via SSH
 
-ServoBox automates the complex setup of real-time Linux environments for robotics:
-
-- **🚀 One-Command Setup** - `servobox init` creates fully configured RT VMs
-- **⚡ PREEMPT_RT Kernel** - Ubuntu 22.04 with kernel 6.8.0-rt8 baked in  
-- **🎯 Automatic CPU Pinning** - Intelligent CPU isolation and IRQ affinity
-- **📦 Package Manager** - Pre-built recipes for common robotics control stacks
-- **✅ Performance Testing** - Built-in cyclictest with stress testing
-- **🔧 Zero Configuration** - Works out of the box with sensible defaults
-
-For a complete breakdown of ServoBox's RT optimizations, see the [Real-Time Tuning Reference](reference/rt-tuning.md).
-
-## Why ServoBox?
-
-**Problem:** Setting up real-time Linux for robotics is complex and error-prone.
-
-**Solution:** ServoBox isolates RT workloads to dedicated CPU cores in VMs while keeping your host optimized for ML/vision with full GPU support.
-
-**Key Principle:** VM handles real-time control, host handles high-level processing.
-
----
-
-## Architecture Overview
-
-ServoBox follows a **host-VM separation** architecture optimized for real-time robotics:
-
-```
-┌─────────────────────────────────────────────────┐
-│              Host System (Ubuntu)               │
-│  ┌───────────────────────────────────────────┐  │
-│  │  High-Level Processing                    │  │
-│  │  - Perception & Vision                    │  │
-│  │  - Planning & Decision Making             │  │
-│  │  - User Interfaces                        │  │
-│  │  - Development Tools                      │  │
-│  └───────────────────────────────────────────┘  │
-│  ┌───────────────────────────────────────────┐  │
-│  │  Isolated CPUs (1-4)                      │  │
-│  │  ┌─────────────────────────────────────┐  │  │
-│  │  │   ServoBox VM (Ubuntu 22.04 RT)     │  │  │
-│  │  │   - PREEMPT_RT Kernel 6.8.0-rt8     │  │  │
-│  │  │   - Real-Time Control Loops         │  │  │
-│  │  │   - Low-Latency Robot Control       │  │  │
-│  │  │   - Package recipes (ROS2, etc)     │  │  │
-│  │  └─────────────────────────────────────┘  │  │
-│  └───────────────────────────────────────────┘  │
-│  CPU 0: Host + IRQs    CPUs 1-4: RT Isolated    │
-└─────────────────────────────────────────────────┘
-```
-
-## Use Cases
-
-- **Real-time Robot Control** - 1kHz+ control loops with deterministic latency
-- **Hardware-in-the-Loop Simulation** - Test algorithms before hardware deployment  
-- **Motion Control Development** - Isolated environment for time-critical code
-- **RT Algorithm Testing** - Validate performance before production
-- **Robotics Education** - Learn RT concepts without bare-metal setup
-
----
-
-## Documentation
+## Where To Go Next
 
 <div class="grid cards" markdown>
 
--   :material-play:{ .lg .middle } **Run**
+- **Installation**
 
-    ---
+  Host prerequisites, APT install, upgrades, and host RT setup.
 
-    Create and manage real-time VMs
+  [Open installation guide](getting-started/installation.md)
 
-    [:octicons-arrow-right-24: Run Guide](getting-started/run.md)
+- **First Run**
 
--   :material-download:{ .lg .middle } **Installation**
+  Create a VM, start it, verify RT behavior, and install your first stack.
 
-    ---
+  [Open first run guide](getting-started/run.md)
 
-    Detailed installation and configuration
+- **Commands**
 
-    [:octicons-arrow-right-24: Installation](getting-started/installation.md)
+  Full CLI reference for VM lifecycle, testing, networking, packages, and remote mode.
 
--   :material-book-open-variant:{ .lg .middle } **User Guide**
+  [Open commands reference](user-guide/commands.md)
 
-    ---
+- **Packages**
 
-    Learn about all commands and features
+  Package install workflow, install modes, remote targets, and custom recipes.
 
-    [:octicons-arrow-right-24: User Guide](user-guide/commands.md)
+  [Open package management](user-guide/package-management.md)
 
- -   :material-lifebuoy:{ .lg .middle } **Troubleshooting**
- 
-     ---
- 
-     Diagnose and resolve common issues
- 
-     [:octicons-arrow-right-24: Troubleshooting](reference/troubleshooting.md)
+- **Troubleshooting**
 
--   :material-speedometer:{ .lg .middle } **RT Tuning**
+  Common failures, checks, and recovery steps.
 
-    ---
+  [Open troubleshooting](reference/troubleshooting.md)
 
-    Complete reference of all real-time optimizations
+- **RT Tuning**
 
-    [:octicons-arrow-right-24: RT Tuning](reference/rt-tuning.md)
+  Detailed explanation of the RT optimizations and performance modes.
+
+  [Open RT tuning reference](reference/rt-tuning.md)
 
 </div>
 
----
+## Why This Approach
 
-## Community & Support
-
-- **Issues**: [GitHub Issues](https://github.com/kvasios/servobox/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/kvasios/servobox/discussions)  
-- **Email**: [konstantinos.vasios@gmail.com](mailto:konstantinos.vasios@gmail.com)
-
-## License
-
-ServoBox is licensed under **MIT**. See the LICENSE file for details.
-
----
-
-**Ready to dive deeper?** Check out the [Run Guide](getting-started/run.md) for detailed examples and advanced configuration →
+ServoBox is built for robotics workstations where you want low-latency control without sacrificing the rest of the machine. The RT workload lives in the VM or remote target, while the host stays usable for development, vision, planning, and debugging.
 

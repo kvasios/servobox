@@ -8,6 +8,9 @@ on:
     workflows: ["release"]
     types: [completed]
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 # Required for GitHub Pages
 permissions:
   contents: read
@@ -23,18 +26,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: main  # Ensure we always get the latest main branch
 
       - name: Check out APT repo branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: apt-repo
           path: _apt_repo_branch
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -63,7 +66,7 @@ jobs:
 
       # Package the static files as a Pages artifact
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: ./site   # must match the --site-dir above
 

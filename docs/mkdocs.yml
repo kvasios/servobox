@@ -1,7 +1,7 @@
-site_name: ServoBox Documentation
-site_description: Launch real-time VMs for robotics in seconds
+site_name: ServoBox
+site_description: Launch real-time Ubuntu RT environments for robotics
 site_author: Konstantinos Vasios
-site_url: https://github.com/kvasios/servobox
+site_url: https://www.servobox.dev
 
 repo_name: kvasios/servobox
 repo_url: https://github.com/kvasios/servobox
@@ -74,23 +74,18 @@ copyright: |
 nav:
   - Home: index.md
   - Getting Started:
-    - Overview: getting-started/overview.md
     - Installation: getting-started/installation.md
-    - Run: getting-started/run.md
+    - First Run: getting-started/run.md
   - User Guide:
-    - Network Configuration: user-guide/networking.md
-    - Package Management: user-guide/package-management.md
     - Commands Reference: user-guide/commands.md
+    - Package Management: user-guide/package-management.md
+    - Network Configuration: user-guide/networking.md
   - Workflows:
     - Deoxys Control: workflows/deoxys-control.md
     - GeoIK Visual Servoing: workflows/geoik-velctrl.md
     - Jetson Support: workflows/jetson-support.md
   - Reference:
-      - Real-time Tuning: reference/rt-tuning.md
-      - Experimental Tuning: reference/experimental-tuning.md
       - Contributing: reference/contributing.md
-      - Troubleshooting: reference/troubleshooting.md
-      - FAQ: reference/faq.md
       - Changelog: reference/changelog.md
 
 docs_dir: content

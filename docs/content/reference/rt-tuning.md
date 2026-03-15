@@ -60,7 +60,7 @@ Removes CPU cores from the Linux scheduler and routes all interrupts to CPU 0, c
 Edit `/etc/default/grub` and add to `GRUB_CMDLINE_LINUX_DEFAULT`:
 
 ```text
-isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0
+isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0-1
 ```
 
 Then apply with:
@@ -75,7 +75,7 @@ sudo reboot
 - `isolcpus=managed_irq,domain,1-4` - Remove CPUs 1-4 from kernel scheduler
 - `nohz_full=1-4` - Disable periodic timer ticks on isolated CPUs
 - `rcu_nocbs=1-4` - Move RCU callback processing off isolated CPUs
-- `irqaffinity=0` - Route all interrupts to CPU 0 by default
+- `irqaffinity=0-1` - Route all interrupts to CPU 0 by default
 
 **Why it matters:**  
 Prevents kernel scheduler and interrupt activity from preempting RT vCPU threads, eliminating a major source of latency spikes.
