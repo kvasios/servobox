@@ -2,15 +2,15 @@ Package: servobox
 Version: 0.3.0
 Architecture: amd64
 Maintainer: Konstantinos Vasios <konstantinos.vasios@gmail.com>
-Installed-Size: 506
+Installed-Size: 505
 Depends: iproute2, net-tools, wget, xz-utils, qemu-kvm, qemu-utils, libvirt-daemon-system, libvirt-clients, virtinst, cloud-image-utils, libguestfs-tools, libosinfo-bin, acl, openssh-client, stress-ng, isc-dhcp-client
 Recommends: sshpass, osinfo-db, bridge-utils, ethtool
 Suggests: virt-viewer
 Filename: pool/main/s/servobox/servobox_0.3.0_amd64.deb
-Size: 91334
-MD5sum: ce350204555d99fc3ab9733331450eca
-SHA1: 7cfd20dc792f585a015ced1fdfa1eb203cd93a2f
-SHA256: ef5dcbaf0ca1eef1c6ef809c4cf11a41b3fcf4d07f4c0e88af5ada3766ea8fca
+Size: 88486
+MD5sum: de75a95a759e81d530f0b1f4937b0dcc
+SHA1: 77d063448109e816afa936e63f3d66028d3d5b62
+SHA256: 5b840495ab5eace4c0b35f17ed4900490b210458bb18418efb147b32454d1911
 Section: utils
 Priority: optional
 Description: One-command launcher for real-time VMs (Ubuntu 22.04 PREEMPT_RT)
