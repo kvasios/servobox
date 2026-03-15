@@ -708,10 +708,25 @@ install_package_remote() {
   fi
 
   # Copy pkg-helpers.sh so install scripts can use apt_update/apt_install etc.
+  # Support both repo layout:
+  #   <repo>/packages/recipes + <repo>/packages/scripts/pkg-helpers.sh
+  # and installed deb layout:
+  #   /usr/share/servobox/packages/recipes + /usr/share/servobox/scripts/pkg-helpers.sh
   local packages_dir
   packages_dir="$(dirname "${recipes_dir}")"
-  local helpers_src="${packages_dir}/scripts/pkg-helpers.sh"
-  if [[ -f "${helpers_src}" ]]; then
+  local helpers_src=""
+  local helper_candidate
+  for helper_candidate in \
+    "${packages_dir}/scripts/pkg-helpers.sh" \
+    "$(dirname "${packages_dir}")/scripts/pkg-helpers.sh" \
+    "${REPO_ROOT}/packages/scripts/pkg-helpers.sh" \
+    "${REPO_ROOT}/scripts/pkg-helpers.sh"; do
+    if [[ -f "${helper_candidate}" ]]; then
+      helpers_src="${helper_candidate}"
+      break
+    fi
+  done
+  if [[ -n "${helpers_src}" ]]; then
     if ! remote_copy_to "${helpers_src}" "${remote_tmp}/pkg-helpers.sh"; then
       echo "Warning: Failed to copy pkg-helpers.sh to remote (install may fail if recipe needs it)" >&2
     fi
@@ -742,7 +757,7 @@ install_package_remote() {
   local port=$(get_remote_port)
   local ssh_opts=$(get_ssh_opts)
   local env_vars="RECIPE_DIR=${remote_tmp}"
-  if [[ -f "${helpers_src}" ]]; then
+  if [[ -n "${helpers_src}" ]]; then
     env_vars="${env_vars} PACKAGE_HELPERS=${remote_tmp}/pkg-helpers.sh"
   fi
 
