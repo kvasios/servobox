@@ -13,7 +13,7 @@ Defaults:
 - VM name: `servobox-vm`
 - vCPUs: `4`
 - memory: `8192` MiB
-- disk: `16` GB
+- disk: `20` GB
 - primary NAT IP: `192.168.122.100/24`
 
 The first run downloads the base RT image if it is not already cached.

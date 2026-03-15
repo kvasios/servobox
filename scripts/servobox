@@ -43,7 +43,7 @@ fi
 NAME="servobox-vm"
 VCPUS=4
 MEMORY="8192"       # MiB
-DISK_GB=16
+DISK_GB=20
 BRIDGE=""           # empty -> libvirt default NAT
 HOST_NICS=()        # optional: array of host NICs for direct macvtap attachment (max 2)
 ASK_NIC=0           # default: no interactive prompt (use --choose-nic or network-setup for interactive)
@@ -195,7 +195,7 @@ Options (for 'init'):
   --name NAME          VM/domain name (default: servobox-vm)
   --vcpus N            Number of virtual CPUs (default: 4)
   --mem MiB            Memory size in MiB (default: 8192)
-  --disk GB            Disk size in GB (resize after import, default: 16)
+  --disk GB            Disk size in GB (resize after import, default: 20)
   --bridge br0         Use host bridge instead of libvirt default NAT
   --host-nic DEV       Add direct NIC (macvtap) bound to host DEV (max 2, can be repeated)
                        Example: --host-nic eth0 --host-nic eth1
@@ -246,7 +246,7 @@ RT Performance Modes (for 'start'):
         Performance/Extreme modes reduce spike frequency, not maximum latency.
 
 Examples:
-  servobox init --vcpus 4 --mem 8192 --disk 16
+  servobox init --vcpus 4 --mem 8192 --disk 20
   servobox init --host-nic eth0                    # Single device
   servobox init --host-nic eth0 --host-nic eth1   # Dual robot setup
   servobox init --choose-nic                       # Interactive selection

@@ -7,7 +7,7 @@ This guide covers host requirements, installation methods, and the one host-side
 - **Host OS:** Ubuntu 22.04 or greater
 - **CPU:** 6 cores minimum, 8+ recommended
 - **Memory:** 8 GB minimum, 16+ GB recommended
-- **Disk:** 16 GB free space for the default VM
+- **Disk:** 20 GB free space for the default VM
 - **Virtualization:** KVM/QEMU with Intel VT-x or AMD-V enabled
 
 ## Install ServoBox
