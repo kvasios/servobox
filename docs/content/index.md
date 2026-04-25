@@ -48,11 +48,14 @@ servobox pkg-install deoxys-control
 servobox run deoxys-control
 ```
 
+For client projects, `servobox config init` creates `.servobox/config` so VM, package, and run defaults can live with the project.
+
 ## What ServoBox Helps With
 
 - Running real-time control loops inside isolated Ubuntu RT environments
 - Keeping the host available for perception, planning, development, and GPU workloads
 - Installing common robotics stacks with `servobox pkg-install`
+- Keeping project-specific VM and run defaults in `.servobox/config`
 - Verifying RT behavior with `servobox rt-verify` and `servobox test`
 - Working against remote RT targets such as Jetson or NUC systems via SSH
 

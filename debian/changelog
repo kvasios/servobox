@@ -6,6 +6,8 @@ servobox (0.4.0) UNRELEASED; urgency=medium
     caches recipes on demand
   * Add 'servobox recipes status' and 'servobox recipes update' for recipe
     channel visibility and refreshes
+  * Add project-local .servobox/config defaults plus 'servobox config init'
+  * Let bare 'servobox run' launch project .servobox/run.sh when present
   * Ship bash completion for the servobox command
   * Keep --custom and --recipe-dir for local/private recipes
   * Move remaining recipe tooling under scripts/servobox-tools and stop shipping

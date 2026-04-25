@@ -40,6 +40,17 @@ servobox test --duration 30 --stress-ng
 Before running latency-sensitive workloads, follow the host setup guide:
 [Installation and Host RT Setup](https://www.servobox.dev/getting-started/installation/)
 
+Project-local defaults can live in `.servobox/config`:
+
+```bash
+servobox config init
+servobox init
+servobox pkg-install
+servobox run
+```
+
+Use `.servobox/config` for VM sizing, RT mode, package install defaults, custom recipe paths, and the default run workflow for a client project.
+
 ## What It Covers
 
 - Local real-time VMs for robotics and control workloads

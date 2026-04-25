@@ -42,6 +42,45 @@ list_recipes_with_run() {
   fi
 }
 
+recipe_run_dir_from_source() {
+  local recipes_dir="$1"
+  local recipe_name="$2"
+  local configured_recipe_name=""
+
+  if [[ -f "${recipes_dir}/recipe.conf" ]]; then
+    configured_recipe_name="$(grep -E '^name=' "${recipes_dir}/recipe.conf" 2>/dev/null | cut -d'"' -f2 | xargs || true)"
+    if [[ "${configured_recipe_name}" == "${recipe_name}" ]]; then
+      echo "${recipes_dir}"
+      return 0
+    fi
+  elif [[ -d "${recipes_dir}/${recipe_name}" ]]; then
+    echo "${recipes_dir}/${recipe_name}"
+    return 0
+  fi
+
+  return 1
+}
+
+resolve_recipe_run_dir() {
+  local recipe_name="$1"
+  local recipes_dir=""
+  local recipe_dir=""
+
+  if declare -f servobox_project_configured_pkg_custom >/dev/null 2>&1; then
+    recipes_dir="$(servobox_project_configured_pkg_custom)"
+    if [[ -n "${recipes_dir}" ]]; then
+      recipe_dir="$(recipe_run_dir_from_source "${recipes_dir}" "${recipe_name}" || true)"
+      if [[ -n "${recipe_dir}" ]]; then
+        echo "${recipe_dir}"
+        return 0
+      fi
+    fi
+  fi
+
+  recipes_dir="$(recipe_source_recipes_dir)" || return 1
+  echo "${recipes_dir}/${recipe_name}"
+}
+
 # Ensure VM is running and SSH is ready
 ensure_vm_running() {
   # Check if VM domain exists
@@ -288,17 +327,37 @@ cmd_recipe_run() {
   
   # Check if recipe name/command was provided
   if [[ -z "$recipe_name" ]]; then
-    echo "Error: Please provide a valid recipe name or command." >&2
-    echo "" >&2
-    echo "Usage: servobox run <recipe-name> [options]" >&2
-    echo "       servobox run \"<command>\" [options]" >&2
-    echo "" >&2
-    echo "Available recipes with run.sh:" >&2
-    list_recipes_with_run
-    echo "" >&2
-    echo "Note: The 'run' command is only valid for packages that are already installed in the VM." >&2
-    echo "Use 'servobox pkg-install <recipe-name>' to install packages first." >&2
-    exit 1
+    local project_run_script=""
+    if declare -f servobox_project_run_script >/dev/null 2>&1; then
+      project_run_script="$(servobox_project_run_script || true)"
+    fi
+    if [[ -n "${project_run_script}" ]]; then
+      recipe_name="project"
+      run_script="${project_run_script}"
+      echo "Running project .servobox/run.sh in VM '${NAME}'..."
+      echo "Project run script: ${run_script}"
+      echo ""
+      echo "Note: This will keep the terminal open in the VM for monitoring."
+      echo "Press Ctrl+C to stop the project run script."
+      echo ""
+      ensure_vm_running
+      exec_recipe_in_vm "${recipe_name}" "${run_script}"
+      return
+    elif [[ -n "${SERVOBOX_RUN_PACKAGE:-}" ]]; then
+      recipe_name="${SERVOBOX_RUN_PACKAGE}"
+    else
+      echo "Error: Please provide a valid recipe name or command." >&2
+      echo "" >&2
+      echo "Usage: servobox run <recipe-name> [options]" >&2
+      echo "       servobox run \"<command>\" [options]" >&2
+      echo "" >&2
+      echo "Available recipes with run.sh:" >&2
+      list_recipes_with_run
+      echo "" >&2
+      echo "Note: The 'run' command is only valid for packages that are already installed in the VM." >&2
+      echo "Use 'servobox pkg-install <recipe-name>' to install packages first." >&2
+      exit 1
+    fi
   fi
   
   if [[ "$is_command" == "true" ]]; then
@@ -310,11 +369,9 @@ cmd_recipe_run() {
   else
     # Execute recipe
     # Find recipe directory
-    local recipes_dir
-    recipes_dir="$(recipe_source_recipes_dir)" || exit 1
-    recipe_dir="${recipes_dir}/${recipe_name}"
+    recipe_dir="$(resolve_recipe_run_dir "${recipe_name}")" || exit 1
     if [[ ! -d "$recipe_dir" ]]; then
-      echo "Error: Recipe '${recipe_name}' not found in ${recipes_dir}" >&2
+      echo "Error: Recipe '${recipe_name}' not found." >&2
       echo "Available recipes:" >&2
       list_available_recipes
       exit 1

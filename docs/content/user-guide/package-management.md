@@ -25,6 +25,9 @@ The older image-mutation workflow still exists behind `--offline`.
 # See what is available
 servobox pkg-install --list
 
+# Create project-local defaults when you want a one-command install later
+servobox config init
+
 # Inspect or refresh the recipe channel cache
 servobox recipes status
 servobox recipes update
@@ -47,7 +50,7 @@ servobox pkg-installed
 ### Install a package
 
 ```console
-servobox pkg-install <package|config> [--name NAME] [--verbose|-v] [--offline] [--list] [--custom PATH]
+servobox pkg-install [package|config] [--name NAME] [--verbose|-v] [--offline] [--list] [--custom PATH]
 ```
 
 Key options:
@@ -57,6 +60,11 @@ Key options:
 - `--offline`: use the legacy image-based install flow
 - `--list`: show available packages and configs
 - `--custom PATH`: point to a custom recipe directory or config file
+
+If the current project has `.servobox/config`, `servobox pkg-install` can use:
+
+- `SERVOBOX_PKG_INSTALL`: the default package, channel config, or config-file path
+- `SERVOBOX_PKG_CUSTOM`: a custom recipe directory or config file, often `.servobox/recipes`
 
 ### Manage the recipe channel
 
@@ -209,6 +217,19 @@ Test it:
 ```console
 chmod +x install.sh
 servobox pkg-install --custom ~/my-recipes my-package --verbose
+```
+
+For a client project, keep private recipes under `.servobox/recipes` and put this in `.servobox/config`:
+
+```bash
+SERVOBOX_PKG_INSTALL="my-package"
+SERVOBOX_PKG_CUSTOM=".servobox/recipes"
+```
+
+Then the project install is simply:
+
+```console
+servobox pkg-install
 ```
 
 ### Tips

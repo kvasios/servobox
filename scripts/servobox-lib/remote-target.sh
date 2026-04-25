@@ -503,10 +503,21 @@ cmd_remote_run() {
   local is_command=false
   
   if [[ -z "${recipe_name}" ]]; then
-    echo "Error: Please provide a recipe name or command" >&2
-    echo "Usage: servobox run <recipe-name>" >&2
-    echo "       servobox run \"<command>\"" >&2
-    exit 1
+    local project_run_script=""
+    if declare -f servobox_project_run_script >/dev/null 2>&1; then
+      project_run_script="$(servobox_project_run_script || true)"
+    fi
+    if [[ -n "${project_run_script}" ]]; then
+      cmd_remote_run_project_script "${project_run_script}"
+      return
+    elif [[ -n "${SERVOBOX_RUN_PACKAGE:-}" ]]; then
+      recipe_name="${SERVOBOX_RUN_PACKAGE}"
+    else
+      echo "Error: Please provide a recipe name or command" >&2
+      echo "Usage: servobox run <recipe-name>" >&2
+      echo "       servobox run \"<command>\"" >&2
+      exit 1
+    fi
   fi
   
   # Check if it's a command (contains spaces)
@@ -527,13 +538,12 @@ cmd_remote_run() {
     remote_exec_tty "bash -l -c '${recipe_name}'"
   else
     # Execute recipe
-    local recipes_dir
-    recipes_dir="$(recipe_source_recipes_dir)" || exit 1
-    local recipe_dir="${recipes_dir}/${recipe_name}"
+    local recipe_dir
+    recipe_dir="$(resolve_recipe_run_dir "${recipe_name}")" || exit 1
     local run_script="${recipe_dir}/run.sh"
     
     if [[ ! -d "${recipe_dir}" ]]; then
-      echo "Error: Recipe '${recipe_name}' not found in ${recipes_dir}" >&2
+      echo "Error: Recipe '${recipe_name}' not found." >&2
       echo "Available recipes:" >&2
       list_available_recipes
       exit 1
@@ -582,6 +592,50 @@ EOF
   fi
 }
 
+cmd_remote_run_project_script() {
+  local run_script="$1"
+  local ip
+  local script_content
+
+  if ! check_remote_connection; then
+    exit 1
+  fi
+
+  ip=$(get_remote_ip)
+  echo "Running project .servobox/run.sh on remote target ${ip}..."
+  echo ""
+
+  script_content=$(cat "${run_script}")
+  remote_exec_tty "bash -l -c '
+    echo \"=== Starting project run.sh ===\"
+    echo \"Working directory: \$(pwd)\"
+    echo \"User: \$(whoami)\"
+    echo \"Date: \$(date)\"
+    echo \"\"
+
+    cat > /tmp/servobox_project_run.sh << \"EOF\"
+${script_content}
+EOF
+
+    chmod +x /tmp/servobox_project_run.sh
+    echo \"Executing project run script...\"
+    echo \"\"
+
+    if /tmp/servobox_project_run.sh; then
+      echo \"\"
+      echo \"=== Project run.sh completed successfully ===\"
+    else
+      echo \"\"
+      echo \"=== Project run.sh failed with exit code \$? ===\"
+    fi
+
+    rm -f /tmp/servobox_project_run.sh
+    echo \"\"
+    echo \"Press Enter to exit...\"
+    read
+  '"
+}
+
 # Install packages on remote target
 cmd_remote_pkg_install() {
   local target="$1"
@@ -590,10 +644,32 @@ cmd_remote_pkg_install() {
   local custom_path="$4"
   local custom_is_dir="$5"
   
+  if [[ -z "${custom_path}" ]] && declare -f servobox_project_configured_pkg_custom >/dev/null 2>&1; then
+    custom_path="$(servobox_project_configured_pkg_custom)"
+    if [[ -n "${custom_path}" ]]; then
+      if [[ -d "${custom_path}" ]]; then
+        custom_is_dir="1"
+      elif [[ -f "${custom_path}" ]]; then
+        custom_is_dir="0"
+      else
+        echo "Error: SERVOBOX_PKG_CUSTOM path not found: ${custom_path}" >&2
+        exit 1
+      fi
+    fi
+  fi
+
   if [[ -z "${target}" ]]; then
-    echo "Error: Please specify a package or config to install" >&2
-    echo "Usage: servobox pkg-install <package|config>" >&2
-    exit 1
+    if declare -f servobox_project_configured_pkg_install >/dev/null 2>&1; then
+      target="$(servobox_project_configured_pkg_install)"
+    fi
+    if [[ -z "${target}" && -n "${custom_path}" && -f "${custom_path}" ]]; then
+      target="${custom_path}"
+    fi
+    if [[ -z "${target}" ]]; then
+      echo "Error: Please specify a package or config to install" >&2
+      echo "Usage: servobox pkg-install <package|config>" >&2
+      exit 1
+    fi
   fi
   
   local ip=$(get_remote_ip)

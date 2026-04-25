@@ -216,6 +216,24 @@ cmd_pkg_install() {
   local recipes_dir=""
   local config_dir=""
 
+  if [[ -z "${target}" ]] && declare -f servobox_project_configured_pkg_install >/dev/null 2>&1; then
+    target="$(servobox_project_configured_pkg_install)"
+  fi
+
+  if [[ -z "${custom_path}" ]] && declare -f servobox_project_configured_pkg_custom >/dev/null 2>&1; then
+    custom_path="$(servobox_project_configured_pkg_custom)"
+    if [[ -n "${custom_path}" ]]; then
+      if [[ -d "${custom_path}" ]]; then
+        custom_is_dir=1
+      elif [[ -f "${custom_path}" ]]; then
+        custom_is_config=1
+      else
+        echo "Error: SERVOBOX_PKG_CUSTOM path not found: ${custom_path}" >&2
+        exit 1
+      fi
+    fi
+  fi
+
   # If --list was requested, show available configs and packages and exit
   if [[ ${list_only} -eq 1 ]]; then
     if [[ ${custom_is_dir} -eq 1 ]]; then

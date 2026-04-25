@@ -3,4 +3,5 @@ scripts/servobox-lib usr/share/servobox/
 scripts/servobox-tools usr/share/servobox/
 packaging/bash_completion/servobox usr/share/bash-completion/completions/
 data/jammy-cloudimg.url usr/share/servobox/base-image.url
+data/servobox-defaults.config usr/share/servobox/
 

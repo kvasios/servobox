@@ -17,6 +17,7 @@ This keeps the real-time part isolated while the host stays practical for day-to
 - CPU pinning and IRQ steering for the VM
 - RT verification and latency testing
 - package installation for common robotics stacks
+- project-local defaults via `.servobox/config`
 - a consistent CLI across local VMs and supported remote targets
 
 ## When It Fits Best
@@ -25,6 +26,7 @@ ServoBox is a strong fit when:
 
 - you want RT control alongside GPU-heavy or desktop workloads on the host
 - you want a repeatable robotics setup instead of hand-rolling PREEMPT_RT environments
+- you want VM and package defaults checked into each client project
 - you want package install helpers and built-in RT verification
 
 ## When To Read More

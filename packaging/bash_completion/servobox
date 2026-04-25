@@ -28,7 +28,7 @@ _servobox_complete()
 
     local commands="
         init start status ip ssh stop destroy network-setup test rt-verify
-        pkg-install pkg-installed recipes run irqbalance-mask debug help
+        pkg-install pkg-installed recipes config run irqbalance-mask debug help
     "
     local global_options="-h --help"
 
@@ -78,6 +78,9 @@ _servobox_complete()
             ;;
         recipes)
             COMPREPLY=( $(compgen -W "status update -h --help" -- "$cur") )
+            ;;
+        config)
+            COMPREPLY=( $(compgen -W "init path --dir --force -f -h --help" -- "$cur") )
             ;;
         run)
             COMPREPLY=( $(compgen -W "--name --debug -h --help $(_servobox_cached_recipes)" -- "$cur") )

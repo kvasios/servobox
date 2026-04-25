@@ -79,9 +79,13 @@ source "${LIB_DIR}/rt-config.sh"
 source "${LIB_DIR}/vm-lifecycle.sh"
 source "${LIB_DIR}/testing.sh"
 source "${LIB_DIR}/recipe-source.sh"
+source "${LIB_DIR}/project-config.sh"
 source "${LIB_DIR}/pkg-install.sh"
 source "${LIB_DIR}/recipe-run.sh"
 source "${LIB_DIR}/remote-target.sh"
+
+servobox_project_config_load
+servobox_project_config_apply_defaults
 
 # Remote target mode detection
 # When SERVOBOX_TARGET_IP is set, operate on a remote RT machine (Jetson, NUC, etc.)
@@ -183,6 +187,7 @@ Usage:
                                          - A config file directly (e.g., ~/my-suite.conf)
   servobox pkg-installed [--name NAME] Show packages already installed in the VM
   servobox recipes <status|update>      Show or refresh the external recipe channel cache
+  servobox config init [--force]        Create .servobox/config from ServoBox defaults
   servobox run <recipe-name> [--name NAME]
                                        Run a recipe's run.sh script in the VM
                                        Automatically starts VM if shut down
@@ -191,6 +196,7 @@ Usage:
                                        Run arbitrary command in the VM
                                        Automatically starts VM if shut down
                                        Example: servobox run "sudo pkill -9 run_server"
+  servobox run                          Run .servobox/run.sh when present
   servobox -h | --help                 Show this help
 
 Options (for 'init'):
@@ -235,6 +241,7 @@ Remote Target Mode (Jetson, NUC, etc.):
 
 Notes:
   - RT configuration (CPU isolation, pinning, IRQ affinity) is automatic on 'init' and 'start'
+  - Project defaults can live in .servobox/config; create one with 'servobox config init'
   - Base RT image is auto-downloaded or pre-cached at /var/lib/servobox
   - Images are stored in /var/lib/libvirt/images/servobox/<name> for libvirt
   - Cloud-init seeds authorize your local SSH keys automatically
@@ -335,6 +342,7 @@ if [[ ${REMOTE_MODE} -eq 1 ]]; then
       fi
       ;;
     recipes) cmd_recipes "$@";;
+    config) cmd_config "$@";;
     pkg-installed) cmd_remote_pkg_installed "$@";;
     run)
       # Parse run command
@@ -384,6 +392,7 @@ else
     pkg-install) cmd_pkg_install "$@";;
     pkg-installed) cmd_pkg_installed "$@";;
     recipes) cmd_recipes "$@";;
+    config) cmd_config "$@";;
     run) cmd_recipe_run "$@";;
     -h|--help|help) usage;;
     *) usage;;

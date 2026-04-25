@@ -317,7 +317,7 @@ Install packages or package configurations into the VM. By default, recipes are 
 
 **Usage:**
 ```console
-servobox pkg-install <package|config.conf> [--name NAME] [--verbose|-v] [--list|-l] [--force] [--custom PATH]
+servobox pkg-install [package|config.conf] [--name NAME] [--verbose|-v] [--list|-l] [--force] [--custom PATH]
 ```
 
 **Options:**
@@ -343,6 +343,9 @@ servobox pkg-install --custom ./my-suite.conf
 
 # Use custom recipe directory
 servobox pkg-install --custom ~/my-recipes my-package
+
+# Use package/custom defaults from .servobox/config
+servobox pkg-install
 
 # Force reinstall with verbose
 servobox pkg-install libfranka-gen1 --force --verbose
@@ -383,6 +386,29 @@ servobox recipes update
 
 ---
 
+### `config`
+
+Create or inspect project-local ServoBox configuration.
+
+**Usage:**
+```console
+servobox config init [--dir DIR] [--force]
+servobox config path
+```
+
+`servobox config init` creates `.servobox/config` from the shipped `servobox-defaults.config` template. The generated file contains the main VM knobs (`SERVOBOX_NAME`, `SERVOBOX_VCPUS`, `SERVOBOX_MEMORY`, `SERVOBOX_DISK_GB`, networking, RT mode), plus package and run defaults.
+
+ServoBox discovers `.servobox/config` by walking upward from the current directory. Values are defaults only; explicit CLI flags still win.
+
+**Examples:**
+```console
+servobox config init
+servobox config init --dir ~/projects/my-policy
+servobox config path
+```
+
+---
+
 ### `run`
 
 Execute a package's run script in the VM, or run an arbitrary command.
@@ -391,6 +417,9 @@ Execute a package's run script in the VM, or run an arbitrary command.
 ```console
 # Run a recipe's run.sh
 servobox run <recipe-name> [--name NAME]
+
+# Run project .servobox/run.sh when present
+servobox run
 
 # Run an arbitrary command in the VM
 servobox run "<command>" [--name NAME]
@@ -401,6 +430,9 @@ servobox run "<command>" [--name NAME]
 ```console
 # Run polymetis server
 servobox run polymetis
+
+# Run the current project's .servobox/run.sh
+servobox run
 
 # Run with specific VM
 servobox run polymetis --name franka-dev
@@ -416,6 +448,8 @@ servobox run "sudo pkill -9 run_server" --name franka-dev
 3. Keeps terminal open for monitoring
 
 Use `servobox pkg-install --list` to see recipes from the active channel. Recipes that include `run.sh` can be launched with `servobox run <recipe-name>`.
+
+When called without an argument, `servobox run` first looks for `.servobox/run.sh` in the active project. If no project script exists, it uses `SERVOBOX_RUN_PACKAGE` from `.servobox/config` when set.
 
 ---
 

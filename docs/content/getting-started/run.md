@@ -24,6 +24,20 @@ If you want to customize the VM from the start:
 servobox init --name my-vm --vcpus 6 --mem 16384 --disk 80
 ```
 
+For project-local defaults, create `.servobox/config` in your client project:
+
+```console
+servobox config init
+```
+
+Edit the generated file to set VM sizing, RT mode, package install defaults, custom recipe paths, and run defaults. After that, the project workflow can be:
+
+```console
+servobox init
+servobox pkg-install
+servobox run
+```
+
 ## Start And Verify
 
 Start the VM in the default balanced mode:

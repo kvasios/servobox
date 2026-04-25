@@ -5,10 +5,12 @@
 ### Added
 - **External Recipe Channel**: `servobox pkg-install <recipe>` now fetches recipes from the `servobox-recipes` release channel instead of relying on recipes bundled with ServoBox.
 - **Recipe Channel UX**: Added `servobox recipes status` and `servobox recipes update` to inspect and refresh the local recipe cache.
+- **Project Config UX**: Added `.servobox/config`, `servobox config init`, and `.servobox/run.sh` discovery for project-local VM, package, and run defaults.
 - **Shell Completion**: Added bash completion for the `servobox` command.
 
 ### Changed
 - Recipes can now update independently from ServoBox releases while preserving the existing `pkg-install`, `run`, `--custom`, and `--recipe-dir` workflows.
+- `servobox pkg-install` and bare `servobox run` can now use project defaults when run inside a configured project.
 - Moved remaining recipe tooling from `packages/` into `scripts/servobox-tools`.
 
 ### Removed
