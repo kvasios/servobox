@@ -22,14 +22,15 @@ ServoBox launches Ubuntu 22.04 PREEMPT_RT environments for robotics without turn
 
 Full setup instructions, host RT configuration, and usage guides live at [servobox.dev](https://www.servobox.dev/).
 
-```bash
-# Install ServoBox
-sudo wget -O /usr/share/keyrings/servobox-archive-keyring.gpg https://www.servobox.dev/apt-repo/servobox-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/servobox-archive-keyring.gpg] https://www.servobox.dev/apt-repo/ stable main" | sudo tee /etc/apt/sources.list.d/servobox.list
-sudo apt update
-sudo apt install servobox
+One-line install:
 
-# Create, start, and validate your first RT VM
+```bash
+curl -fsSL https://www.servobox.dev/install.sh | sudo bash
+```
+
+Create, start, and validate your first RT VM:
+
+```bash
 servobox init
 servobox start
 servobox rt-verify

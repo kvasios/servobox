@@ -21,13 +21,10 @@ If you are new to ServoBox, follow this path:
 - 8 GB RAM minimum, 16+ GB recommended
 - Hardware virtualization enabled
 
-### 1. Install
+### 1. One-Line Install
 
 ```console
-sudo wget -O /usr/share/keyrings/servobox-archive-keyring.gpg https://www.servobox.dev/apt-repo/servobox-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/servobox-archive-keyring.gpg] https://www.servobox.dev/apt-repo/ stable main" | sudo tee /etc/apt/sources.list.d/servobox.list
-sudo apt update
-sudo apt install servobox
+curl -fsSL https://www.servobox.dev/install.sh | sudo bash
 ```
 
 ### 2. Configure the host once

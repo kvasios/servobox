@@ -12,7 +12,21 @@ This guide covers host requirements, installation methods, and the one host-side
 
 ## Install ServoBox
 
-### APT repository (recommended)
+### One-Line Install
+
+```console
+curl -fsSL https://www.servobox.dev/install.sh | sudo bash
+```
+
+If you prefer to inspect the installer first:
+
+```console
+curl -fsSL https://www.servobox.dev/install.sh -o install.sh
+less install.sh
+sudo bash install.sh
+```
+
+### Manual APT Repository Install
 
 ```console
 sudo wget -O /usr/share/keyrings/servobox-archive-keyring.gpg https://www.servobox.dev/apt-repo/servobox-archive-keyring.gpg
