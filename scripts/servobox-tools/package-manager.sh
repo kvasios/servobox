@@ -1,36 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ServoBox Package Manager
-# Manages software package recipes for building ServoBox images
+# ServoBox recipe manager
+# Resolves and installs external ServoBox recipe directories.
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-# Determine base directory and support both repo and installed layouts
-# Repo layout:
-#   packages/scripts/package-manager.sh
-#   packages/recipes/
-# Installed layout (per debian .install):
-#   /usr/share/servobox/scripts/package-manager.sh
-#   /usr/share/servobox/packages/recipes/
-BASE_DIR=$(cd "${SCRIPT_DIR}/.." && pwd)
+# Determine helper locations and keep legacy recipe paths as a fallback for
+# transitional installs. Normal callers pass --recipe-dir from the recipe
+# channel cache.
+SERVOBOX_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
+TOOLS_DIR="${SCRIPT_DIR}"
 
-if [[ -d "${BASE_DIR}/recipes" ]]; then
-  # Repo layout: BASE_DIR == <repo>/packages
-  PACKAGES_DIR="${BASE_DIR}"
-  RECIPES_DIR="${PACKAGES_DIR}/recipes"
-elif [[ -d "${BASE_DIR}/packages/recipes" ]]; then
-  # Installed layout: BASE_DIR == /usr/share/servobox
-  PACKAGES_DIR="${BASE_DIR}"
-  RECIPES_DIR="${PACKAGES_DIR}/packages/recipes"
-else
-  # Fallback to repo layout paths; errors will be raised later if missing
-  PACKAGES_DIR="${BASE_DIR}"
-  RECIPES_DIR="${PACKAGES_DIR}/recipes"
-fi
+RECIPES_DIR="${SERVOBOX_ROOT}/recipes"
 
 usage() {
   cat <<EOF
-package-manager.sh - Manage ServoBox software packages
+package-manager.sh - Manage ServoBox recipe packages
 
 Usage:
   package-manager.sh <command> [options]
@@ -50,7 +35,7 @@ Options:
   --dry-run               Show what would be done without executing
   --force                 Force rebuild even if already built
   --force-package PKG     Force reinstall only the specified package (not dependencies)
-  --recipe-dir DIR        Use custom recipe directory (for testing/development)
+  --recipe-dir DIR        Use recipe directory (usually from the channel cache)
 
 Examples:
   package-manager.sh list
@@ -483,7 +468,7 @@ install_single_package() {
     recipe_dir="${RECIPES_DIR}/${package}"
   fi
   local install_script="${recipe_dir}/install.sh"
-  local helpers_script="${PACKAGES_DIR}/scripts/pkg-helpers.sh"
+  local helpers_script="${TOOLS_DIR}/pkg-helpers.sh"
   local script_base
   script_base=$(basename "$install_script")
   local recipe_name
@@ -722,10 +707,11 @@ parse_args() {
 
 # Main command dispatcher
 main() {
-  local cmd="${1:-help}"
-  shift || true
-  
-  # Parse flags and get remaining args
+  local cmd=""
+
+  # Parse flags and get remaining args. Options may appear before or after the
+  # subcommand so callers can use either `--recipe-dir DIR list` or
+  # `list --recipe-dir DIR`.
   local remaining_args=()
   local custom_recipe_dir=""
   while [[ $# -gt 0 ]]; do
@@ -736,9 +722,16 @@ main() {
       --force-package) FORCE_PACKAGE="$2"; shift 2;;
       --recipe-dir) custom_recipe_dir="$2"; shift 2;;
       -h|--help) usage; exit 0;;
-      *) remaining_args+=("$1"); shift;;
+      *)
+        if [[ -z "${cmd}" ]]; then
+          cmd="$1"
+        else
+          remaining_args+=("$1")
+        fi
+        shift;;
     esac
   done
+  cmd="${cmd:-help}"
   
   # Override recipes directory if specified
   if [[ -n "${custom_recipe_dir}" ]]; then

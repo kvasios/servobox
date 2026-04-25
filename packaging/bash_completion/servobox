@@ -1,0 +1,91 @@
+_servobox_recipe_cache_dir()
+{
+    if [[ -n "${SERVOBOX_RECIPE_CACHE_DIR:-}" ]]; then
+        printf '%s\n' "$SERVOBOX_RECIPE_CACHE_DIR"
+    else
+        printf '%s\n' "${XDG_CACHE_HOME:-${HOME}/.cache}/servobox/recipes/default"
+    fi
+}
+
+_servobox_cached_recipes()
+{
+    local cache_dir recipes_dir recipe_dir
+    cache_dir="$(_servobox_recipe_cache_dir)"
+    recipes_dir="${cache_dir}/recipes"
+
+    [[ -d "$recipes_dir" ]] || return 0
+
+    for recipe_dir in "$recipes_dir"/*; do
+        [[ -d "$recipe_dir" && -f "$recipe_dir/recipe.conf" ]] || continue
+        printf '%s\n' "${recipe_dir##*/}"
+    done
+}
+
+_servobox_complete()
+{
+    local cur prev words cword command
+    _init_completion || return
+
+    local commands="
+        init start status ip ssh stop destroy network-setup test rt-verify
+        pkg-install pkg-installed recipes run irqbalance-mask debug help
+    "
+    local global_options="-h --help"
+
+    if (( cword == 1 )); then
+        COMPREPLY=( $(compgen -W "${commands} ${global_options}" -- "$cur") )
+        return 0
+    fi
+
+    command="${words[1]}"
+    prev="${words[cword-1]}"
+
+    case "$prev" in
+        --name|--vcpus|--mem|--disk|--bridge|--host-nic|--image|--ssh-pubkey|--ssh-key|--duration|--stress-cpuset|--ip)
+            return 0
+            ;;
+        --stress-profile)
+            COMPREPLY=( $(compgen -W "safe balanced aggressive" -- "$cur") )
+            return 0
+            ;;
+        --custom|--recipe-dir)
+            _filedir
+            return 0
+            ;;
+    esac
+
+    case "$command" in
+        init)
+            COMPREPLY=( $(compgen -W "--name --vcpus --mem --disk --bridge --host-nic --choose-nic --image --ssh-pubkey --ssh-key --debug --ip -h --help" -- "$cur") )
+            ;;
+        start)
+            COMPREPLY=( $(compgen -W "--name --performance --extreme -h --help" -- "$cur") )
+            ;;
+        status|ip|ssh|stop|pkg-installed)
+            COMPREPLY=( $(compgen -W "--name -h --help" -- "$cur") )
+            ;;
+        destroy)
+            COMPREPLY=( $(compgen -W "--name -f --force -h --help" -- "$cur") )
+            ;;
+        network-setup|rt-verify|irqbalance-mask|debug)
+            COMPREPLY=( $(compgen -W "--name -h --help" -- "$cur") )
+            ;;
+        test)
+            COMPREPLY=( $(compgen -W "--name --duration --stress-ng --stress-cpuset --stress-profile -h --help" -- "$cur") )
+            ;;
+        pkg-install)
+            COMPREPLY=( $(compgen -W "--name --verbose -v --force --offline --list -l --custom --recipe-dir -h --help $(_servobox_cached_recipes)" -- "$cur") )
+            ;;
+        recipes)
+            COMPREPLY=( $(compgen -W "status update -h --help" -- "$cur") )
+            ;;
+        run)
+            COMPREPLY=( $(compgen -W "--name --debug -h --help $(_servobox_cached_recipes)" -- "$cur") )
+            ;;
+        *)
+            COMPREPLY=( $(compgen -W "${commands} ${global_options}" -- "$cur") )
+            ;;
+    esac
+}
+
+complete -F _servobox_complete servobox

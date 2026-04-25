@@ -313,7 +313,7 @@ servobox rt-verify [--name NAME]
 
 ### `pkg-install`
 
-Install packages or package configurations into the VM.
+Install packages or package configurations into the VM. By default, recipes are resolved from the external ServoBox recipe channel cache.
 
 **Usage:**
 ```console
@@ -366,6 +366,23 @@ servobox pkg-installed [--name NAME] [--verbose|-v]
 
 ---
 
+### `recipes`
+
+Show or refresh the external recipe channel cache.
+
+**Usage:**
+```console
+servobox recipes status
+servobox recipes update
+```
+
+**Environment overrides:**
+
+- `SERVOBOX_RECIPE_CHANNEL_URL`: recipe release archive URL, or `git+https://...` for development channels
+- `SERVOBOX_RECIPE_CACHE_DIR`: local recipe cache directory
+
+---
+
 ### `run`
 
 Execute a package's run script in the VM, or run an arbitrary command.
@@ -398,7 +415,7 @@ servobox run "sudo pkill -9 run_server" --name franka-dev
 2. Executes the recipe's `run.sh` inside the VM
 3. Keeps terminal open for monitoring
 
-**Recipes with run.sh include:** `polymetis`, `deoxys-control`, `libfranka-gen1`, `serl-franka-controllers`, `franka-ros`, `libfranka-fr3`.
+Use `servobox pkg-install --list` to see recipes from the active channel. Recipes that include `run.sh` can be launched with `servobox run <recipe-name>`.
 
 ---
 

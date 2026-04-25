@@ -5,20 +5,20 @@ Thanks for your interest in contributing to ServoBox! 🦾
 ## What We're Looking For
 
 **Primary Focus: Package Recipes**  
-We're especially interested in contributions that expand our package recipes in `packages/recipes/`. These help users quickly set up robotics software stacks in their RT VMs.
+We're especially interested in contributions that expand the external `servobox-recipes` channel. These help users quickly set up robotics software stacks in their RT VMs.
 
 ## Contribution Guidelines
 
 ### Recipe Contributions
 
 **Before you start:**
-- Check existing recipes in `packages/recipes/` to avoid duplicates
-- Look at `packages/recipes/example-custom/` for the template structure
+- Check existing recipes in `kvasios/servobox-recipes` to avoid duplicates
+- Look at the recipe template in that repository for the expected structure
 
 **Recipe Requirements:**
 - `recipe.conf` - Package metadata (name, description, dependencies)
 - `install.sh` - Installation script that works in Ubuntu 22.04 RT environment
-- Test your recipe with: `servobox pkg-install --recipe-dir /path/to/your/recipe your-package`
+- Test your recipe with: `servobox pkg-install --custom /path/to/recipes your-package`
 
 **Quality Standards:**
 - Installation should be idempotent (safe to run multiple times)

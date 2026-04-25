@@ -50,6 +50,7 @@ servobox start --performance
 ## Install Your First Stack
 
 `pkg-install` now installs into a running target over SSH by default in `0.3.0`, so you get live progress output.
+On first use, ServoBox downloads the external recipe channel release into your local cache.
 
 ```console
 servobox pkg-install --list
@@ -68,6 +69,9 @@ servobox pkg-install --offline docker
 
 # Show detailed progress
 servobox pkg-install ros2-humble --verbose
+
+# Refresh recipe metadata and scripts
+servobox recipes update
 ```
 
 For the full package workflow, see [Package Management](../user-guide/package-management.md).

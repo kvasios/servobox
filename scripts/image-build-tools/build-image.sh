@@ -13,8 +13,9 @@ KERNEL_DEBS_DIR="${REPO_ROOT}/artifacts/rt-kernel/${KERNEL_VERSION}/debs"
 ARTIFACTS_DIR="${REPO_ROOT}/artifacts/images"
 DISK_GB=20
 IMAGE_NAME_PREFIX="servobox"
-PACKAGES_CONFIG=""            # Optional: comma-separated list of packages to preinstall
-PACKAGES_DIR="${REPO_ROOT}/packages"
+PACKAGES_CONFIG=""            # Optional: comma-separated list of recipes to preinstall
+RECIPES_DIR="${SERVOBOX_IMAGE_RECIPES_DIR:-${REPO_ROOT}/recipes}"
+SERVOBOX_TOOLS_DIR="${REPO_ROOT}/servobox-tools"
 
 usage() {
   cat <<EOF
@@ -246,9 +247,9 @@ install_packages() {
     
     echo "Installing package: $package (with dependencies if any)"
     
-    local recipe_dir="${PACKAGES_DIR}/recipes/${package}"
+    local recipe_dir="${RECIPES_DIR}/${package}"
     local install_script="${recipe_dir}/install.sh"
-    local package_manager="${PACKAGES_DIR}/scripts/package-manager.sh"
+    local package_manager="${SERVOBOX_TOOLS_DIR}/package-manager.sh"
     
     if [[ ! -f "$install_script" ]]; then
       echo "Warning: Package recipe not found: $package (skipping)"
@@ -267,7 +268,7 @@ install_packages() {
     virt-customize -a "$work_img" \
       --memsize ${LIBGUESTFS_MEMSIZE:-3072} \
       --copy-in "$recipe_dir:/tmp/" \
-      --copy-in "${PACKAGES_DIR}/scripts/pkg-helpers.sh:/tmp/" \
+      --copy-in "${SERVOBOX_TOOLS_DIR}/pkg-helpers.sh:/tmp/" \
       --run-command "chmod +x /tmp/$(basename "$recipe_dir")/install.sh" \
       --run-command "PACKAGE_NAME='$package' PACKAGE_HELPERS='/tmp/pkg-helpers.sh' RECIPE_DIR='/tmp/$(basename "$recipe_dir")' bash /tmp/$(basename "$recipe_dir")/install.sh" \
       --run-command "rm -rf /tmp/$(basename "$recipe_dir") /tmp/pkg-helpers.sh"

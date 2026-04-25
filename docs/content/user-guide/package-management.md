@@ -11,6 +11,8 @@ The package system provides:
 - a unified install workflow for local VMs and remote RT targets
 - optional custom recipe directories for your own stacks
 
+Default recipes are served by the external `servobox-recipes` channel. ServoBox downloads the latest channel release into a user-writable cache on first use, then installs recipes from that cache.
+
 ## Default Install Mode In 0.3.0
 
 Starting with `0.3.0`, `servobox pkg-install` installs over SSH by default and shows live progress output. For local VMs, ServoBox starts the VM automatically if needed and restores the previous state afterward.
@@ -22,6 +24,10 @@ The older image-mutation workflow still exists behind `--offline`.
 ```console
 # See what is available
 servobox pkg-install --list
+
+# Inspect or refresh the recipe channel cache
+servobox recipes status
+servobox recipes update
 
 # Install into the default VM
 servobox pkg-install docker
@@ -52,6 +58,24 @@ Key options:
 - `--list`: show available packages and configs
 - `--custom PATH`: point to a custom recipe directory or config file
 
+### Manage the recipe channel
+
+```console
+servobox recipes status
+servobox recipes update
+```
+
+By default ServoBox fetches:
+
+```text
+https://github.com/kvasios/servobox-recipes/releases/latest/download/servobox-recipes.tar.gz
+```
+
+Useful overrides:
+
+- `SERVOBOX_RECIPE_CHANNEL_URL`: use a different recipe release archive or `git+https://...` channel
+- `SERVOBOX_RECIPE_CACHE_DIR`: use a different local cache directory
+
 ### Show installed packages
 
 ```console
@@ -61,7 +85,7 @@ servobox pkg-installed [--name NAME] [--verbose|-v]
 ### Preview dependencies from the repo
 
 ```console
-packages/scripts/package-manager.sh deps <package>
+scripts/servobox-tools/package-manager.sh --recipe-dir "$(servobox recipes status | awk -F': ' '/Cache:/{print $2}')/recipes" deps <package>
 ```
 
 ## Remote Target Mode
@@ -103,46 +127,19 @@ This mode is local-VM only.
 
 ## Available Packages
 
-### Complete suites
+The package list comes from the active recipe channel:
 
-| Package | Description | Dependencies |
-|---------|-------------|--------------|
-| `polymetis` | Polymetis server stack for Franka-based workflows | None |
-| `deoxys-control` | `deoxys_control` for research and agent development | `libfranka-gen1` or `libfranka-fr3` depending on target |
-| `serl-franka-controllers` | SERL Franka compliant Cartesian impedance controllers | `franka-ros` |
-| `crisp-controllers` | CRISP ROS2 controllers for real-time robotic control | `franka-ros2` |
+```console
+servobox pkg-install --list
+```
 
-### Frameworks and libraries
+Recipe source, cache path, and update time are visible with:
 
-| Package | Description | Dependencies |
-|---------|-------------|--------------|
-| `ros2-humble` | ROS 2 Humble headless environment and development tools | `build-essential` |
-| `ros-noetic` | ROS Noetic via RoboStack/micromamba | `robostack` |
-| `franka-ros` | Franka ROS integration | `ros-noetic` |
-| `franka-ros2` | Franka ROS2 packages | `ros2-humble`, `libfranka-fr3` |
-| `franky-fr3` | Franky for Franka Research 3 | None |
-| `franky-gen1` | Franky for Franka Panda Gen1 | None |
-| `franky-remote-fr3` | Franky remote control for FR3 | `franky-fr3` |
-| `franky-remote-gen1` | Franky remote control for Panda Gen1 | `franky-gen1` |
-| `ur_rtde` | Universal Robots RTDE interface | None |
-| `pinocchio` | Pinocchio rigid body dynamics library | None |
-| `robostack` | RoboStack with micromamba | None |
+```console
+servobox recipes status
+```
 
-### Utilities
-
-| Package | Description | Dependencies |
-|---------|-------------|--------------|
-| `build-essential` | Essential build tools and development packages | None |
-| `docker` | Docker Engine, CLI, and Compose | None |
-| `libfranka-gen1` | `libfranka` 0.9.2 for Panda Gen1 | None |
-| `libfranka-fr3` | `libfranka` 0.16.1 for FR3 | `pinocchio` |
-| `rt-control-tools` | Real-time testing and control utilities | None |
-| `example-custom` | Example custom recipe | None |
-
-### Testing status
-
-- **Runtime tested:** `libfranka-gen1`, `polymetis`, `franka-ros` on Franka gen1 hardware
-- **Build tested only:** `libfranka-fr3`, `franka-ros2`, and several other recipes that still need runtime validation
+Recipe-specific testing status now lives with each recipe in the external `servobox-recipes` repository.
 
 ## Dependency Resolution
 
@@ -155,7 +152,7 @@ servobox pkg-install serl-franka-controllers
 
 ## Creating Custom Recipes
 
-Custom recipes let you keep private packages outside the main ServoBox repository while still using the same install workflow.
+Custom recipes let you keep private packages outside the public ServoBox recipe channel while still using the same install workflow.
 
 ### Recipe structure
 
@@ -235,7 +232,7 @@ If a recipe or dependency cannot be found:
 
 ```console
 servobox pkg-install --list
-packages/scripts/package-manager.sh deps <package>
+scripts/servobox-tools/package-manager.sh --recipe-dir "$(servobox recipes status | awk -F': ' '/Cache:/{print $2}')/recipes" deps <package>
 ```
 
 ## See Also

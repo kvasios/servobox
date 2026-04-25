@@ -213,18 +213,20 @@ cmd_pkg_install() {
         fi ;;
     esac
   done
+  local recipes_dir=""
+  local config_dir=""
+
   # If --list was requested, show available configs and packages and exit
   if [[ ${list_only} -eq 1 ]]; then
-    local config_dir="${REPO_ROOT}/packages/config"
-    local recipes_dir="${REPO_ROOT}/packages/recipes"
-    
-    # If custom directory specified, use it for recipes
     if [[ ${custom_is_dir} -eq 1 ]]; then
       recipes_dir="${custom_path}"
+    else
+      recipes_dir="$(recipe_source_recipes_dir)" || exit 1
     fi
-    
-    # List config files (always from system location for --list)
-    if [[ -d "${config_dir}" ]]; then
+    config_dir="$(recipe_source_configs_dir "${recipes_dir}" || true)"
+
+    # List config files from the active recipe source when available.
+    if [[ -n "${config_dir}" && -d "${config_dir}" ]]; then
       local any_conf=0
       while IFS= read -r -d '' f; do
         if [[ ${any_conf} -eq 0 ]]; then
@@ -242,11 +244,7 @@ cmd_pkg_install() {
     echo "Available packages:"
     if [[ -x "${PACKAGES_PM}" ]]; then
       # Delegate to package manager 'list' for rich output
-      if [[ ${custom_is_dir} -eq 1 ]]; then
-        "${PACKAGES_PM}" list --recipe-dir "${custom_path}" || true
-      else
-        "${PACKAGES_PM}" list || true
-      fi
+      "${PACKAGES_PM}" list --recipe-dir "${recipes_dir}" || true
     else
       if [[ -d "${recipes_dir}" ]]; then
         local any_pkg=0
@@ -285,6 +283,13 @@ cmd_pkg_install() {
     echo "Usage: servobox pkg-install <package|config> [--name NAME] [--custom PATH]" >&2
     exit 1
   fi
+
+  if [[ ${custom_is_dir} -eq 1 ]]; then
+    recipes_dir="${custom_path}"
+  else
+    recipes_dir="$(recipe_source_recipes_dir)" || exit 1
+  fi
+  config_dir="$(recipe_source_configs_dir "${recipes_dir}" || true)"
   
   # Update DISK_QCOW path based on NAME (which may have been set via --name)
   DISK_QCOW="${LIBVIRT_IMAGES_BASE}/servobox/${NAME}/${NAME}.qcow2"
@@ -312,19 +317,15 @@ cmd_pkg_install() {
     fi
   fi
   
-  # Fall back to system config directory if not found in custom dir
-  if [[ -z "${config_file}" ]]; then
+  # Fall back to the active channel/config directory if not found in custom dir.
+  if [[ -z "${config_file}" && -n "${config_dir}" ]]; then
     if [[ "${target}" =~ \.conf(ig)?$ ]]; then
-      if [[ -f "${REPO_ROOT}/packages/config/${target}" ]]; then
-        config_file="${REPO_ROOT}/packages/config/${target}"
+      if [[ -f "${config_dir}/${target}" ]]; then
+        config_file="${config_dir}/${target}"
       fi
-    elif [[ -f "${REPO_ROOT}/packages/config/${target}.conf" ]]; then
-      config_file="${REPO_ROOT}/packages/config/${target}.conf"
+    elif [[ -f "${config_dir}/${target}.conf" ]]; then
+      config_file="${config_dir}/${target}.conf"
     fi
-  fi
-  local recipes_dir="${REPO_ROOT}/packages/recipes"
-  if [[ ${custom_is_dir} -eq 1 ]]; then
-    recipes_dir="${custom_path}"
   fi
 
   # Online mode (default): install over SSH into a running VM.
@@ -340,10 +341,7 @@ cmd_pkg_install() {
     else
       # Single package: resolve dependency order the same way as remote install.
       local install_order=()
-      local pm_args=()
-      if [[ ${custom_is_dir} -eq 1 ]]; then
-        pm_args=(--recipe-dir "${recipes_dir}")
-      fi
+      local pm_args=(--recipe-dir "${recipes_dir}")
       while IFS= read -r pkg; do
         [[ -n "${pkg}" ]] && install_order+=("${pkg}")
       done < <("${PACKAGES_PM}" "${pm_args[@]}" install-order "${target}" 2>/dev/null) || true
@@ -427,28 +425,15 @@ cmd_pkg_install() {
     for p in "${pkgs[@]}"; do
       echo ""
       echo "Installing package: $p"
-      
-      # Pass custom recipe dir to package manager if specified
-      if [[ ${custom_is_dir} -eq 1 ]]; then
-        if [[ -n "${verbose_flag}" && -n "${force_flag}" ]]; then
-          "${PACKAGES_PM}" install --recipe-dir "${custom_path}" "${verbose_flag}" --force-package "$p" "$p" "${DISK_QCOW}"
-        elif [[ -n "${verbose_flag}" ]]; then
-          "${PACKAGES_PM}" install --recipe-dir "${custom_path}" "${verbose_flag}" "$p" "${DISK_QCOW}"
-        elif [[ -n "${force_flag}" ]]; then
-          "${PACKAGES_PM}" install --recipe-dir "${custom_path}" --force-package "$p" "$p" "${DISK_QCOW}"
-        else
-          "${PACKAGES_PM}" install --recipe-dir "${custom_path}" "$p" "${DISK_QCOW}"
-        fi
+
+      if [[ -n "${verbose_flag}" && -n "${force_flag}" ]]; then
+        "${PACKAGES_PM}" install --recipe-dir "${recipes_dir}" "${verbose_flag}" --force-package "$p" "$p" "${DISK_QCOW}"
+      elif [[ -n "${verbose_flag}" ]]; then
+        "${PACKAGES_PM}" install --recipe-dir "${recipes_dir}" "${verbose_flag}" "$p" "${DISK_QCOW}"
+      elif [[ -n "${force_flag}" ]]; then
+        "${PACKAGES_PM}" install --recipe-dir "${recipes_dir}" --force-package "$p" "$p" "${DISK_QCOW}"
       else
-        if [[ -n "${verbose_flag}" && -n "${force_flag}" ]]; then
-          "${PACKAGES_PM}" install "${verbose_flag}" --force-package "$p" "$p" "${DISK_QCOW}"
-        elif [[ -n "${verbose_flag}" ]]; then
-          "${PACKAGES_PM}" install "${verbose_flag}" "$p" "${DISK_QCOW}"
-        elif [[ -n "${force_flag}" ]]; then
-          "${PACKAGES_PM}" install --force-package "$p" "$p" "${DISK_QCOW}"
-        else
-          "${PACKAGES_PM}" install "$p" "${DISK_QCOW}"
-        fi
+        "${PACKAGES_PM}" install --recipe-dir "${recipes_dir}" "$p" "${DISK_QCOW}"
       fi
     done
     exit 0
@@ -457,26 +442,14 @@ cmd_pkg_install() {
   ensure_vm_shutdown_for_offline_install
   
   # Install single package
-  if [[ ${custom_is_dir} -eq 1 ]]; then
-    if [[ -n "${verbose_flag}" && -n "${force_flag}" ]]; then
-      "${PACKAGES_PM}" install --recipe-dir "${custom_path}" "${verbose_flag}" --force-package "${target}" "${target}" "${DISK_QCOW}"
-    elif [[ -n "${verbose_flag}" ]]; then
-      "${PACKAGES_PM}" install --recipe-dir "${custom_path}" "${verbose_flag}" "${target}" "${DISK_QCOW}"
-    elif [[ -n "${force_flag}" ]]; then
-      "${PACKAGES_PM}" install --recipe-dir "${custom_path}" --force-package "${target}" "${target}" "${DISK_QCOW}"
-    else
-      "${PACKAGES_PM}" install --recipe-dir "${custom_path}" "${target}" "${DISK_QCOW}"
-    fi
+  if [[ -n "${verbose_flag}" && -n "${force_flag}" ]]; then
+    "${PACKAGES_PM}" install --recipe-dir "${recipes_dir}" "${verbose_flag}" --force-package "${target}" "${target}" "${DISK_QCOW}"
+  elif [[ -n "${verbose_flag}" ]]; then
+    "${PACKAGES_PM}" install --recipe-dir "${recipes_dir}" "${verbose_flag}" "${target}" "${DISK_QCOW}"
+  elif [[ -n "${force_flag}" ]]; then
+    "${PACKAGES_PM}" install --recipe-dir "${recipes_dir}" --force-package "${target}" "${target}" "${DISK_QCOW}"
   else
-    if [[ -n "${verbose_flag}" && -n "${force_flag}" ]]; then
-      "${PACKAGES_PM}" install "${verbose_flag}" --force-package "${target}" "${target}" "${DISK_QCOW}"
-    elif [[ -n "${verbose_flag}" ]]; then
-      "${PACKAGES_PM}" install "${verbose_flag}" "${target}" "${DISK_QCOW}"
-    elif [[ -n "${force_flag}" ]]; then
-      "${PACKAGES_PM}" install --force-package "${target}" "${target}" "${DISK_QCOW}"
-    else
-      "${PACKAGES_PM}" install "${target}" "${DISK_QCOW}"
-    fi
+    "${PACKAGES_PM}" install --recipe-dir "${recipes_dir}" "${target}" "${DISK_QCOW}"
   fi
 }
 

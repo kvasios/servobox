@@ -88,7 +88,7 @@ ServoBox **NEVER** uses sudo to:
 - Recipe scripts may download software (e.g., ROS2, libfranka)
 - Downloads happen **inside the VM**, not on host
 - Uses standard `apt-get` or `git clone` from official sources
-- User can audit recipe scripts in `/usr/share/servobox/recipes/`
+- User can audit recipe scripts in the local recipe cache shown by `servobox recipes status`
 
 ## VM Security Model
 
@@ -171,7 +171,8 @@ ServoBox **NEVER** uses sudo to:
 
 2. **Audit custom recipes** before using them:
    ```bash
-   cat /usr/share/servobox/recipes/<package>/install.sh
+   servobox recipes status
+   cat ~/.cache/servobox/recipes/default/recipes/<package>/install.sh
    ```
 
 3. **Don't store sensitive data in VMs**:

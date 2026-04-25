@@ -4,10 +4,14 @@
 # Source common utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
+if ! declare -f recipe_source_recipes_dir >/dev/null 2>&1; then
+  source "${SCRIPT_DIR}/recipe-source.sh"
+fi
 
 # List available recipes
 list_available_recipes() {
-  local recipes_dir="${REPO_ROOT}/packages/recipes"
+  local recipes_dir
+  recipes_dir="$(recipe_source_recipes_dir)" || return 1
   
   for recipe_dir in "${recipes_dir}"/*; do
     if [[ -d "$recipe_dir" ]]; then
@@ -19,8 +23,9 @@ list_available_recipes() {
 
 # List recipes that have run.sh scripts
 list_recipes_with_run() {
-  local recipes_dir="${REPO_ROOT}/packages/recipes"
+  local recipes_dir
   local found=false
+  recipes_dir="$(recipe_source_recipes_dir)" || return 1
   
   for recipe_dir in "${recipes_dir}"/*; do
     if [[ -d "$recipe_dir" ]]; then
@@ -296,18 +301,20 @@ cmd_recipe_run() {
     exit 1
   fi
   
-  # Ensure VM is running
-  ensure_vm_running
-  
   if [[ "$is_command" == "true" ]]; then
+    # Ensure VM is running
+    ensure_vm_running
+
     # Execute arbitrary command
     exec_command_in_vm "$recipe_name"
   else
     # Execute recipe
     # Find recipe directory
-    recipe_dir="${REPO_ROOT}/packages/recipes/${recipe_name}"
+    local recipes_dir
+    recipes_dir="$(recipe_source_recipes_dir)" || exit 1
+    recipe_dir="${recipes_dir}/${recipe_name}"
     if [[ ! -d "$recipe_dir" ]]; then
-      echo "Error: Recipe '${recipe_name}' not found in ${REPO_ROOT}/packages/recipes/" >&2
+      echo "Error: Recipe '${recipe_name}' not found in ${recipes_dir}" >&2
       echo "Available recipes:" >&2
       list_available_recipes
       exit 1
@@ -330,6 +337,9 @@ cmd_recipe_run() {
     echo "Press Ctrl+C to stop the recipe execution."
     echo ""
     
+    # Ensure VM is running
+    ensure_vm_running
+
     # Execute the run script in the VM
     exec_recipe_in_vm "$recipe_name" "$run_script"
   fi

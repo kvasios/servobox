@@ -6,7 +6,7 @@ For detailed information about contributing to ServoBox, please refer to the mai
 
 ServoBox welcomes contributions, especially:
 
-- **Package Recipes**: Help expand our collection of robotics software stacks in `packages/recipes/`
+- **Package Recipes**: Help expand the external `servobox-recipes` channel with robotics software stacks
 - **Bug Fixes**: Improvements to core ServoBox functionality
 - **Documentation**: Enhancements to help users better understand ServoBox
 - **Performance**: Optimizations for better VM performance

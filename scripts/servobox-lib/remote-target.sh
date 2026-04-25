@@ -5,6 +5,9 @@
 # Source common utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
+if ! declare -f recipe_source_recipes_dir >/dev/null 2>&1; then
+  source "${SCRIPT_DIR}/recipe-source.sh"
+fi
 
 # Remote target configuration (from environment)
 # SERVOBOX_TARGET_IP   - Required: IP address of remote RT machine
@@ -524,11 +527,13 @@ cmd_remote_run() {
     remote_exec_tty "bash -l -c '${recipe_name}'"
   else
     # Execute recipe
-    local recipe_dir="${REPO_ROOT}/packages/recipes/${recipe_name}"
+    local recipes_dir
+    recipes_dir="$(recipe_source_recipes_dir)" || exit 1
+    local recipe_dir="${recipes_dir}/${recipe_name}"
     local run_script="${recipe_dir}/run.sh"
     
     if [[ ! -d "${recipe_dir}" ]]; then
-      echo "Error: Recipe '${recipe_name}' not found in ${REPO_ROOT}/packages/recipes/" >&2
+      echo "Error: Recipe '${recipe_name}' not found in ${recipes_dir}" >&2
       echo "Available recipes:" >&2
       list_available_recipes
       exit 1
@@ -606,19 +611,24 @@ cmd_remote_pkg_install() {
   echo ""
   
   # Determine recipe directory
-  local recipes_dir="${REPO_ROOT}/packages/recipes"
+  local recipes_dir=""
   if [[ "${custom_is_dir}" == "1" && -n "${custom_path}" ]]; then
     recipes_dir="${custom_path}"
+  else
+    recipes_dir="$(recipe_source_recipes_dir)" || exit 1
   fi
+
+  local config_dir=""
+  config_dir="$(recipe_source_configs_dir "${recipes_dir}" || true)"
   
   # Check if target is a config file
   local config_file=""
   if [[ -f "${target}" ]]; then
     config_file="${target}"
-  elif [[ -f "${REPO_ROOT}/packages/config/${target}.conf" ]]; then
-    config_file="${REPO_ROOT}/packages/config/${target}.conf"
-  elif [[ -f "${REPO_ROOT}/packages/config/${target}" ]]; then
-    config_file="${REPO_ROOT}/packages/config/${target}"
+  elif [[ -n "${config_dir}" && -f "${config_dir}/${target}.conf" ]]; then
+    config_file="${config_dir}/${target}.conf"
+  elif [[ -n "${config_dir}" && -f "${config_dir}/${target}" ]]; then
+    config_file="${config_dir}/${target}"
   fi
   
   if [[ -n "${config_file}" ]]; then
@@ -640,10 +650,7 @@ cmd_remote_pkg_install() {
   else
     # Install single package (with dependencies in order, same as VM install)
     local install_order=()
-    local pm_args=()
-    if [[ "${custom_is_dir}" == "1" && -n "${custom_path}" ]]; then
-      pm_args=(--recipe-dir "${recipes_dir}")
-    fi
+    local pm_args=(--recipe-dir "${recipes_dir}")
     if [[ -x "${PACKAGES_PM:-}" ]]; then
       while IFS= read -r pkg; do
         [[ -n "$pkg" ]] && install_order+=("$pkg")
@@ -708,18 +715,16 @@ install_package_remote() {
   fi
 
   # Copy pkg-helpers.sh so install scripts can use apt_update/apt_install etc.
-  # Support both repo layout:
-  #   <repo>/packages/recipes + <repo>/packages/scripts/pkg-helpers.sh
-  # and installed deb layout:
-  #   /usr/share/servobox/packages/recipes + /usr/share/servobox/scripts/pkg-helpers.sh
-  local packages_dir
-  packages_dir="$(dirname "${recipes_dir}")"
+  local recipe_root
+  recipe_root="$(dirname "${recipes_dir}")"
   local helpers_src=""
   local helper_candidate
   for helper_candidate in \
-    "${packages_dir}/scripts/pkg-helpers.sh" \
-    "$(dirname "${packages_dir}")/scripts/pkg-helpers.sh" \
-    "${REPO_ROOT}/packages/scripts/pkg-helpers.sh" \
+    "${REPO_ROOT}/scripts/servobox-tools/pkg-helpers.sh" \
+    "${REPO_ROOT}/servobox-tools/pkg-helpers.sh" \
+    "/usr/share/servobox/servobox-tools/pkg-helpers.sh" \
+    "${recipe_root}/scripts/pkg-helpers.sh" \
+    "$(dirname "${recipe_root}")/scripts/pkg-helpers.sh" \
     "${REPO_ROOT}/scripts/pkg-helpers.sh"; do
     if [[ -f "${helper_candidate}" ]]; then
       helpers_src="${helper_candidate}"
