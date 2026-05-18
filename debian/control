@@ -7,8 +7,8 @@ Standards-Version: 4.7.0
 
 Package: servobox
 Architecture: amd64
-Depends: ${misc:Depends}, iproute2, net-tools, wget, xz-utils, qemu-kvm, qemu-utils, libvirt-daemon-system, libvirt-clients, virtinst, cloud-image-utils, libguestfs-tools, libosinfo-bin, acl, openssh-client, stress-ng, isc-dhcp-client
-Recommends: sshpass, osinfo-db, bridge-utils, ethtool
+Depends: ${misc:Depends}, iproute2, net-tools, wget, xz-utils, qemu-kvm, qemu-utils, libvirt-daemon-system, libvirt-clients, virtinst, cloud-image-utils, libguestfs-tools, libosinfo-bin, acl, openssh-client, sshpass, stress-ng, isc-dhcp-client
+Recommends: osinfo-db, bridge-utils, ethtool
 Suggests: virt-viewer
 Description: One-command launcher for real-time VMs (Ubuntu 22.04 PREEMPT_RT)
  ServoBox makes it simple to create and run real-time tuned Ubuntu VMs

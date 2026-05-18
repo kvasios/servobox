@@ -33,18 +33,27 @@ wait_for_guest_login() {
   local user="${3:-servobox-usr}"
   local password="${4:-servobox-pwd}"
   local key_opts password_opts
+  local has_sshpass=0
+  local last_password_error=""
   read -r -a key_opts <<< "$(servobox_ssh_common_opts) -o BatchMode=yes -o ConnectTimeout=3"
   read -r -a password_opts <<< "$(servobox_ssh_password_opts) -o ConnectTimeout=3"
 
   echo "Waiting for SSH login as ${user}@${ip}... (timeout: ${timeout_seconds}s)"
+  if command -v sshpass >/dev/null 2>&1; then
+    has_sshpass=1
+  else
+    echo "Note: sshpass is not installed; automated password fallback is unavailable."
+  fi
+
   for i in $(seq 1 "${timeout_seconds}"); do
     if ssh "${key_opts[@]}" "${user}@${ip}" "true" >/dev/null 2>&1; then
       echo "SSH login is ready."
       return 0
     fi
 
-    if command -v sshpass >/dev/null 2>&1; then
-      if sshpass -p "${password}" ssh "${password_opts[@]}" "${user}@${ip}" "true" >/dev/null 2>&1; then
+    if [[ ${has_sshpass} -eq 1 ]]; then
+      last_password_error=$(sshpass -p "${password}" ssh "${password_opts[@]}" "${user}@${ip}" "true" 2>&1 >/dev/null || true)
+      if [[ -z "${last_password_error}" ]]; then
         echo "SSH login is ready."
         return 0
       fi
@@ -52,11 +61,21 @@ wait_for_guest_login() {
 
     if [[ $((i % 10)) -eq 0 ]]; then
       echo "Still waiting for SSH login... (${i}/${timeout_seconds}s)"
+      if [[ "${last_password_error}" == *"Permission denied (publickey)"* ]]; then
+        echo "Password login is being rejected by guest sshd (server only allows publickey)."
+      fi
     fi
     sleep 1
   done
 
   echo "SSH port is reachable, but login did not become ready within ${timeout_seconds} seconds." >&2
+  if [[ ${has_sshpass} -eq 0 ]]; then
+    echo "Install sshpass for the automated password fallback: sudo apt install sshpass" >&2
+  elif [[ "${last_password_error}" == *"Permission denied (publickey)"* ]]; then
+    echo "The guest rejected password auth. Recreate the VM with the latest ServoBox so /etc/ssh/sshd_config.d/00-servobox.conf is installed." >&2
+  elif [[ -n "${last_password_error}" ]]; then
+    echo "Last password-login error: ${last_password_error}" >&2
+  fi
   echo "Tips: check cloud-init and SSH auth in the guest console:" >&2
   echo "  virsh console ${NAME:-servobox-vm}" >&2
   echo "  cloud-init status --long" >&2

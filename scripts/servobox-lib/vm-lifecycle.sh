@@ -1165,7 +1165,8 @@ cmd_ssh() {
   # Remove stale known_hosts entry if present to avoid host key mismatch
   ssh-keygen -f "${HOME}/.ssh/known_hosts" -R "${IP}" >/dev/null 2>&1 || true
   # Prefer not storing/updating host keys for quick dev cycles
-  SSH_OPTS=(-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no)
+  read -r -a SSH_OPTS <<< "$(servobox_ssh_common_opts)"
+  read -r -a SSH_PASSWORD_OPTS <<< "$(servobox_ssh_password_opts)"
   # If user provided a private key or we can infer it from pubkey, use it
   local id_opt=()
   if [[ -n "${SSH_PRIVKEY_PATH:-}" && -f "${SSH_PRIVKEY_PATH}" ]]; then
@@ -1185,14 +1186,19 @@ cmd_ssh() {
     exit 0
   fi
   # Then try explicit identity with publickey only
-  if ssh ${id_opt:+"${id_opt[@]}"} -o IdentitiesOnly=yes -o PreferredAuthentications=publickey "${SSH_OPTS[@]}" servobox-usr@"${IP}"; then
-    exit 0
+  if [[ ${#id_opt[@]} -gt 0 ]]; then
+    if ssh "${id_opt[@]}" -o IdentitiesOnly=yes -o PreferredAuthentications=publickey "${SSH_OPTS[@]}" servobox-usr@"${IP}"; then
+      exit 0
+    fi
   fi
   # Fallback to password if available
   PW="servobox-pwd"
   if command -v sshpass >/dev/null 2>&1; then
-    sshpass -p "${PW}" ssh "${SSH_OPTS[@]}" -o PreferredAuthentications=password -o PubkeyAuthentication=no -o PasswordAuthentication=yes servobox-usr@"${IP}"
-    exit $?
+    if sshpass -p "${PW}" ssh "${SSH_PASSWORD_OPTS[@]}" servobox-usr@"${IP}"; then
+      exit 0
+    fi
+    echo "Password login failed. If the VM was created by an older ServoBox, recreate it so password auth is enabled before cloud-init's SSH defaults." >&2
+    exit 1
   else
     echo "Tip: Install sshpass to auto-use the standard password."
     echo "Password for servobox-usr@${IP}: ${PW}"
