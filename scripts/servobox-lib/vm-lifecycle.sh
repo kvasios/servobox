@@ -426,6 +426,49 @@ virt_define() {
   apply_rt_xml_config
 }
 
+remove_vm_storage_dir() {
+  if [[ -d "${VM_DIR}" ]]; then
+    if ! rm -rf "${VM_DIR}" 2>/dev/null; then
+      if ! sudo rm -rf "${VM_DIR}" >/dev/null 2>&1; then
+        echo "Error: Failed to remove VM directory ${VM_DIR}" >&2
+        exit 1
+      fi
+    fi
+  fi
+}
+
+remove_vm_package_tracking() {
+  local tracking_file="${HOME}/.local/share/servobox/tracking/${NAME}.servobox-packages"
+  if [[ -f "${tracking_file}" ]]; then
+    if rm -f "${tracking_file}" 2>/dev/null; then
+      echo "Removed package tracking file."
+    else
+      echo "Warning: Could not remove package tracking file: ${tracking_file}" >&2
+    fi
+  fi
+}
+
+remove_vm_domain_and_storage() {
+  echo "Destroying VM '${NAME}'..."
+
+  # Destroy only if running
+  if virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi running; then
+    echo "Stopping running VM..."
+    if ! virsh_cmd destroy "${NAME}" >/dev/null 2>&1; then
+      echo "Warning: Failed to destroy running VM" >&2
+    fi
+  fi
+
+  # Undefine the domain
+  if ! virsh_cmd undefine "${NAME}" --remove-all-storage >/dev/null 2>&1; then
+    echo "Error: Failed to undefine VM domain" >&2
+    exit 1
+  fi
+
+  remove_vm_storage_dir
+  remove_vm_package_tracking
+}
+
 cmd_init() {
   parse_args "$@"
   deps
@@ -511,6 +554,18 @@ cmd_init() {
     echo "" >&2
     echo "Error: host KVM acceleration is not usable; cannot proceed with VM initialization." >&2
     exit 1
+  fi
+
+  if [[ ${FROM_SCRATCH} -eq 1 ]]; then
+    echo "Reinitializing VM '${NAME}' from scratch..."
+    if virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
+      remove_vm_domain_and_storage
+    else
+      remove_vm_storage_dir
+      remove_vm_package_tracking
+    fi
+    remove_downloaded_vm_image
+    echo ""
   fi
   
   # Ensure libvirt's default network is available (unless using custom bridge)
@@ -848,6 +903,11 @@ cmd_destroy() {
   
   # Check if VM exists
   if ! virsh_cmd dominfo "${NAME}" >/dev/null 2>&1; then
+    if [[ ${VM_IMAGE_TOO} -eq 1 ]]; then
+      remove_downloaded_vm_image
+      echo "VM '${NAME}' does not exist."
+      exit 0
+    fi
     echo "Error: VM '${NAME}' does not exist." >&2
     exit 1
   fi
@@ -860,6 +920,9 @@ cmd_destroy() {
     echo "  - VM disk and all files: ${VM_DIR}"
     echo "  - Installed packages and configurations"
     echo "  - Any data you created inside the VM"
+    if [[ ${VM_IMAGE_TOO} -eq 1 ]]; then
+      echo "  - Downloaded base VM image: ${IMG}"
+    fi
     echo ""
     echo "This action CANNOT be undone."
     echo ""
@@ -873,40 +936,10 @@ cmd_destroy() {
     echo ""
   fi
   
-  echo "Destroying VM '${NAME}'..."
-  
-  # Destroy only if running
-  if virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi running; then
-    echo "Stopping running VM..."
-    if ! virsh_cmd destroy "${NAME}" >/dev/null 2>&1; then
-      echo "Warning: Failed to destroy running VM" >&2
-    fi
-  fi
-  
-  # Undefine the domain
-  if ! virsh_cmd undefine "${NAME}" --remove-all-storage >/dev/null 2>&1; then
-    echo "Error: Failed to undefine VM domain" >&2
-    exit 1
-  fi
-  
-  # Remove VM directory
-  if [[ -d "${VM_DIR}" ]]; then
-    if ! rm -rf "${VM_DIR}" 2>/dev/null; then
-      if ! sudo rm -rf "${VM_DIR}" >/dev/null 2>&1; then
-        echo "Error: Failed to remove VM directory ${VM_DIR}" >&2
-        exit 1
-      fi
-    fi
-  fi
-  
-  # Clean up package tracking file
-  local tracking_file="${HOME}/.local/share/servobox/tracking/${NAME}.servobox-packages"
-  if [[ -f "${tracking_file}" ]]; then
-    if rm -f "${tracking_file}" 2>/dev/null; then
-      echo "Removed package tracking file."
-    else
-      echo "Warning: Could not remove package tracking file: ${tracking_file}" >&2
-    fi
+  remove_vm_domain_and_storage
+
+  if [[ ${VM_IMAGE_TOO} -eq 1 ]]; then
+    remove_downloaded_vm_image
   fi
   
   echo "VM '${NAME}' has been destroyed."

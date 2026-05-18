@@ -18,6 +18,18 @@ image_download_error() {
   exit 1
 }
 
+remove_downloaded_vm_image() {
+  if [[ -f "${IMG}" ]]; then
+    echo "Removing downloaded VM image: ${IMG}"
+    if ! rm -f "${IMG}" 2>/dev/null; then
+      echo "Error: Failed to remove downloaded VM image ${IMG}" >&2
+      exit 1
+    fi
+  else
+    echo "Downloaded VM image not found at ${IMG}; nothing to remove."
+  fi
+}
+
 ensure_image() {
   mkdir -p "${DOWNLOAD_DIR}"
   # If user provided a local artifact, use it
@@ -41,7 +53,11 @@ ensure_image() {
     fi
     return
   fi
-  if [[ -f "${SYSTEM_BASE_IMG}" ]]; then
+  if [[ "${FROM_SCRATCH:-0}" -eq 1 ]]; then
+    # A from-scratch init should fetch a fresh release image instead of reusing
+    # the per-user cache or packaged system cache for this run.
+    rm -f "${IMG}" 2>/dev/null || true
+  elif [[ -f "${SYSTEM_BASE_IMG}" ]]; then
     if [[ ! -f "${IMG}" ]]; then
       echo "Copying pre-cached ServoBox base image..."
       if ! cp "${SYSTEM_BASE_IMG}" "${IMG}"; then

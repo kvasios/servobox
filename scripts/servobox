@@ -57,6 +57,8 @@ LIBVIRT_IMAGES_BASE="/var/lib/libvirt/images"
 OSINFO_OPT="ubuntu22.04"  # OS ID for virt-install (fixed to shipped image)
 DEBUG=0
 FORCE=0             # default: prompt for confirmation on destructive operations
+FROM_SCRATCH=0      # init: remove existing VM and refresh base image first
+VM_IMAGE_TOO=0      # destroy: also remove the downloaded base image
 DEFAULT_NAT_STATIC="192.168.122.100/24"  # default persistent IP for libvirt 'default' NAT
 STATIC_IP_CIDR=""   # optional override via --ip
 
@@ -138,6 +140,8 @@ parse_args() {
       --performance) RT_MODE="performance"; shift 1;;
       --extreme) RT_MODE="extreme"; shift 1;;
       -f|--force) FORCE=1; shift 1;;
+      --from-scratch) FROM_SCRATCH=1; shift 1;;
+      --vm-image-too) VM_IMAGE_TOO=1; shift 1;;
       *) echo "Unknown arg: $1"; usage; exit 1;;
     esac
   done
@@ -173,7 +177,7 @@ Usage:
   servobox ip [--name NAME]            Print VM IPv4 address
   servobox ssh [--name NAME]           SSH into the VM as user 'servobox-usr'
   servobox stop [--name NAME]          Gracefully shutdown the VM
-  servobox destroy [--name NAME] [-f|--force]
+  servobox destroy [--name NAME] [-f|--force] [--vm-image-too]
                                        Power off and remove the VM and storage
   servobox network-setup [--name NAME] Interactive wizard to configure network (up to 2 host NICs)
   servobox test [--name NAME] [--duration SECONDS] [--stress-ng] [--stress-cpuset LIST] [--stress-profile MODE]
@@ -212,9 +216,11 @@ Options (for 'init'):
   --choose-nic         Interactively select host NICs during init (max 2)
   --image PATH         Use local base image (.qcow2 or .qcow2.xz)
   --ip CIDR            Static IP for the primary NAT NIC (default: 192.168.122.100/24)
+  --from-scratch       Delete the existing VM and downloaded base image, then recreate
 
 Options (for 'destroy'):
   -f, --force          Skip confirmation prompt (use with caution!)
+  --vm-image-too       Also delete the downloaded base VM image
 
 Remote Target Mode (Jetson, NUC, etc.):
   Set SERVOBOX_TARGET_IP to operate on a remote RT machine instead of a local VM.
@@ -261,6 +267,7 @@ Examples:
   servobox init --host-nic eth0                    # Single device
   servobox init --host-nic eth0 --host-nic eth1   # Dual robot setup
   servobox init --choose-nic                       # Interactive selection
+  servobox init --from-scratch                     # Recreate VM with a fresh image download
   servobox network-setup                            # Configure network after init
   servobox start                                    # Balanced mode (default)
   servobox start --performance                      # Lock frequencies for lower latency
@@ -269,6 +276,7 @@ Examples:
   servobox test --duration 60 --stress-ng --stress-profile balanced
   servobox run polymetis                            # Run polymetis recipe
   servobox run "sudo pkill -9 run_server"           # Kill a process in VM
+  servobox destroy --vm-image-too                   # Delete VM and downloaded base image
 EOF
 }
 
