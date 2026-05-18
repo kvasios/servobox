@@ -64,6 +64,8 @@ DOWNLOAD_DIR="${HOME}/.local/share/servobox"
 # Base RT image locations (system cache preferred)
 SYSTEM_BASE_IMG="/var/lib/servobox/base.qcow2"
 BASE_IMG_URL_FILE="/usr/share/servobox/base-image.url"
+BASE_IMAGE_GH_REPO="kvasios/servobox-images"
+BASE_IMAGE_GH_TAG="jammy-rt-2026-05"
 IMG="${DOWNLOAD_DIR}/servobox-jammy-rt.qcow2"
 VM_DIR="${LIBVIRT_IMAGES_BASE}/servobox/${NAME}"
 SEED_ISO="${VM_DIR}/seed.iso"

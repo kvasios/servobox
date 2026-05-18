@@ -58,9 +58,9 @@ ensure_image() {
     # Prefer the tag matching the installed package version; source checkouts can
     # fall back to the version in debian/changelog.
 
-    GH_REPO="kvasios/servobox"
+    GH_REPO="${BASE_IMAGE_GH_REPO:-kvasios/servobox}"
     PKG_VER=""
-    if command -v dpkg-query >/dev/null 2>&1; then
+    if [[ -z "${BASE_IMAGE_GH_TAG:-}" ]] && command -v dpkg-query >/dev/null 2>&1; then
       PKG_VER=$(dpkg-query -W -f='${Version}' servobox 2>/dev/null || true)
     fi
 
@@ -159,8 +159,11 @@ ensure_image() {
     fi
 
     if [[ -z "${URL}" ]]; then
-      # Fallback: auto-detect version from debian/changelog (when running from source)
-      if [[ -f "debian/changelog" ]]; then
+      # Fallback: use configured image release tag, then auto-detect from source.
+      if [[ -n "${BASE_IMAGE_GH_TAG:-}" ]]; then
+        DEFAULT_TAG="${BASE_IMAGE_GH_TAG}"
+        echo "Checking for image release tag: ${DEFAULT_TAG}"
+      elif [[ -f "debian/changelog" ]]; then
         DEFAULT_TAG="v$(head -n1 debian/changelog | sed -n 's/.*(\([^)]\+\)).*/\1/p')"
         echo "Checking for release tag: ${DEFAULT_TAG} (from debian/changelog)"
       else
