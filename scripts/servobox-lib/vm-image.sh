@@ -18,6 +18,62 @@ image_download_error() {
   exit 1
 }
 
+download_vm_image() {
+  local url="$1"
+  local output="$2"
+  local auth_header=()
+  local accept_header=()
+  local attempted=0
+
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    auth_header=(-H "Authorization: token ${GITHUB_TOKEN}")
+    accept_header=(-H "Accept: application/octet-stream")
+  fi
+
+  if command -v curl >/dev/null 2>&1; then
+    attempted=1
+    echo "Downloading with curl (will retry with wget if the transfer stalls)..."
+    rm -f "${output}.partial" 2>/dev/null || true
+    if curl -fL --show-error \
+      --connect-timeout 10 \
+      --max-time 1800 \
+      --retry 2 \
+      --retry-delay 2 \
+      --speed-limit 1024 \
+      --speed-time 30 \
+      "${auth_header[@]}" \
+      "${accept_header[@]}" \
+      -o "${output}.partial" \
+      "${url}"; then
+      mv "${output}.partial" "${output}"
+      return 0
+    fi
+    rm -f "${output}.partial" 2>/dev/null || true
+    echo "Warning: curl download failed or stalled; trying wget..." >&2
+  fi
+
+  if command -v wget >/dev/null 2>&1; then
+    attempted=1
+    echo "Downloading with wget..."
+    rm -f "${output}.partial" 2>/dev/null || true
+    local wget_args=(--timeout=30 --tries=2 --read-timeout=30 --progress=dot:giga -O "${output}.partial")
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+      wget_args+=("--header=Authorization: token ${GITHUB_TOKEN}" "--header=Accept: application/octet-stream")
+    fi
+    if wget "${wget_args[@]}" "${url}"; then
+      mv "${output}.partial" "${output}"
+      return 0
+    fi
+    rm -f "${output}.partial" 2>/dev/null || true
+    echo "Warning: wget download failed." >&2
+  fi
+
+  if [[ ${attempted} -eq 0 ]]; then
+    echo "Error: installing ServoBox requires curl or wget to download the base image." >&2
+  fi
+  return 1
+}
+
 remove_downloaded_vm_image() {
   if [[ -f "${IMG}" ]]; then
     echo "Removing downloaded VM image: ${IMG}"
@@ -267,31 +323,7 @@ ensure_image() {
 
     echo "Fetching: ${URL}"
     
-    # Single download attempt with proper auth
-    local download_success=0
-    if command -v curl >/dev/null 2>&1; then
-        if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-            if curl -fL --connect-timeout 10 --max-time 1800 --retry 2 -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/octet-stream" -o "${IMG}" "${URL}"; then
-                download_success=1
-            fi
-        else
-            if curl -fL --connect-timeout 10 --max-time 1800 --retry 2 -o "${IMG}" "${URL}"; then
-                download_success=1
-            fi
-        fi
-    else
-        if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-            if wget --timeout=30 --tries=2 --read-timeout=30 --progress=dot:giga --header="Authorization: token ${GITHUB_TOKEN}" --header="Accept: application/octet-stream" -O "${IMG}" "${URL}"; then
-                download_success=1
-            fi
-        else
-            if wget --timeout=30 --tries=2 --read-timeout=30 --progress=dot:giga -O "${IMG}" "${URL}"; then
-                download_success=1
-            fi
-        fi
-    fi
-    
-    if [[ ${download_success} -eq 0 ]]; then
+    if ! download_vm_image "${URL}" "${IMG}"; then
         image_download_error "Failed to download VM image from ${URL}" "${TAG:-${DEFAULT_TAG:-}}"
     fi
 
@@ -420,7 +452,7 @@ NPYAML
       --run-command 'echo "servobox-usr ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/99-servobox-nopasswd && chmod 0440 /etc/sudoers.d/99-servobox-nopasswd' \
       --run-command 'echo "servobox-usr:servobox-pwd" | chpasswd' \
       --run-command 'mkdir -p /home/servobox-usr/.ssh && chown -R servobox-usr:servobox-usr /home/servobox-usr && chmod 700 /home/servobox-usr/.ssh' \
-      --run-command 'mkdir -p /etc/ssh/sshd_config.d && printf "PasswordAuthentication yes\nPubkeyAuthentication yes\n" >/etc/ssh/sshd_config.d/99-servobox.conf' \
+      --run-command 'mkdir -p /etc/ssh/sshd_config.d && rm -f /etc/ssh/sshd_config.d/99-servobox.conf && printf "PasswordAuthentication yes\nPubkeyAuthentication yes\n" >/etc/ssh/sshd_config.d/00-servobox.conf' \
       --run-command "sed -i '/^@realtime /d' /etc/security/limits.conf" \
       --run-command "sed -i 's/^# End of file$/@realtime soft rtprio 99\\n@realtime soft priority 99\\n@realtime soft memlock 102400\\n@realtime hard rtprio 99\\n@realtime hard priority 99\\n@realtime hard memlock 102400\\n# End of file/' /etc/security/limits.conf" \
       --run-command 'grep -q pam_limits.so /etc/pam.d/common-session || echo "session required pam_limits.so" >> /etc/pam.d/common-session' \
@@ -490,7 +522,7 @@ UNIT
     --run-command "sed -i 's/^# End of file$/@realtime soft rtprio 99\\n@realtime soft priority 99\\n@realtime soft memlock 102400\\n@realtime hard rtprio 99\\n@realtime hard priority 99\\n@realtime hard memlock 102400\\n# End of file/' /etc/security/limits.conf" \
     --run-command 'grep -q pam_limits.so /etc/pam.d/common-session || echo "session required pam_limits.so" >> /etc/pam.d/common-session' \
     --run-command 'grep -q pam_limits.so /etc/pam.d/common-session-noninteractive || echo "session required pam_limits.so" >> /etc/pam.d/common-session-noninteractive' \
-    --run-command 'mkdir -p /etc/ssh/sshd_config.d && printf "PasswordAuthentication yes\nPubkeyAuthentication yes\n" >/etc/ssh/sshd_config.d/99-servobox.conf' \
+    --run-command 'mkdir -p /etc/ssh/sshd_config.d && rm -f /etc/ssh/sshd_config.d/99-servobox.conf && printf "PasswordAuthentication yes\nPubkeyAuthentication yes\n" >/etc/ssh/sshd_config.d/00-servobox.conf' \
     --upload "${np_tmp}:/etc/netplan/01-servobox-dhcp.yaml" \
     --run-command 'chown root:root /etc/netplan/01-servobox-dhcp.yaml && chmod 0644 /etc/netplan/01-servobox-dhcp.yaml' \
     --upload "${fb_tmp}:/etc/systemd/system/servobox-firstboot.service" \
@@ -520,8 +552,14 @@ inject_ssh_key() {
     if [[ -f "${HOME}/.ssh/id_ed25519.pub" ]]; then pubkey="${HOME}/.ssh/id_ed25519.pub";
     elif [[ -f "${HOME}/.ssh/id_rsa.pub" ]]; then pubkey="${HOME}/.ssh/id_rsa.pub";
     else
-      echo "No SSH public key found. Generate one with: ssh-keygen -t ed25519" >&2
-      return 0
+      echo "No SSH public key found. Generating ${HOME}/.ssh/id_ed25519 for ServoBox access."
+      mkdir -p "${HOME}/.ssh"
+      chmod 700 "${HOME}/.ssh" 2>/dev/null || true
+      if ! ssh-keygen -q -t ed25519 -N "" -f "${HOME}/.ssh/id_ed25519"; then
+        echo "Warning: Could not generate SSH key. Will rely on password/cloud-init access." >&2
+        return 0
+      fi
+      pubkey="${HOME}/.ssh/id_ed25519.pub"
     fi
   fi
   if [[ ! -f "${pubkey}" ]]; then

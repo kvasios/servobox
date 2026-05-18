@@ -130,11 +130,14 @@ run_latency_test() {
   
   # Ensure SSH is ready (gives cloud-init time to finalize sudoers as well)
   wait_for_sshd "${IP}" 60 || true
+  wait_for_guest_login "${IP}" 120 || exit 1
 
   # Common SSH options: avoid touching known_hosts in quick dev cycles
   # Separate options for scp (no -t flag) and ssh (with -t flag for real-time output)
-  SCP_OPTS=(-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no)
-  SSH_OPTS=(-t -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no)
+  read -r -a SCP_OPTS <<< "$(servobox_ssh_common_opts)"
+  SSH_OPTS=(-t "${SCP_OPTS[@]}")
+  read -r -a SCP_PASSWORD_OPTS <<< "$(servobox_ssh_password_opts)"
+  SSH_PASSWORD_OPTS=(-tt "${SCP_PASSWORD_OPTS[@]}")
 
   # Create a temporary script to handle cloud-init wait and cyclictest installation
   local temp_script="/tmp/servobox-test-$$.sh"
@@ -180,7 +183,7 @@ EOF
   if ! scp "${SCP_OPTS[@]}" "${temp_script}" servobox-usr@"${IP}":/tmp/servobox-test.sh; then
     echo "Failed to upload test script, trying with password..."
     if command -v sshpass >/dev/null 2>&1; then
-      if ! sshpass -p "servobox-pwd" scp "${SCP_OPTS[@]}" "${temp_script}" servobox-usr@"${IP}":/tmp/servobox-test.sh; then
+      if ! sshpass -p "servobox-pwd" scp "${SCP_PASSWORD_OPTS[@]}" "${temp_script}" servobox-usr@"${IP}":/tmp/servobox-test.sh; then
         echo "Failed to upload test script even with password" >&2
         rm -f "${temp_script}" 2>/dev/null || true
         exit 1
@@ -293,7 +296,7 @@ EOF
     if command -v sshpass >/dev/null 2>&1; then
       # Allocate a TTY and provide password to sudo via -S (stdin)
       # Use -tt for double TTY allocation for password handling
-      if run_ssh_with_password "${PW}" -tt -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no servobox-usr@"${IP}" "printf '%s\n' '${PW}' | sudo -S -k bash -c '${test_cmd}'" "$output_file"; then
+      if run_ssh_with_password "${PW}" "${SSH_PASSWORD_OPTS[@]}" servobox-usr@"${IP}" "printf '%s\n' '${PW}' | sudo -S -k bash -c '${test_cmd}'" "$output_file"; then
         ssh_exit_code=0
         echo "Test completed successfully (with password)"
       else
@@ -368,8 +371,8 @@ cmd_debug() {
     virt-cat -d "${NAME}" /var/log/cloud-init.log 2>/dev/null | tail -20 || echo "Could not read cloud-init.log"
     echo -e "\n--- /home/servobox-usr/.ssh/authorized_keys ---"
     virt-cat -d "${NAME}" /home/servobox-usr/.ssh/authorized_keys 2>/dev/null || echo "Could not read authorized_keys"
-    echo -e "\n--- /etc/ssh/sshd_config.d/99-servobox.conf ---"
-    virt-cat -d "${NAME}" /etc/ssh/sshd_config.d/99-servobox.conf 2>/dev/null || echo "Could not read sshd config"
+    echo -e "\n--- /etc/ssh/sshd_config.d/00-servobox.conf ---"
+    virt-cat -d "${NAME}" /etc/ssh/sshd_config.d/00-servobox.conf 2>/dev/null || echo "Could not read sshd config"
   else
     echo "virt-cat not available (install libguestfs-tools)"
   fi

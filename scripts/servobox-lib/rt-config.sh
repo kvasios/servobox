@@ -833,7 +833,9 @@ verify_rt_config() {
   echo "Guest RT Kernel Parameters:"
   IP=$(vm_ip || true)
   if [[ -n "${IP}" ]]; then
-    local ssh_opts=(-o ConnectTimeout=2 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o UpdateHostKeys=no)
+    local ssh_opts password_ssh_opts
+    read -r -a ssh_opts <<< "$(servobox_ssh_common_opts) -o BatchMode=yes -o ConnectTimeout=2"
+    read -r -a password_ssh_opts <<< "$(servobox_ssh_password_opts) -o ConnectTimeout=2"
     local guest_cmdline=""
     
     # Try SSH with keys first
@@ -841,7 +843,7 @@ verify_rt_config() {
     
     # Fall back to password if keys don't work
     if [[ -z "${guest_cmdline}" ]] && command -v sshpass >/dev/null 2>&1; then
-      guest_cmdline=$(sshpass -p "servobox-pwd" ssh "${ssh_opts[@]}" servobox-usr@"${IP}" "cat /proc/cmdline" 2>/dev/null || echo "")
+      guest_cmdline=$(sshpass -p "servobox-pwd" ssh "${password_ssh_opts[@]}" servobox-usr@"${IP}" "cat /proc/cmdline" 2>/dev/null || echo "")
     fi
     
     if [[ -n "${guest_cmdline}" ]]; then

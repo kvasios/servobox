@@ -489,7 +489,7 @@ chpasswd:
     servobox-usr:${SERVOBOX_PW}
 
 write_files:
-  - path: /etc/ssh/sshd_config.d/99-servobox.conf
+  - path: /etc/ssh/sshd_config.d/00-servobox.conf
     owner: root:root
     permissions: '0644'
     content: |

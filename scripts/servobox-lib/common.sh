@@ -19,6 +19,51 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
+servobox_ssh_common_opts() {
+  echo "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no"
+}
+
+servobox_ssh_password_opts() {
+  echo "$(servobox_ssh_common_opts) -o PreferredAuthentications=password -o PubkeyAuthentication=no -o PasswordAuthentication=yes -o NumberOfPasswordPrompts=1"
+}
+
+wait_for_guest_login() {
+  local ip="$1"
+  local timeout_seconds="${2:-120}"
+  local user="${3:-servobox-usr}"
+  local password="${4:-servobox-pwd}"
+  local key_opts password_opts
+  read -r -a key_opts <<< "$(servobox_ssh_common_opts) -o BatchMode=yes -o ConnectTimeout=3"
+  read -r -a password_opts <<< "$(servobox_ssh_password_opts) -o ConnectTimeout=3"
+
+  echo "Waiting for SSH login as ${user}@${ip}... (timeout: ${timeout_seconds}s)"
+  for i in $(seq 1 "${timeout_seconds}"); do
+    if ssh "${key_opts[@]}" "${user}@${ip}" "true" >/dev/null 2>&1; then
+      echo "SSH login is ready."
+      return 0
+    fi
+
+    if command -v sshpass >/dev/null 2>&1; then
+      if sshpass -p "${password}" ssh "${password_opts[@]}" "${user}@${ip}" "true" >/dev/null 2>&1; then
+        echo "SSH login is ready."
+        return 0
+      fi
+    fi
+
+    if [[ $((i % 10)) -eq 0 ]]; then
+      echo "Still waiting for SSH login... (${i}/${timeout_seconds}s)"
+    fi
+    sleep 1
+  done
+
+  echo "SSH port is reachable, but login did not become ready within ${timeout_seconds} seconds." >&2
+  echo "Tips: check cloud-init and SSH auth in the guest console:" >&2
+  echo "  virsh console ${NAME:-servobox-vm}" >&2
+  echo "  cloud-init status --long" >&2
+  echo "  sudo sshd -T | grep -E 'passwordauthentication|pubkeyauthentication'" >&2
+  return 1
+}
+
 # Ensure host KVM device permissions work with libvirt's QEMU user.
 # This fixes a common regression where /dev/kvm ends up in group "plugdev",
 # which prevents libvirt (running QEMU as libvirt-qemu) from using hardware accel.
