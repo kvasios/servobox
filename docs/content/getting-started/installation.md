@@ -43,14 +43,6 @@ sudo apt install --only-upgrade servobox
 apt-cache policy servobox
 ```
 
-### GitHub release package
-
-APT is the easiest path, but you can also install the current release package directly:
-
-```console
-wget https://github.com/kvasios/servobox/releases/download/v0.3.0/servobox_0.3.0_amd64.deb
-sudo apt install -f ./servobox_0.3.0_amd64.deb
-```
 
 ### Build from source
 

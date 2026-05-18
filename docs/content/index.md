@@ -2,7 +2,7 @@
 
 ServoBox is built for robotics workstations where you want low-latency control without sacrificing the rest of the machine. The RT workload lives in the VM or remote target, while the host stays usable for development, vision, planning, and debugging.
 
-ServoBox gives you Ubuntu 22.04 PREEMPT_RT environments for robotics without forcing your whole workstation onto an RT kernel. Use it to spin up local RT VMs with automatic CPU pinning and IRQ isolation, or target existing RT machines over SSH in `0.3.0`.
+ServoBox gives you Ubuntu 22.04 PREEMPT_RT environments for robotics without forcing your whole workstation onto an RT kernel. Use it to spin up local RT VMs with automatic CPU pinning and IRQ isolation, or target existing RT machines over SSH.
 
 ## Fastest Path
 

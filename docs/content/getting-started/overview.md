@@ -7,7 +7,7 @@ ServoBox is for robotics workstations that need low-latency control without givi
 Keep the host on a normal Ubuntu kernel for development, GPU workloads, perception, and planning. Run the latency-sensitive control workload inside:
 
 - a local Ubuntu PREEMPT_RT VM created by ServoBox, or
-- a remote RT machine reached over SSH in `0.3.0`
+- a remote RT machine reached over SSH
 
 This keeps the real-time part isolated while the host stays practical for day-to-day work.
 

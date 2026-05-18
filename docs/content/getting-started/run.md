@@ -63,7 +63,7 @@ servobox start --performance
 
 ## Install Your First Stack
 
-`pkg-install` now installs into a running target over SSH by default in `0.3.0`, so you get live progress output.
+`pkg-install` installs into a running target over SSH by default, so you get live progress output.
 On first use, ServoBox downloads the external recipe channel release into your local cache.
 
 ```console
@@ -116,7 +116,7 @@ servobox ssh --name my-vm
 
 ## Remote Target Mode
 
-ServoBox `0.3.0` can also operate on an existing RT machine over SSH instead of a local VM.
+ServoBox can also operate on an existing RT machine over SSH instead of a local VM.
 
 ```console
 export SERVOBOX_TARGET_IP=192.168.1.50

@@ -13,9 +13,9 @@ The package system provides:
 
 Default recipes are served by the external `servobox-recipes` channel. ServoBox downloads the latest channel release into a user-writable cache on first use, then installs recipes from that cache.
 
-## Default Install Mode In 0.3.0
+## Default Install Mode
 
-Starting with `0.3.0`, `servobox pkg-install` installs over SSH by default and shows live progress output. For local VMs, ServoBox starts the VM automatically if needed and restores the previous state afterward.
+`servobox pkg-install` installs over SSH by default and shows live progress output. For local VMs, ServoBox starts the VM automatically if needed and restores the previous state afterward.
 
 The older image-mutation workflow still exists behind `--offline`.
 
@@ -117,7 +117,7 @@ This is useful for Jetson, NUC, and similar RT-capable systems where you want Se
 
 ### Live install over SSH
 
-This is the default in `0.3.0`.
+This is the default install mode.
 
 - works with local VMs and remote RT targets
 - shows live installation progress

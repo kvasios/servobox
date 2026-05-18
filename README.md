@@ -16,7 +16,7 @@
   </a>
 </p>
 
-ServoBox launches Ubuntu 22.04 PREEMPT_RT environments for robotics without turning your whole workstation into an RT system. It gives you automatic CPU pinning, IRQ isolation, built-in latency checks, external recipe-channel installs for common robotics stacks, and as of `0.3.0`, support for remote RT targets over SSH.
+ServoBox launches Ubuntu 22.04 PREEMPT_RT environments for robotics without turning your whole workstation into an RT system. It gives you automatic CPU pinning, IRQ isolation, built-in latency checks, external recipe-channel installs for common robotics stacks, and support for remote RT targets over SSH.
 
 ## Quick Start
 

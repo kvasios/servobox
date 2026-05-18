@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 (TBD)
+## 0.4.0 (2026-05-18)
 
 ### Added
 - **External Recipe Channel**: `servobox pkg-install <recipe>` now fetches recipes from the `servobox-recipes` release channel instead of relying on recipes bundled with ServoBox.
