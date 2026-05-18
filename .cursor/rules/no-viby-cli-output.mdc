@@ -1,0 +1,14 @@
+---
+description: Keep ServoBox user-facing output professional and non-viby
+alwaysApply: true
+---
+
+# CLI Output Tone
+
+When editing user-facing ServoBox messages, keep the tone professional, direct, and durable.
+
+- Do not add emojis, pictograms, decorative Unicode status symbols, or celebratory punctuation.
+- Prefer `Error:`, `Warning:`, `Info:`, and plain success messages over glyphs such as checkmarks, crosses, rockets, targets, or warning icons.
+- Use ASCII separators and bullets in scripts; preserve technical non-ASCII units such as `μs` when already used.
+- Keep messages concise and actionable. Avoid hype, jokes, "vibe" language, and unnecessary enthusiasm.
+- Do not change behavior when the task is only message tonality.

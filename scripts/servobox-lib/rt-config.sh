@@ -120,7 +120,7 @@ cmd_irqbalance_mask() {
       # Isolate VM vCPUs on host RT cores (after housekeeping cores)
       isolated_max=$((isolated_min + vm_vcpus - 1))
       auto_detected=1
-      echo "ℹ️  Auto-detected from VM '${vm_name}': ${vm_vcpus} vCPUs"
+      echo "Info: Auto-detected from VM '${vm_name}': ${vm_vcpus} vCPUs"
     fi
   fi
   
@@ -131,7 +131,7 @@ cmd_irqbalance_mask() {
       isolated_max=$((host_cores - 1))
     fi
     auto_detected=1
-    echo "ℹ️  No VM found, using default: 4 vCPUs (isolating cores ${isolated_min}-${isolated_max})"
+    echo "Info: No VM found, using default: 4 vCPUs (isolating cores ${isolated_min}-${isolated_max})"
   fi
   
   # Validate isolated_max
@@ -151,26 +151,26 @@ cmd_irqbalance_mask() {
   local mask
   mask=$(cpulist_to_mask "${cpulist}")
   
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
   echo "         IRQBALANCE CONFIGURATION FOR RT ISOLATION"
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
   echo ""
   if [[ ${auto_detected} -eq 1 && -n "${vm_vcpus}" ]]; then
     echo "VM Configuration:"
-    echo "  • VM name: ${vm_name}"
-    echo "  • VM vCPUs: ${vm_vcpus}"
+    echo "  - VM name: ${vm_name}"
+    echo "  - VM vCPUs: ${vm_vcpus}"
     echo ""
   fi
   echo "Host Configuration:"
-  echo "  • Total HOST cores: ${host_cores}"
-  echo "  • Cores to isolate: ${isolated_min}-${isolated_max} (for RT VMs)"
-  echo "  • Housekeeping cores: ${HK_CPUSET} (for host IRQs/emulator tasks)"
+  echo "  - Total HOST cores: ${host_cores}"
+  echo "  - Cores to isolate: ${isolated_min}-${isolated_max} (for RT VMs)"
+  echo "  - Housekeeping cores: ${HK_CPUSET} (for host IRQs/emulator tasks)"
   echo ""
   echo "Generated Configuration (use either format):"
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "IRQBALANCE_BANNED_CPULIST=${cpulist}  (recommended - simple!)"
+  echo "-------------------------------------------------------------"
+  echo "IRQBALANCE_BANNED_CPULIST=${cpulist}  (recommended - simple)"
   echo "IRQBALANCE_BANNED_CPUS=0x${mask}      (alternative - bitmask)"
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "-------------------------------------------------------------"
   echo ""
   echo "How to apply this configuration:"
   echo ""
@@ -191,14 +191,14 @@ cmd_irqbalance_mask() {
   echo ""
   echo "VM Mapping:"
   if [[ -n "${vm_vcpus}" ]]; then
-    echo "  • VM '${vm_name}' has ${vm_vcpus} vCPUs"
-    echo "  • These will be pinned to HOST cores ${isolated_min}-${isolated_max}"
-    echo "  • Housekeeping remains on HOST cores ${HK_CPUSET}"
+    echo "  - VM '${vm_name}' has ${vm_vcpus} vCPUs"
+    echo "  - These will be pinned to HOST cores ${isolated_min}-${isolated_max}"
+    echo "  - Housekeeping remains on HOST cores ${HK_CPUSET}"
   else
-    echo "  • VM vCPUs will be pinned to HOST cores ${isolated_min}-N"
-    echo "  • Default VM (4 vCPUs) → HOST cores ${isolated_min}-${isolated_max}"
+    echo "  - VM vCPUs will be pinned to HOST cores ${isolated_min}-N"
+    echo "  - Default VM (4 vCPUs) -> HOST cores ${isolated_min}-${isolated_max}"
   fi
-  echo "  • ServoBox handles this mapping automatically during 'servobox start'"
+  echo "  - ServoBox handles this mapping automatically during 'servobox start'"
   echo ""
 }
 
@@ -320,14 +320,14 @@ apply_rt_xml_config() {
   # Redefine the domain with updated XML
   echo "Redefining VM with RT-optimized XML..."
   if virsh_cmd define "${xml_file}" >/dev/null 2>&1; then
-    echo "✓ RT XML configuration applied successfully"
-    echo "  • CPU pinning: vCPUs 0-$((VCPUS-1)) → host CPUs ${RT_START_CPU}-${RT_END_CPU}"
-    echo "  • Emulator thread pinned to CPUs ${HK_CPUSET}"
-    echo "  • IOThread pinned to CPUs ${HK_CPUSET}"
-    echo "  • Memory locking enabled"
-    echo "  • Enhanced clock configuration (kvmclock, TSC)"
+    echo "RT XML configuration applied successfully."
+    echo "  - CPU pinning: vCPUs 0-$((VCPUS-1)) -> host CPUs ${RT_START_CPU}-${RT_END_CPU}"
+    echo "  - Emulator thread pinned to CPUs ${HK_CPUSET}"
+    echo "  - IOThread pinned to CPUs ${HK_CPUSET}"
+    echo "  - Memory locking enabled"
+    echo "  - Enhanced clock configuration (kvmclock, TSC)"
   else
-    echo "⚠️  Warning: Failed to apply RT XML optimizations"
+    echo "Warning: Failed to apply RT XML optimizations"
     echo "   VM will still work but may not have optimal RT performance"
     echo "   Falling back to runtime pinning only"
   fi
@@ -349,9 +349,9 @@ inject_rt_kernel_params() {
   local grub_params="quiet splash nohpet tsc=reliable"
   
   echo "Configuring guest kernel parameters (PREEMPT_RT only, no guest CPU isolation)..."
-  echo "  • Host-level isolation already provides dedicated cores for the VM"
-  echo "  • Guest processes can freely use all ${VCPUS} vCPUs for optimal performance"
-  echo "  • Advanced users: manually add 'isolcpus=' to /etc/default/grub if needed"
+  echo "  - Host-level isolation already provides dedicated cores for the VM"
+  echo "  - Guest processes can freely use all ${VCPUS} vCPUs for optimal performance"
+  echo "  - Advanced users: manually add 'isolcpus=' to /etc/default/grub if needed"
   
   # Create a script to update GRUB configuration
   local grub_script
@@ -392,7 +392,7 @@ GRUBSCRIPT
   fi
   
   rm -f "${grub_script}" 2>/dev/null || true
-  echo "✓ RT kernel parameters configured in GRUB"
+  echo "RT kernel parameters configured in GRUB."
 }
 
 pin_vcpus() {
@@ -443,10 +443,10 @@ pin_vcpus() {
   # Priority 70 for QEMU main process (data logging/monitoring level)
   echo "Setting QEMU process to SCHED_FIFO priority 70..."
   if ! sudo chrt -f -p 70 ${QEMU_PID} >/dev/null 2>&1; then
-    echo "❌ Error: Could not set RT priority for QEMU" >&2
+    echo "Error: Could not set RT priority for QEMU" >&2
     echo "   RT configuration incomplete. vCPU threads may not be realtime." >&2
   else
-    echo "  ✓ QEMU main process set to SCHED_FIFO priority 70"
+    echo "  QEMU main process set to SCHED_FIFO priority 70"
   fi
   
   # Find and set priority for vCPU threads (critical infrastructure)
@@ -459,21 +459,21 @@ pin_vcpus() {
     local fail_count=0
     for tid in ${vcpu_threads}; do
       if sudo chrt -f -p 80 ${tid} >/dev/null 2>&1; then
-        echo "  ✓ Set vCPU thread ${tid} to SCHED_FIFO priority 80"
+        echo "  Set vCPU thread ${tid} to SCHED_FIFO priority 80"
         success_count=$((success_count + 1))
       else
-        echo "  ❌ Failed to set RT priority for vCPU thread ${tid}"
+        echo "  Failed to set RT priority for vCPU thread ${tid}"
         fail_count=$((fail_count + 1))
       fi
     done
     
     if [[ ${fail_count} -gt 0 ]]; then
-      echo "❌ Warning: ${fail_count} vCPU thread(s) failed RT configuration"
+      echo "Warning: ${fail_count} vCPU thread(s) failed RT configuration"
     else
-      echo "✓ All ${success_count} vCPU threads configured for RT"
+      echo "All ${success_count} vCPU threads configured for RT."
     fi
   else
-    echo "⚠️  Warning: No vCPU threads found (pattern 'CPU [0-9]+/KVM')"
+    echo "Warning: No vCPU threads found (pattern 'CPU [0-9]+/KVM')"
     echo "   RT scheduling may not be optimal"
     echo "   Checking alternative patterns..."
     # Try alternative patterns in case QEMU names threads differently
@@ -494,21 +494,21 @@ pin_vcpus() {
     local vhost_fail=0
     for tid in ${vhost_threads}; do
       if sudo chrt -f -p 75 ${tid} >/dev/null 2>&1; then
-        echo "  ✓ Set vhost thread ${tid} to SCHED_FIFO priority 75"
+        echo "  Set vhost thread ${tid} to SCHED_FIFO priority 75"
         vhost_success=$((vhost_success + 1))
       else
-        echo "  ❌ Failed to set RT priority for vhost thread ${tid}"
+        echo "  Failed to set RT priority for vhost thread ${tid}"
         vhost_fail=$((vhost_fail + 1))
       fi
     done
     
     if [[ ${vhost_fail} -gt 0 ]]; then
-      echo "❌ Warning: ${vhost_fail} vhost thread(s) failed RT configuration"
+      echo "Warning: ${vhost_fail} vhost thread(s) failed RT configuration"
     else
-      echo "✓ All ${vhost_success} vhost-net threads configured for RT"
+      echo "All ${vhost_success} vhost-net threads configured for RT."
     fi
   else
-    echo "⚠️  No vhost-net threads found (network model may not be using vhost)"
+    echo "Warning: No vhost-net threads found (network model may not be using vhost)"
   fi
   
   # Configure CPU governor (and optionally lock frequency) based on RT mode
@@ -528,21 +528,21 @@ pin_vcpus() {
     for cpu in $(expand_cpulist "${governor_targets}"); do
       if [[ -f "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor" ]]; then
         if echo performance | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor >/dev/null 2>&1; then
-          echo "  ✓ CPU ${cpu} set to performance mode"
+          echo "  CPU ${cpu} set to performance mode"
         else
           echo "Warning: Could not set performance governor for CPU ${cpu}" >&2
         fi
       fi
     done
-    echo "  ✅ Balanced mode: Performance governor with dynamic frequency (excellent RT performance)"
-    echo "  💡 Tip: This mode is recommended for most users (~4μs avg, ~100μs max)"
+    echo "  Balanced mode: performance governor with dynamic frequency (excellent RT performance)"
+    echo "  Tip: This mode is recommended for most users (~4μs avg, ~100μs max)"
     
   elif [[ "${rt_mode}" == "performance" ]]; then
     echo "Setting CPU governor and locking frequencies (performance mode)..."
     for cpu in $(expand_cpulist "${governor_targets}"); do
       if [[ -f "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor" ]]; then
         if echo performance | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor >/dev/null 2>&1; then
-          echo "  ✓ CPU ${cpu} set to performance mode"
+          echo "  CPU ${cpu} set to performance mode"
           
           # Lock frequency to max to prevent any scaling (eliminates frequency transition latency)
           local max_freq=$(cat /sys/devices/system/cpu/cpu${cpu}/cpufreq/cpuinfo_max_freq 2>/dev/null || echo "")
@@ -550,28 +550,28 @@ pin_vcpus() {
             # Set both min and max to the same value to lock frequency
             echo ${max_freq} | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_min_freq >/dev/null 2>&1
             echo ${max_freq} | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_max_freq >/dev/null 2>&1
-            echo "    • Locked frequency to max: ${max_freq} kHz"
+            echo "    - Locked frequency to max: ${max_freq} kHz"
           fi
         else
           echo "Warning: Could not set performance governor for CPU ${cpu}" >&2
         fi
       fi
     done
-    echo "  ⚡ Performance mode: Frequencies locked to max (~3μs avg, ~70μs max)"
+    echo "  Performance mode: frequencies locked to max (~3μs avg, ~70μs max)"
     
   elif [[ "${rt_mode}" == "extreme" ]]; then
     echo "Setting CPU governor and applying extreme optimizations..."
     for cpu in $(expand_cpulist "${governor_targets}"); do
       if [[ -f "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor" ]]; then
         if echo performance | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor >/dev/null 2>&1; then
-          echo "  ✓ CPU ${cpu} set to performance mode"
+          echo "  CPU ${cpu} set to performance mode"
           
           # Lock frequency to max
           local max_freq=$(cat /sys/devices/system/cpu/cpu${cpu}/cpufreq/cpuinfo_max_freq 2>/dev/null || echo "")
           if [[ -n "${max_freq}" ]]; then
             echo ${max_freq} | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_min_freq >/dev/null 2>&1
             echo ${max_freq} | sudo tee /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_max_freq >/dev/null 2>&1
-            echo "    • Locked frequency to max: ${max_freq} kHz"
+            echo "    - Locked frequency to max: ${max_freq} kHz"
           fi
         else
           echo "Warning: Could not set performance governor for CPU ${cpu}" >&2
@@ -583,14 +583,14 @@ pin_vcpus() {
     if [[ -f "/sys/devices/system/cpu/intel_pstate/no_turbo" ]]; then
       local current_turbo=$(cat /sys/devices/system/cpu/intel_pstate/no_turbo)
       if [[ "${current_turbo}" == "0" ]]; then
-        echo "  • Disabling Intel Turbo Boost for determinism..."
+        echo "  - Disabling Intel Turbo Boost for determinism..."
         echo 1 | sudo tee /sys/devices/system/cpu/intel_pstate/no_turbo >/dev/null 2>&1
-        echo "    ✓ Turbo disabled (reduces max freq jitter)"
+        echo "    Turbo disabled (reduces max freq jitter)"
       fi
     fi
     
-    echo "  🚀 Extreme mode: Max tuning applied (target <50μs max, high power)"
-    echo "  ⚠️  Warning: High power consumption, monitor temperatures"
+    echo "  Extreme mode: max tuning applied (target <50μs max, high power)"
+    echo "  Warning: High power consumption; monitor temperatures"
   fi
   
   # Configure halt polling for better idle behavior (reduces exit latency)
@@ -608,12 +608,12 @@ pin_vcpus() {
   if [[ -f "/sys/module/kvm/parameters/halt_poll_ns" ]]; then
     local current_val=$(cat /sys/module/kvm/parameters/halt_poll_ns 2>/dev/null || echo "0")
     if echo ${halt_poll_ns} | sudo tee /sys/module/kvm/parameters/halt_poll_ns >/dev/null 2>&1; then
-      echo "  ✓ Set halt_poll_ns=${halt_poll_ns} ($(( halt_poll_ns / 1000 ))μs busy-wait, was ${current_val}ns)"
+      echo "  Set halt_poll_ns=${halt_poll_ns} ($(( halt_poll_ns / 1000 ))μs busy-wait, was ${current_val}ns)"
     else
-      echo "  ⚠️  Could not set halt_poll_ns (current: ${current_val}ns)"
+      echo "  Warning: Could not set halt_poll_ns (current: ${current_val}ns)"
     fi
   else
-    echo "  ⚠️  halt_poll_ns not available (KVM not loaded?)"
+    echo "  Warning: halt_poll_ns not available (KVM not loaded?)"
   fi
   
   # Configure IRQ affinity to keep interrupts off RT cores
@@ -648,34 +648,34 @@ pin_vcpus() {
     fi
   done
   
-  echo "✓ Configured IRQs: ${irq_success} via smp_affinity, ${irq_list_success} via smp_affinity_list (total: ${irq_count})"
+  echo "Configured IRQs: ${irq_success} via smp_affinity, ${irq_list_success} via smp_affinity_list (total: ${irq_count})."
   
   # Verify by checking how many IRQs are actually set to housekeeping CPU set
   echo "Verifying IRQ isolation..."
   local irq_on_housekeeping=$(sudo grep -h "^${irq_cpulist}$" /proc/irq/*/smp_affinity_list 2>/dev/null | wc -l)
   local total_checkable=$(sudo ls /proc/irq/*/smp_affinity_list 2>/dev/null | wc -l)
   
-  echo "✓ ${irq_on_housekeeping}/${total_checkable} IRQs isolated to CPUs ${irq_cpulist}"
+  echo "${irq_on_housekeeping}/${total_checkable} IRQs isolated to CPUs ${irq_cpulist}."
   
   if [[ ${irq_on_housekeeping} -lt $((total_checkable / 2)) ]]; then
-    echo "⚠️  Note: Some IRQs may not support affinity control (built-in IRQs)"
+    echo "Note: Some IRQs may not support affinity control (built-in IRQs)"
     echo "   This is normal - critical device IRQs will still be isolated"
   fi
   
-  echo "CPU pinning completed!"
+  echo "CPU pinning completed."
   echo "VM vCPUs pinned to cores ${RT_START_CPU}-${RT_END_CPU}, QEMU threads isolated, IRQs on CPUs ${irq_cpulist}"
 }
 
 # Verify RT configuration is actually applied
 verify_rt_config() {
-  echo "═══════════════════════════════════════════════════════════════"
-  echo "              🔍 RT CONFIGURATION VERIFICATION"
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
+  echo "              RT CONFIGURATION VERIFICATION"
+  echo "==============================================================="
   echo ""
   
   # Check if VM is running
   if ! virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi running; then
-    echo "❌ VM ${NAME} is not running"
+    echo "Error: VM ${NAME} is not running"
     echo "Run 'servobox start --name ${NAME}' first"
     return 1
   fi
@@ -683,118 +683,118 @@ verify_rt_config() {
   # Get QEMU process ID
   QEMU_PID=$(pgrep -f "qemu.*${NAME}" | head -1)
   if [[ -z "${QEMU_PID}" ]]; then
-    echo "❌ Could not find QEMU process for VM ${NAME}"
+    echo "Error: Could not find QEMU process for VM ${NAME}"
     return 1
   fi
   
-  echo "✓ VM is running (QEMU PID: ${QEMU_PID})"
+  echo "VM is running (QEMU PID: ${QEMU_PID})."
   echo ""
   
   # Check XML configuration first
-  echo "📋 XML Configuration:"
+  echo "XML Configuration:"
   local xml_file=$(mktemp)
   virsh_cmd dumpxml "${NAME}" > "${xml_file}"
   
   # Check for cputune section
   if grep -q "<cputune>" "${xml_file}"; then
-    echo "  ✓ <cputune> section present"
+    echo "  <cputune> section present"
     local vcpupin_count=$(grep -c "<vcpupin" "${xml_file}" || echo "0")
-    echo "    • vCPU pinning entries: ${vcpupin_count}"
+    echo "    - vCPU pinning entries: ${vcpupin_count}"
     if grep -q "<emulatorpin" "${xml_file}"; then
-      echo "    • ✓ Emulator thread pinning configured"
+      echo "    - Emulator thread pinning configured"
     else
-      echo "    • ❌ Emulator thread pinning NOT configured"
+      echo "    - Emulator thread pinning not configured"
     fi
     if grep -q "<iothreadpin" "${xml_file}"; then
-      echo "    • ✓ IOThread pinning configured"
+      echo "    - IOThread pinning configured"
     else
-      echo "    • ⚠️  IOThread pinning NOT configured"
+      echo "    - IOThread pinning not configured"
     fi
   else
-    echo "  ❌ <cputune> section NOT FOUND"
+    echo "  <cputune> section not found"
     echo "    Run 'servobox rt-config-apply --name ${NAME}' to add RT optimizations to XML"
   fi
   
   # Check for iothreads
   if grep -q "<iothreads>" "${xml_file}"; then
     local iothreads=$(grep "<iothreads>" "${xml_file}" | sed -n 's/.*<iothreads>\([0-9]*\)<\/iothreads>.*/\1/p')
-    echo "  ✓ IOThreads: ${iothreads}"
+    echo "  IOThreads: ${iothreads}"
   else
-    echo "  ❌ IOThreads NOT configured"
+    echo "  IOThreads not configured"
   fi
   
   # Check for memoryBacking
   if grep -q "<memoryBacking>" "${xml_file}"; then
-    echo "  ✓ <memoryBacking> present"
+    echo "  <memoryBacking> present"
     if grep -q "<locked/>" "${xml_file}"; then
-      echo "    • ✓ Memory locking enabled"
+      echo "    - Memory locking enabled"
     fi
     if grep -q "<nosharepages/>" "${xml_file}"; then
-      echo "    • ✓ KSM disabled (nosharepages)"
+      echo "    - KSM disabled (nosharepages)"
     else
-      echo "    • ⚠️  KSM not disabled (may cause jitter)"
+      echo "    - KSM not disabled (may cause jitter)"
     fi
     if grep -q "<hugepages>" "${xml_file}"; then
-      echo "    • ✓ Hugepages configured (manually added)"
+      echo "    - Hugepages configured (manually added)"
     else
-      echo "    • ℹ️  Hugepages not configured (optional - requires host setup)"
+      echo "    - Info: Hugepages not configured (optional - requires host setup)"
     fi
   else
-    echo "  ❌ <memoryBacking> NOT configured"
+    echo "  <memoryBacking> not configured"
   fi
   
   # Check clock configuration (match both single and double quotes)
   if grep -q "timer name=['\"]kvmclock['\"]" "${xml_file}"; then
-    echo "  ✓ kvmclock timer configured"
+    echo "  kvmclock timer configured"
   else
-    echo "  ⚠️  kvmclock timer NOT configured"
+    echo "  kvmclock timer not configured"
   fi
   
   if grep -q "timer name=['\"]tsc['\"]" "${xml_file}"; then
-    echo "  ✓ TSC timer configured"
+    echo "  TSC timer configured"
   else
-    echo "  ⚠️  TSC timer NOT configured"
+    echo "  TSC timer not configured"
   fi
   
   rm -f "${xml_file}"
   echo ""
   
   # Check vCPU pinning
-  echo "📌 Runtime vCPU Pinning (virsh vcpupin):"
-  virsh_cmd vcpupin "${NAME}" 2>/dev/null || echo "  ⚠️  Could not retrieve vCPU pinning"
+  echo "Runtime vCPU Pinning (virsh vcpupin):"
+  virsh_cmd vcpupin "${NAME}" 2>/dev/null || echo "  Warning: Could not retrieve vCPU pinning"
   echo ""
   
   # Check QEMU process affinity
-  echo "📌 QEMU Process CPU Affinity:"
+  echo "QEMU Process CPU Affinity:"
   if [[ -f "/proc/${QEMU_PID}/status" ]]; then
     local cpus_allowed=$(grep "Cpus_allowed_list" /proc/${QEMU_PID}/status | awk '{print $2}')
     echo "  QEMU main process (${QEMU_PID}): CPUs ${cpus_allowed}"
   else
-    echo "  ⚠️  Could not read /proc/${QEMU_PID}/status"
+    echo "  Warning: Could not read /proc/${QEMU_PID}/status"
   fi
   echo ""
   
   # Check vCPU threads
-  echo "📌 vCPU Thread Details:"
+  echo "vCPU Thread Details:"
   local vcpu_threads=$(ps -eLo pid,tid,comm,psr,rtprio,policy,ni | awk "\$1 == ${QEMU_PID}" | grep -E "CPU [0-9]+/KVM")
   if [[ -n "${vcpu_threads}" ]]; then
     echo "  TID    vCPU         RunOn  RTPrio  Policy  Nice"
     echo "${vcpu_threads}" | awk '{printf "  %-6s %-12s %-6s %-7s %-7s %s\n", $2, $3, $4, $5, $6, $7}'
   else
-    echo "  ⚠️  No vCPU threads found (pattern: 'CPU [0-9]+/KVM')"
+    echo "  Warning: No vCPU threads found (pattern: 'CPU [0-9]+/KVM')"
     echo "  All QEMU threads:"
     ps -eLo pid,tid,comm,psr,rtprio,policy | awk "\$1 == ${QEMU_PID}" | head -10
   fi
   echo ""
   
   # Check QEMU main thread RT priority
-  echo "📌 QEMU Main Thread RT Priority:"
+  echo "QEMU Main Thread RT Priority:"
   local qemu_policy=$(chrt -p ${QEMU_PID} 2>/dev/null || echo "unknown")
   echo "  ${qemu_policy}"
   echo ""
   
   # Check CPU governors
-  echo "📌 CPU Frequency Governors:"
+  echo "CPU Frequency Governors:"
   for cpu in $(seq 0 $(($(nproc) - 1))); do
     if [[ -f "/sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor" ]]; then
       local gov=$(cat /sys/devices/system/cpu/cpu${cpu}/cpufreq/scaling_governor)
@@ -810,7 +810,7 @@ verify_rt_config() {
   # Check IRQ affinity
   local host_cores=$(nproc)
   get_rt_cpu_layout "${host_cores}"
-  echo "📌 IRQ Affinity Check:"
+  echo "IRQ Affinity Check:"
   local housekeeping_only=0
   local other=0
   for irq_dir in /proc/irq/*/smp_affinity_list; do
@@ -825,12 +825,12 @@ verify_rt_config() {
   echo "  IRQs on housekeeping CPUs (${HK_CPUSET}): ${housekeeping_only}"
   echo "  IRQs on other CPUs: ${other}"
   if [[ ${housekeeping_only} -eq 0 ]]; then
-    echo "  ❌ WARNING: No IRQs isolated to housekeeping CPUs ${HK_CPUSET}!"
+    echo "  Warning: No IRQs isolated to housekeeping CPUs ${HK_CPUSET}."
   fi
   echo ""
   
   # Check guest kernel parameters (if we can SSH in)
-  echo "📌 Guest RT Kernel Parameters:"
+  echo "Guest RT Kernel Parameters:"
   IP=$(vm_ip || true)
   if [[ -n "${IP}" ]]; then
     local ssh_opts=(-o ConnectTimeout=2 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o UpdateHostKeys=no)
@@ -852,26 +852,26 @@ verify_rt_config() {
       
       # Check for custom kernel parameters
       if echo "${guest_cmdline}" | grep -q "nohpet"; then
-        echo "  ✓ HPET disabled (nohpet)"
+        echo "  HPET disabled (nohpet)"
       fi
       if echo "${guest_cmdline}" | grep -q "tsc=reliable"; then
-        echo "  ✓ TSC clocksource (tsc=reliable)"
+        echo "  TSC clocksource (tsc=reliable)"
       fi
       
       # Check for guest isolation (should be absent by default)
       if echo "${guest_cmdline}" | grep -q "isolcpus"; then
-        echo "  ℹ️  Guest CPU isolation: $(echo "${guest_cmdline}" | grep -oP 'isolcpus=\S+') (manually configured)"
+        echo "  Info: Guest CPU isolation: $(echo "${guest_cmdline}" | grep -oP 'isolcpus=\S+') (manually configured)"
       else
-        echo "  ✓ No guest CPU isolation (default - allows processes to use all vCPUs)"
+        echo "  No guest CPU isolation (default; allows processes to use all vCPUs)"
       fi
     else
-      echo "  ⚠️  Could not SSH to guest to verify kernel parameters"
+      echo "  Warning: Could not SSH to guest to verify kernel parameters"
     fi
   else
-    echo "  ⚠️  VM has no IP, cannot check guest kernel parameters"
+    echo "  Warning: VM has no IP; cannot check guest kernel parameters"
   fi
   echo ""
   
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
 }
 

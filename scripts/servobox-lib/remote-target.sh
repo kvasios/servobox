@@ -149,22 +149,22 @@ check_remote_connection() {
   # Check if host is reachable (ping)
   if ! timeout 5 bash -c "echo >/dev/tcp/${ip}/${port}" 2>/dev/null; then
     echo "Error: Cannot connect to ${ip}:${port}" >&2
-    echo "  • Check that the remote machine is powered on" >&2
-    echo "  • Verify the IP address is correct" >&2
-    echo "  • Ensure SSH is running on the remote machine" >&2
+    echo "  - Check that the remote machine is powered on" >&2
+    echo "  - Verify the IP address is correct" >&2
+    echo "  - Ensure SSH is running on the remote machine" >&2
     return 1
   fi
   
   # Try SSH connection
   if ! remote_exec "echo 'Connection OK'" 10 2>/dev/null; then
     echo "Error: SSH connection failed to ${user}@${ip}" >&2
-    echo "  • Check SSH credentials (user: ${user})" >&2
-    echo "  • Verify SSH key or password authentication is configured" >&2
-    echo "  • Try: ssh ${user}@${ip}" >&2
+    echo "  - Check SSH credentials (user: ${user})" >&2
+    echo "  - Verify SSH key or password authentication is configured" >&2
+    echo "  - Try: ssh ${user}@${ip}" >&2
     return 1
   fi
   
-  echo "✓ Connected to remote target ${ip}"
+  echo "Connected to remote target ${ip}."
   return 0
 }
 
@@ -181,7 +181,7 @@ wait_for_remote_ssh() {
   while [[ ${elapsed} -lt ${timeout} ]]; do
     if timeout 2 bash -c "echo >/dev/tcp/${ip}/${port}" 2>/dev/null; then
       if remote_exec "true" 5 2>/dev/null; then
-        echo "✓ SSH available on ${ip}"
+        echo "SSH available on ${ip}."
         return 0
       fi
     fi
@@ -248,21 +248,21 @@ cmd_remote_status() {
   local user=$(get_remote_user)
   local port=$(get_remote_port)
   
-  echo "═══════════════════════════════════════════════════════════════"
-  echo "              🎯 REMOTE TARGET STATUS"
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
+  echo "              REMOTE TARGET STATUS"
+  echo "==============================================================="
   echo ""
   echo "Target: ${user}@${ip}:${port}"
   echo ""
   
   if ! check_remote_connection 2>/dev/null; then
-    echo "Status: ❌ Unreachable"
+    echo "Status: Unreachable"
     echo ""
     echo "Check that the remote machine is powered on and SSH is running."
     return 1
   fi
   
-  echo "Status: ✓ Connected"
+  echo "Status: Connected"
   echo ""
   
   # Get system info
@@ -275,9 +275,9 @@ cmd_remote_status() {
   # Check for RT kernel
   local kernel_version=$(remote_exec "uname -r" 10 2>/dev/null)
   if echo "${kernel_version}" | grep -qi "rt\|preempt"; then
-    echo "RT Kernel: ✓ Yes (${kernel_version})"
+    echo "RT Kernel: Yes (${kernel_version})"
   else
-    echo "RT Kernel: ⚠️  Not detected (kernel: ${kernel_version})"
+    echo "RT Kernel: Not detected (kernel: ${kernel_version})"
   fi
   
   # Get architecture
@@ -315,7 +315,7 @@ cmd_remote_status() {
   echo "Load: ${load:-unknown}"
   
   echo ""
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
   echo ""
   echo "Available commands:"
   echo "  servobox ssh          - Connect to remote target"
@@ -330,9 +330,9 @@ cmd_remote_test() {
   local ip=$(get_remote_ip)
   local duration="${TEST_DURATION:-60}"
   
-  echo "═══════════════════════════════════════════════════════════════"
-  echo "              🚀 REMOTE RT LATENCY TEST"
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
+  echo "              REMOTE RT LATENCY TEST"
+  echo "==============================================================="
   echo ""
   echo "Target: ${ip}"
   echo "Duration: ${duration} seconds"
@@ -394,16 +394,16 @@ cmd_remote_test() {
     echo "Warning: Could not capture cyclictest output" >&2
   fi
 
-  echo "Remote latency test completed!"
+  echo "Remote latency test completed."
 }
 
 # Verify RT configuration on remote target
 cmd_remote_rt_verify() {
   local ip=$(get_remote_ip)
   
-  echo "═══════════════════════════════════════════════════════════════"
-  echo "              🔍 REMOTE RT CONFIGURATION CHECK"
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
+  echo "              REMOTE RT CONFIGURATION CHECK"
+  echo "==============================================================="
   echo ""
   echo "Target: ${ip}"
   echo ""
@@ -419,9 +419,9 @@ cmd_remote_rt_verify() {
   local kernel=$(remote_exec "uname -r" 10 2>/dev/null)
   echo -n "Kernel version: ${kernel} "
   if echo "${kernel}" | grep -qi "rt\|preempt"; then
-    echo "✓ (RT kernel detected)"
+    echo "OK (RT kernel detected)"
   else
-    echo "⚠️  (Not an RT kernel - may have higher latency)"
+    echo "Warning: Not an RT kernel; latency may be higher"
     all_ok=0
   fi
   
@@ -429,9 +429,9 @@ cmd_remote_rt_verify() {
   local preempt=$(remote_exec "cat /sys/kernel/realtime 2>/dev/null || echo 0" 10 2>/dev/null)
   echo -n "PREEMPT_RT: "
   if [[ "${preempt}" == "1" ]]; then
-    echo "✓ Enabled"
+    echo "Enabled"
   else
-    echo "⚠️  Not enabled (or not detected)"
+    echo "Not enabled (or not detected)"
     all_ok=0
   fi
   
@@ -441,9 +441,9 @@ cmd_remote_rt_verify() {
   local isolcpus=$(remote_exec "cat /sys/devices/system/cpu/isolated 2>/dev/null" 10 2>/dev/null)
   echo -n "Isolated CPUs: "
   if [[ -n "${isolcpus}" && "${isolcpus}" != "" ]]; then
-    echo "✓ ${isolcpus}"
+    echo "${isolcpus}"
   else
-    echo "⚠️  None (consider isolating CPUs for better RT performance)"
+    echo "None (consider isolating CPUs for better RT performance)"
     all_ok=0
   fi
   
@@ -451,9 +451,9 @@ cmd_remote_rt_verify() {
   local nohz=$(remote_exec "cat /sys/devices/system/cpu/nohz_full 2>/dev/null" 10 2>/dev/null)
   echo -n "nohz_full CPUs: "
   if [[ -n "${nohz}" && "${nohz}" != "" ]]; then
-    echo "✓ ${nohz}"
+    echo "${nohz}"
   else
-    echo "⚠️  None"
+    echo "None"
   fi
   
   # Check CPU governor
@@ -462,11 +462,11 @@ cmd_remote_rt_verify() {
   local governor=$(remote_exec "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null" 10 2>/dev/null)
   echo -n "CPU Governor: "
   if [[ "${governor}" == "performance" ]]; then
-    echo "✓ ${governor}"
+    echo "${governor}"
   elif [[ -n "${governor}" ]]; then
-    echo "⚠️  ${governor} (recommend 'performance' for best RT latency)"
+    echo "${governor} (recommend 'performance' for best RT latency)"
   else
-    echo "⚠️  Not available"
+    echo "Not available"
   fi
   
   # Check for IRQ balance
@@ -475,18 +475,18 @@ cmd_remote_rt_verify() {
   local irqbalance=$(remote_exec "systemctl is-active irqbalance 2>/dev/null || echo inactive" 10 2>/dev/null)
   echo -n "irqbalance: "
   if [[ "${irqbalance}" == "inactive" ]]; then
-    echo "✓ Disabled (good for RT)"
+    echo "Disabled (good for RT)"
   else
-    echo "⚠️  ${irqbalance} (consider disabling for better RT performance)"
+    echo "${irqbalance} (consider disabling for better RT performance)"
   fi
   
   # Summary
   echo ""
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
   if [[ ${all_ok} -eq 1 ]]; then
-    echo "✓ Remote target appears to be properly configured for RT workloads"
+    echo "Remote target appears to be properly configured for RT workloads."
   else
-    echo "⚠️  Some RT optimizations may be missing"
+    echo "Warning: Some RT optimizations may be missing"
     echo ""
     echo "Recommendations:"
     echo "  1. Use an RT kernel (PREEMPT_RT patched)"
@@ -494,7 +494,7 @@ cmd_remote_rt_verify() {
     echo "  3. Set CPU governor to 'performance'"
     echo "  4. Disable irqbalance: sudo systemctl disable --now irqbalance"
   fi
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
 }
 
 # Execute recipe or command on remote target
@@ -678,9 +678,9 @@ cmd_remote_pkg_install() {
     exit 1
   fi
   
-  echo "═══════════════════════════════════════════════════════════════"
-  echo "              📦 REMOTE PACKAGE INSTALLATION"
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
+  echo "              REMOTE PACKAGE INSTALLATION"
+  echo "==============================================================="
   echo ""
   echo "Target: ${ip}"
   echo "Package: ${target}"
@@ -747,9 +747,9 @@ cmd_remote_pkg_install() {
   fi
   
   echo ""
-  echo "═══════════════════════════════════════════════════════════════"
-  echo "✓ Remote package installation completed!"
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
+  echo "Remote package installation completed."
+  echo "==============================================================="
 }
 
 # Helper: Install a single package on remote target
@@ -868,9 +868,9 @@ install_package_remote() {
   remote_exec "rm -rf ${remote_tmp}" 10 2>/dev/null || true
 
   if [[ ${exit_code} -eq 0 ]]; then
-    echo "✓ Package '${pkg_name}' installed successfully on ${ip}"
+    echo "Package '${pkg_name}' installed successfully on ${ip}."
   else
-    echo "❌ Package '${pkg_name}' installation failed on ${ip}" >&2
+    echo "Error: Package '${pkg_name}' installation failed on ${ip}" >&2
     return 1
   fi
   

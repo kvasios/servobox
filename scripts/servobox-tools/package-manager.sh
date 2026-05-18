@@ -296,9 +296,9 @@ cmd_validate() {
     package=$(basename "$recipe_dir")
     
     if validate_package "$package" 2>/dev/null; then
-      log_verbose "✓ $package is valid"
+      log_verbose "$package is valid"
     else
-      log "✗ $package is invalid"
+      log "$package is invalid"
       ((errors++))
     fi
   done
@@ -437,7 +437,7 @@ install_single_package() {
   
   log "Installing package $package into image $image"
   echo ""
-  echo "⏳ Package installation in progress..."
+  echo "Package installation in progress..."
   echo "   This may take several minutes (especially for packages that compile from source)"
   echo "   virt-customize buffers output - you'll see results when complete"
   echo ""
@@ -449,7 +449,7 @@ install_single_package() {
     need_sudo=1
     # Ensure sudo credentials are cached upfront (better UX than failing and retrying)
     if ! sudo -v 2>/dev/null; then
-      echo "⚠️  virt-customize requires sudo access to read kernel files" >&2
+      echo "Warning: virt-customize requires sudo access to read kernel files" >&2
       echo "    (Fresh Ubuntu installations restrict /boot/vmlinuz-* to root)" >&2
       if ! sudo -v; then
         error "Failed to obtain sudo credentials"
@@ -598,7 +598,7 @@ cmd_installed() {
   if [[ -f "$tracking_file" && -s "$tracking_file" ]]; then
     echo "Installed packages:"
     while IFS= read -r pkg; do
-      echo "  • $pkg"
+      echo "  - $pkg"
     done < "$tracking_file"
     echo ""
     echo "Total: $(wc -l < "$tracking_file") package(s)"
@@ -630,7 +630,7 @@ cmd_sync_tracking() {
     echo ""
     echo "Synced packages:"
     while IFS= read -r pkg; do
-      echo "  • $pkg"
+      echo "  - $pkg"
     done < "$tracking_file"
   else
     log "No package tracking found in VM image"

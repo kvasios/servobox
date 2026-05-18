@@ -102,7 +102,7 @@ ensure_vm_running() {
       # Start the VM using the cmd_start function (NAME is already set globally)
       if cmd_start; then
         echo "" >&2
-        echo "✓ VM '${NAME}' started successfully" >&2
+        echo "VM '${NAME}' started successfully." >&2
         echo "" >&2
       else
         echo "Error: Failed to start VM '${NAME}'" >&2
@@ -130,7 +130,7 @@ ensure_vm_running() {
           # Start the VM (NAME is already set globally)
           if cmd_start; then
             echo "" >&2
-            echo "✓ VM '${NAME}' started successfully" >&2
+            echo "VM '${NAME}' started successfully." >&2
             echo "" >&2
             break
           else
@@ -185,14 +185,14 @@ exec_recipe_in_vm() {
   if [[ -z "${vm_ip}" ]]; then
     echo "Error: VM '${NAME}' is running but has no IP address assigned." >&2
     echo "This may indicate:" >&2
-    echo "  • Network configuration issues" >&2
-    echo "  • Cloud-init is still running" >&2
-    echo "  • VM is in an intermediate boot state" >&2
+    echo "  - Network configuration issues" >&2
+    echo "  - Cloud-init is still running" >&2
+    echo "  - VM is in an intermediate boot state" >&2
     echo "" >&2
     echo "Try:" >&2
-    echo "  • servobox status --name ${NAME}  # Check detailed status" >&2
-    echo "  • virsh console ${NAME}          # Check VM console" >&2
-    echo "  • Wait a few minutes and try again" >&2
+    echo "  - servobox status --name ${NAME}  # Check detailed status" >&2
+    echo "  - virsh console ${NAME}          # Check VM console" >&2
+    echo "  - Wait a few minutes and try again" >&2
     exit 1
   fi
   
@@ -272,14 +272,14 @@ exec_command_in_vm() {
   if [[ -z "${vm_ip}" ]]; then
     echo "Error: VM '${NAME}' is running but has no IP address assigned." >&2
     echo "This may indicate:" >&2
-    echo "  • Network configuration issues" >&2
-    echo "  • Cloud-init is still running" >&2
-    echo "  • VM is in an intermediate boot state" >&2
+    echo "  - Network configuration issues" >&2
+    echo "  - Cloud-init is still running" >&2
+    echo "  - VM is in an intermediate boot state" >&2
     echo "" >&2
     echo "Try:" >&2
-    echo "  • servobox status --name ${NAME}  # Check detailed status" >&2
-    echo "  • virsh console ${NAME}          # Check VM console" >&2
-    echo "  • Wait a few minutes and try again" >&2
+    echo "  - servobox status --name ${NAME}  # Check detailed status" >&2
+    echo "  - virsh console ${NAME}          # Check VM console" >&2
+    echo "  - Wait a few minutes and try again" >&2
     exit 1
   fi
   

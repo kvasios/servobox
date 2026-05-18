@@ -80,7 +80,7 @@ choose_host_nic() {
   if [[ -n "$sel1" ]]; then
     if [[ "$sel1" =~ ^[0-9]+$ ]] && (( sel1>=1 && sel1<=${#CANDS[@]} )); then
       HOST_NICS+=("${CANDS[$((sel1-1))]}")
-      echo "✓ Selected: ${CANDS[$((sel1-1))]}"
+      echo "Selected: ${CANDS[$((sel1-1))]}"
       echo ""
       get_host_nic_config "${CANDS[$((sel1-1))]}"
       echo ""
@@ -92,7 +92,7 @@ choose_host_nic() {
         if [[ "$sel2" =~ ^[0-9]+$ ]] && (( sel2>=1 && sel2<=${#CANDS[@]} )); then
           if [[ "$sel2" != "$sel1" ]]; then
             HOST_NICS+=("${CANDS[$((sel2-1))]}")
-            echo "✓ Selected: ${CANDS[$((sel2-1))]}"
+            echo "Selected: ${CANDS[$((sel2-1))]}"
             echo ""
             get_host_nic_config "${CANDS[$((sel2-1))]}"
             echo ""
@@ -229,7 +229,7 @@ NPYAML_HEADER
         addresses: [8.8.8.8, 1.1.1.1]
 NPYAML_NIC1
     
-    echo "Configuring first NIC: ${HOST_NICS[0]} → enp2s0 (MAC ${MAC_ADDR2}, IP ${vm_ip}/${vm_prefix})"
+    echo "Configuring first NIC: ${HOST_NICS[0]} -> enp2s0 (MAC ${MAC_ADDR2}, IP ${vm_ip}/${vm_prefix})"
     if [[ -n "${host_ip}" ]]; then
       echo "  Note: Host IP is ${host_ip}, VM assigned ${vm_ip} (different IP required for macvtap bridge)"
     fi
@@ -274,7 +274,7 @@ NPYAML_NIC1
         addresses: [8.8.8.8, 1.1.1.1]
 NPYAML_NIC2
     
-    echo "Configuring second NIC: ${HOST_NICS[1]} → enp3s0 (MAC ${MAC_ADDR3}, IP ${vm_ip2}/${vm_prefix2})"
+    echo "Configuring second NIC: ${HOST_NICS[1]} -> enp3s0 (MAC ${MAC_ADDR3}, IP ${vm_ip2}/${vm_prefix2})"
     if [[ -n "${host_ip2}" ]]; then
       echo "  Note: Host IP is ${host_ip2}, VM assigned ${vm_ip2} (different IP required for macvtap bridge)"
     fi
@@ -731,7 +731,7 @@ runcmd:
     echo "cyclictest -t1 -p 80 -i 1000 -l \$((\${TEST_DURATION:-60} * 1000)) -q --duration=\${TEST_DURATION:-60}" >> /home/servobox-usr/rt-test.sh
     chmod +x /home/servobox-usr/rt-test.sh
     chown servobox-usr:servobox-usr /home/servobox-usr/rt-test.sh
-    echo "Guest real-time tuning completed!"
+    echo "Guest real-time tuning completed."
 
     update-grub || true
     
@@ -747,7 +747,7 @@ runcmd:
     systemctl disable cloud-init cloud-init-local cloud-config cloud-final || true
     echo "Cloud-init disabled for future boots (will not run on subsequent starts)"
     
-    echo "ServoBox VM first-boot initialization completed!"
+    echo "ServoBox VM first-boot initialization completed."
 
 final_message: |
   ServoBox VM is ready!
@@ -1020,10 +1020,10 @@ cmd_network_setup() {
   echo "Configuring VM with network interfaces:"
   echo "  NAT interface: MAC ${MAC_ADDR}"
   if [[ ${#HOST_NICS[@]} -ge 1 ]]; then
-    echo "  Direct NIC #1: ${HOST_NICS[0]} → MAC ${MAC_ADDR2}"
+    echo "  Direct NIC #1: ${HOST_NICS[0]} -> MAC ${MAC_ADDR2}"
   fi
   if [[ ${#HOST_NICS[@]} -ge 2 ]]; then
-    echo "  Direct NIC #2: ${HOST_NICS[1]} → MAC ${MAC_ADDR3}"
+    echo "  Direct NIC #2: ${HOST_NICS[1]} -> MAC ${MAC_ADDR3}"
   fi
   
   # Ensure domain is undefined before redefining (force redefinition)
@@ -1079,7 +1079,7 @@ cmd_network_setup() {
   fi
   
   echo ""
-  echo "✓ Network configuration complete!"
+  echo "Network configuration complete."
   echo ""
   
   echo ""
@@ -1087,10 +1087,10 @@ cmd_network_setup() {
   echo "  VM: ${NAME}"
   echo "  NAT Network: 192.168.122.0/24 (default libvirt)"
   if [[ ${#HOST_NICS[@]} -ge 1 ]]; then
-    echo "  Direct NIC #1: ${HOST_NICS[0]} → enp2s0 in VM (MAC: ${MAC_ADDR2})"
+    echo "  Direct NIC #1: ${HOST_NICS[0]} -> enp2s0 in VM (MAC: ${MAC_ADDR2})"
   fi
   if [[ ${#HOST_NICS[@]} -ge 2 ]]; then
-    echo "  Direct NIC #2: ${HOST_NICS[1]} → enp3s0 in VM (MAC: ${MAC_ADDR3})"
+    echo "  Direct NIC #2: ${HOST_NICS[1]} -> enp3s0 in VM (MAC: ${MAC_ADDR3})"
   fi
   echo ""
   echo "VM is now configured. Use 'servobox start' to boot the VM."

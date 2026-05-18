@@ -120,7 +120,7 @@ EOF
     return 1
   fi
 
-  echo "✓ Fixed KVM device permissions (persistent udev rule installed at ${rule_path})." >&2
+  echo "Fixed KVM device permissions; persistent udev rule installed at ${rule_path}." >&2
   return 0
 }
 

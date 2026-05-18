@@ -134,7 +134,7 @@ restore_vm_state_after_online_install() {
   fi
   for i in {1..60}; do
     if virsh_cmd domstate "${NAME}" 2>/dev/null | grep -qi "shut off"; then
-      echo "✓ VM '${NAME}' stopped"
+      echo "VM '${NAME}' stopped."
       return 0
     fi
     sleep 1

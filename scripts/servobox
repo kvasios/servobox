@@ -160,7 +160,7 @@ ensure_vm_disk() {
 
 usage() {
   cat <<EOF
-ServoBox — launch and tune Ubuntu 22.04 PREEMPT_RT VMs for robotics, fast.
+ServoBox - launch and tune Ubuntu 22.04 PREEMPT_RT VMs for robotics, fast.
            Also supports remote RT targets (Jetson, NUC) via SERVOBOX_TARGET_IP.
 
 Usage:
@@ -276,7 +276,7 @@ EOF
 # When SERVOBOX_TARGET_IP is set, route applicable commands to remote handlers
 if [[ ${REMOTE_MODE} -eq 1 ]]; then
   # Remote target mode - show indicator
-  echo "🎯 Remote target mode: $(get_remote_ip)" >&2
+  echo "Remote target: $(get_remote_ip)" >&2
   echo "" >&2
   
   case "${CMD}" in

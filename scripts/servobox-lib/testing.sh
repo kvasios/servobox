@@ -376,20 +376,20 @@ cmd_debug() {
 }
 
 cmd_smi_check() {
-  echo "═══════════════════════════════════════════════════════════════"
-  echo "              🔍 SMI (System Management Interrupt) CHECK"
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
+  echo "              SMI (System Management Interrupt) CHECK"
+  echo "==============================================================="
   echo ""
   
   # Check if hwlat tracer is available (kernel RT debugging)
   if [[ -d /sys/kernel/debug/tracing ]]; then
-    echo "📊 Checking for SMI-induced latency using hwlat tracer..."
+    echo "Checking for SMI-induced latency using hwlat tracer..."
     echo ""
     
     # Enable hardware latency detector
     echo "Setting up hardware latency detector (10 second sample)..."
     sudo sh -c "echo hwlat > /sys/kernel/debug/tracing/current_tracer" 2>/dev/null || {
-      echo "❌ hwlat tracer not available (need CONFIG_HWLAT_TRACER in kernel)"
+      echo "Error: hwlat tracer not available (need CONFIG_HWLAT_TRACER in kernel)"
       echo ""
       echo "Alternative: Check SMI count manually:"
       echo "  sudo cat /sys/firmware/acpi/interrupts/gpe* 2>/dev/null | grep enabled"
@@ -411,7 +411,7 @@ cmd_smi_check() {
   fi
   
   # Check BIOS settings that affect SMIs
-  echo "🔧 BIOS/Firmware Settings Recommendations:"
+  echo "BIOS/Firmware Settings Recommendations:"
   echo ""
   echo "To reduce SMIs, configure these BIOS settings:"
   echo "  1. Disable C-States (CPU power saving)"
@@ -423,20 +423,20 @@ cmd_smi_check() {
   echo ""
   
   # Check current C-states
-  echo "📋 Current Host Power State Configuration:"
+  echo "Current Host Power State Configuration:"
   echo ""
   
   # Check if intel_idle is loaded
   if lsmod | grep -q intel_idle; then
-    echo "  • intel_idle driver: LOADED (allows C-states)"
+    echo "  - intel_idle driver: LOADED (allows C-states)"
     echo "    To disable: Add 'intel_idle.max_cstate=0' to kernel cmdline"
   else
-    echo "  • intel_idle driver: not loaded"
+    echo "  - intel_idle driver: not loaded"
   fi
   
   # Check C-states
   echo ""
-  echo "  • Available C-states on CPU 0:"
+  echo "  - Available C-states on CPU 0:"
   if [[ -d /sys/devices/system/cpu/cpu0/cpuidle ]]; then
     local cstates=$(ls -d /sys/devices/system/cpu/cpu0/cpuidle/state* 2>/dev/null | wc -l)
     echo "    ${cstates} C-states available"
@@ -448,9 +448,9 @@ cmd_smi_check() {
   fi
   
   echo ""
-  echo "═══════════════════════════════════════════════════════════════"
+  echo "==============================================================="
   echo ""
-  echo "💡 To minimize SMI impact:"
+  echo "To minimize SMI impact:"
   echo "  1. Boot with: intel_idle.max_cstate=0 processor.max_cstate=1"
   echo "  2. Boot with: idle=poll (prevents CPU from entering idle states)"
   echo "  3. Configure BIOS for maximum performance (disable power management)"

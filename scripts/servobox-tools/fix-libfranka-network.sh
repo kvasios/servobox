@@ -53,7 +53,7 @@ echo "IPTables rules:"
 sudo iptables -L -n | head -10
 
 echo ""
-echo "✓ Network configuration complete!"
+echo "Network configuration complete."
 echo ""
 echo "Try running your libfranka application again:"
 echo "  ./echo_robot_state 172.16.0.2"

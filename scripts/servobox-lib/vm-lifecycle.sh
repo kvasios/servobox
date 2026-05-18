@@ -52,7 +52,7 @@ ensure_default_network() {
     
     if [[ -n "${default_xml}" && -f "${default_xml}" ]]; then
       if virsh_cmd net-define "${default_xml}" >/dev/null 2>&1; then
-        echo "✓ Created default network from template" >&2
+        echo "Created default network from template." >&2
         net_exists=1
         # Re-check network state after creation
         if net_info_output=$(virsh_cmd net-info default 2>&1); then
@@ -101,7 +101,7 @@ ensure_default_network() {
         echo "</network>"
       } > "${temp_xml}"
       if virsh_cmd net-define "${temp_xml}" >/dev/null 2>&1; then
-        echo "✓ Created default network" >&2
+        echo "Created default network." >&2
         net_exists=1
         # Re-check network state after creation
         if net_info_output=$(virsh_cmd net-info default 2>&1); then
@@ -142,7 +142,7 @@ ensure_default_network() {
     
     # Try to start the network
     if virsh_cmd net-start default >/dev/null 2>&1; then
-      echo "✓ Started default network" >&2
+      echo "Started default network." >&2
       net_active=1
     else
       # Get error details
@@ -173,7 +173,7 @@ ensure_default_network() {
       echo "Warning: Failed to set autostart for default network" >&2
       echo "You may need to manually enable it: sudo virsh net-autostart default" >&2
     else
-      echo "✓ Enabled autostart for default network" >&2
+      echo "Enabled autostart for default network." >&2
     fi
   fi
 }
@@ -216,7 +216,7 @@ ensure_dhcp_reservation() {
   
   # If reservation exists for this MAC with correct IP, we're done
   if [[ -n "${existing_reservation_by_mac}" ]] && echo "${existing_reservation_by_mac}" | grep -q "ip='${vm_ip}'"; then
-    echo "DHCP reservation already exists for ${target_mac} → ${vm_ip}"
+    echo "DHCP reservation already exists for ${target_mac} -> ${vm_ip}"
     return 0
   fi
   
@@ -240,19 +240,19 @@ ensure_dhcp_reservation() {
   fi
   
   # Add DHCP reservation
-  echo "Adding DHCP reservation: ${target_mac} → ${vm_ip}"
+  echo "Adding DHCP reservation: ${target_mac} -> ${vm_ip}"
   local host_xml="<host mac='${target_mac}' name='${vm_name}' ip='${vm_ip}'/>"
   
   # Try without sudo first
   local update_output
   update_output=$(virsh_cmd net-update default add ip-dhcp-host "${host_xml}" --live --config 2>&1) && {
-    echo "✓ DHCP reservation added for ${vm_name} (${vm_ip})"
+    echo "DHCP reservation added for ${vm_name} (${vm_ip})."
     return 0
   }
   
   # Try with explicit sudo if non-sudo failed
   update_output=$(sudo virsh -c qemu:///system net-update default add ip-dhcp-host "${host_xml}" --live --config 2>&1) && {
-    echo "✓ DHCP reservation added for ${vm_name} (${vm_ip})"
+    echo "DHCP reservation added for ${vm_name} (${vm_ip})."
     return 0
   }
   
@@ -436,11 +436,11 @@ cmd_init() {
   local needs_relogin=0
   
   if ! echo "$user_groups" | grep -qw libvirt; then
-    echo "⚠️  Warning: Current user is not in the 'libvirt' group"
+    echo "Warning: Current user is not in the 'libvirt' group"
     echo ""
     echo "Adding user to libvirt group for persistent VM access..."
     if sudo usermod -aG libvirt "$USER" 2>/dev/null; then
-      echo "✓ Added $USER to libvirt group"
+      echo "Added $USER to libvirt group."
       needs_relogin=1
     else
       echo "Error: Failed to add user to libvirt group" >&2
@@ -452,7 +452,7 @@ cmd_init() {
     if ! groups "$USER" 2>/dev/null | grep -qw kvm; then
       echo "Adding user to kvm group for VM hardware access..."
       if sudo usermod -aG kvm "$USER" 2>/dev/null; then
-        echo "✓ Added $USER to kvm group"
+        echo "Added $USER to kvm group."
         needs_relogin=1
       else
         echo "Warning: Could not add user to kvm group (may already be in group)" >&2
@@ -462,7 +462,7 @@ cmd_init() {
   
   if [[ $needs_relogin -eq 1 ]]; then
     echo ""
-    echo "⚠️  IMPORTANT: Group membership changes are not active in current shell"
+    echo "Important: Group membership changes are not active in current shell"
     echo ""
     echo "ServoBox init will continue using sudo for this session."
     echo ""
@@ -484,7 +484,7 @@ cmd_init() {
   if ! systemctl is-enabled libvirtd >/dev/null 2>&1 && ! systemctl is-enabled libvirtd.service >/dev/null 2>&1; then
     echo "Enabling libvirtd to start on boot (for VM persistence)..."
     if sudo systemctl enable libvirtd >/dev/null 2>&1 || sudo systemctl enable libvirtd.service >/dev/null 2>&1; then
-      echo "✓ libvirtd will start automatically on boot"
+      echo "libvirtd will start automatically on boot."
     else
       echo "Warning: Could not enable libvirtd autostart" >&2
       echo "Your VMs may not be available after reboot" >&2
@@ -496,7 +496,7 @@ cmd_init() {
   if ! systemctl is-active libvirtd >/dev/null 2>&1 && ! systemctl is-active libvirtd.service >/dev/null 2>&1; then
     echo "Starting libvirtd service..."
     if sudo systemctl start libvirtd >/dev/null 2>&1 || sudo systemctl start libvirtd.service >/dev/null 2>&1; then
-      echo "✓ libvirtd started"
+      echo "libvirtd started."
       # Give it a moment to fully initialize
       sleep 1
     else
@@ -556,12 +556,12 @@ cmd_init() {
   gen_cloud_init
   virt_define
   echo ""
-  echo "✓ VM ${NAME} initialized successfully with full RT optimization!"
+  echo "VM ${NAME} initialized successfully with full RT optimization."
   echo ""
   echo "RT Configuration applied:"
-  echo "  • Guest kernel: CPU isolation, nohz_full, rcu_nocbs"
-  echo "  • XML: CPU pinning, IOThreads, memory locking, clock tuning"
-  echo "  • Ready for: sub-microsecond latency real-time workloads"
+  echo "  - Guest kernel: CPU isolation, nohz_full, rcu_nocbs"
+  echo "  - XML: CPU pinning, IOThreads, memory locking, clock tuning"
+  echo "  - Ready for: sub-microsecond latency real-time workloads"
   echo ""
   echo "Next steps:"
   echo "  1. servobox start --name ${NAME}"
@@ -577,7 +577,7 @@ cmd_start() {
   if ! systemctl is-active libvirtd >/dev/null 2>&1 && ! systemctl is-active libvirtd.service >/dev/null 2>&1; then
     echo "libvirtd is not running. Starting it now..."
     if sudo systemctl start libvirtd >/dev/null 2>&1 || sudo systemctl start libvirtd.service >/dev/null 2>&1; then
-      echo "✓ libvirtd started"
+      echo "libvirtd started."
       sleep 1
     else
       echo "Error: Could not start libvirtd" >&2
@@ -626,10 +626,10 @@ cmd_start() {
     echo "Error: sudo access required for RT configuration" >&2
     echo "" >&2
     echo "ServoBox needs sudo to configure:" >&2
-    echo "  • CPU pinning and affinity" >&2
-    echo "  • Real-time thread priorities (SCHED_FIFO)" >&2
-    echo "  • IRQ affinity (isolate interrupts to housekeeping CPUs)" >&2
-    echo "  • CPU frequency governor (performance mode)" >&2
+    echo "  - CPU pinning and affinity" >&2
+    echo "  - Real-time thread priorities (SCHED_FIFO)" >&2
+    echo "  - IRQ affinity (isolate interrupts to housekeeping CPUs)" >&2
+    echo "  - CPU frequency governor (performance mode)" >&2
     echo "" >&2
     echo "Options:" >&2
     echo "  1. Run: sudo $(basename "$0") start --name ${NAME}" >&2
@@ -648,12 +648,12 @@ cmd_start() {
       echo "Use 'servobox ssh' to connect or 'servobox stop' to shutdown."
       echo "SSH password: servobox-pwd (standard default)"
       echo ""
-      echo "✓ VM ${NAME} is already running - no additional operations needed."
+      echo "VM ${NAME} is already running; no additional operations needed."
       return 0
     else
       echo "VM ${NAME} is already running."
       echo ""
-      echo "✓ VM ${NAME} is already running - no additional operations needed."
+      echo "VM ${NAME} is already running; no additional operations needed."
       return 0
     fi
   fi
@@ -665,7 +665,7 @@ cmd_start() {
     virsh_cmd dumpxml "${NAME}" > "${xml_file}"
     
     if ! grep -q "<cputune>" "${xml_file}"; then
-      echo "⚠️  RT XML optimizations not found in VM definition"
+      echo "Warning: RT XML optimizations not found in VM definition"
       echo "Applying RT XML configuration before starting..."
       
       # Get vCPU count from domain
@@ -701,7 +701,7 @@ cmd_start() {
   pin_vcpus
   
   echo ""
-  echo "✓ VM ${NAME} is RT-ready!"
+  echo "VM ${NAME} is RT-ready."
   if [[ -n "${IP}" ]]; then
     echo "  IP: ${IP}"
     wait_for_sshd "${IP}" 30 || true
@@ -748,14 +748,14 @@ cmd_ip() {
   else
     echo "Error: VM '${NAME}' is running but has no IP address assigned." >&2
     echo "This may indicate:" >&2
-    echo "  • Network configuration issues" >&2
-    echo "  • Cloud-init is still running" >&2
-    echo "  • VM is in an intermediate boot state" >&2
+    echo "  - Network configuration issues" >&2
+    echo "  - Cloud-init is still running" >&2
+    echo "  - VM is in an intermediate boot state" >&2
     echo "" >&2
     echo "Try:" >&2
-    echo "  • servobox status --name ${NAME}  # Check detailed status" >&2
-    echo "  • virsh console ${NAME}          # Check VM console" >&2
-    echo "  • Wait a few minutes and try again" >&2
+    echo "  - servobox status --name ${NAME}  # Check detailed status" >&2
+    echo "  - virsh console ${NAME}          # Check VM console" >&2
+    echo "  - Wait a few minutes and try again" >&2
     exit 1
   fi
 }
@@ -837,9 +837,9 @@ cmd_stop() {
   echo "Current state: $(virsh_cmd domstate "${NAME}" 2>/dev/null || echo 'unknown')" >&2
   echo "" >&2
   echo "You can try:" >&2
-  echo "  • virsh destroy ${NAME}  # Force power off" >&2
-  echo "  • virsh console ${NAME}  # Check guest console" >&2
-  echo "  • servobox status --name ${NAME}  # Detailed status" >&2
+  echo "  - virsh destroy ${NAME}  # Force power off" >&2
+  echo "  - virsh console ${NAME}  # Check guest console" >&2
+  echo "  - servobox status --name ${NAME}  # Detailed status" >&2
   exit 1
 }
 
@@ -854,12 +854,12 @@ cmd_destroy() {
   
   # Prompt for confirmation unless --force is used
   if [[ ${FORCE} -ne 1 ]]; then
-    echo "⚠️  WARNING: This will permanently delete VM '${NAME}' and ALL data inside it!"
+    echo "Warning: This will permanently delete VM '${NAME}' and all data inside it."
     echo ""
     echo "This includes:"
-    echo "  • VM disk and all files: ${VM_DIR}"
-    echo "  • Installed packages and configurations"
-    echo "  • Any data you created inside the VM"
+    echo "  - VM disk and all files: ${VM_DIR}"
+    echo "  - Installed packages and configurations"
+    echo "  - Any data you created inside the VM"
     echo ""
     echo "This action CANNOT be undone."
     echo ""
@@ -903,13 +903,13 @@ cmd_destroy() {
   local tracking_file="${HOME}/.local/share/servobox/tracking/${NAME}.servobox-packages"
   if [[ -f "${tracking_file}" ]]; then
     if rm -f "${tracking_file}" 2>/dev/null; then
-      echo "✓ Removed package tracking file"
+      echo "Removed package tracking file."
     else
       echo "Warning: Could not remove package tracking file: ${tracking_file}" >&2
     fi
   fi
   
-  echo "✓ VM '${NAME}' has been destroyed."
+  echo "VM '${NAME}' has been destroyed."
 }
 cmd_status() {
   parse_args "$@"
@@ -1012,17 +1012,17 @@ cmd_status() {
   # Show available commands
   echo -e "\n=== Available Commands ==="
   if [[ "${VM_STATE}" == "running" ]]; then
-    echo "• servobox ssh     - Connect to the VM"
-    echo "• servobox stop    - Shutdown the VM"
-    echo "• servobox test    - Run latency test"
-    echo "• servobox rt-check - Check RT configuration"
+    echo "- servobox ssh     - Connect to the VM"
+    echo "- servobox stop    - Shutdown the VM"
+    echo "- servobox test    - Run latency test"
+    echo "- servobox rt-check - Check RT configuration"
   elif [[ "${VM_STATE}" == "shut off" ]]; then
-    echo "• servobox start   - Boot the VM (RT configuration applied automatically)"
-    echo "• servobox destroy - Remove the VM completely"
+    echo "- servobox start   - Boot the VM (RT configuration applied automatically)"
+    echo "- servobox destroy - Remove the VM completely"
   else
-    echo "• servobox init    - Create the VM (RT configuration included)"
-    echo "• servobox start   - Boot the VM (RT CPU pinning applied automatically)"
-    echo "• servobox destroy - Remove the VM completely"
+    echo "- servobox init    - Create the VM (RT configuration included)"
+    echo "- servobox start   - Boot the VM (RT CPU pinning applied automatically)"
+    echo "- servobox destroy - Remove the VM completely"
   fi
 }
 
@@ -1084,14 +1084,14 @@ cmd_ssh() {
   if [[ -z "${IP}" ]]; then
     echo "Error: VM '${NAME}' is running but has no IP address assigned." >&2
     echo "This may indicate:" >&2
-    echo "  • Network configuration issues" >&2
-    echo "  • Cloud-init is still running" >&2
-    echo "  • VM is in an intermediate boot state" >&2
+    echo "  - Network configuration issues" >&2
+    echo "  - Cloud-init is still running" >&2
+    echo "  - VM is in an intermediate boot state" >&2
     echo "" >&2
     echo "Try:" >&2
-    echo "  • servobox status --name ${NAME}  # Check detailed status" >&2
-    echo "  • virsh console ${NAME}          # Check VM console" >&2
-    echo "  • Wait a few minutes and try again" >&2
+    echo "  - servobox status --name ${NAME}  # Check detailed status" >&2
+    echo "  - virsh console ${NAME}          # Check VM console" >&2
+    echo "  - Wait a few minutes and try again" >&2
     exit 1
   fi
   
@@ -1118,14 +1118,14 @@ cmd_ssh() {
     
     echo "Error: SSH is not responding on ${IP}." >&2
     echo "This may indicate:" >&2
-    echo "  • SSH service is not running in the VM" >&2
-    echo "  • Cloud-init is still configuring the system" >&2
-    echo "  • Network connectivity issues" >&2
+    echo "  - SSH service is not running in the VM" >&2
+    echo "  - Cloud-init is still configuring the system" >&2
+    echo "  - Network connectivity issues" >&2
     echo "" >&2
     echo "Try:" >&2
-    echo "  • virsh console ${NAME}          # Check VM console" >&2
-    echo "  • servobox debug --name ${NAME}  # Check VM logs" >&2
-    echo "  • Wait a few minutes for cloud-init to complete" >&2
+    echo "  - virsh console ${NAME}          # Check VM console" >&2
+    echo "  - servobox debug --name ${NAME}  # Check VM logs" >&2
+    echo "  - Wait a few minutes for cloud-init to complete" >&2
     exit 1
   fi
   
