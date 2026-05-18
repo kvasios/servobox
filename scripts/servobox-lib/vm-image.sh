@@ -1,6 +1,23 @@
 #!/usr/bin/env bash
 # VM image preparation and customization functions
 
+image_download_error() {
+  local detail="$1"
+  local release_hint="${2:-}"
+
+  echo "Error: ${detail}" >&2
+  echo "" >&2
+  echo "ServoBox could not download the prebuilt RT VM image." >&2
+  if [[ -n "${release_hint}" ]]; then
+    echo "Expected a .qcow2.xz image asset on GitHub release: ${release_hint}" >&2
+  fi
+  echo "" >&2
+  echo "Please check your internet connection and try again." >&2
+  echo "If the release exists but the image asset is missing, contact the ServoBox author/maintainer." >&2
+  echo "You can also provide a local image explicitly with: servobox init --image /path/to/base.qcow2[.xz]" >&2
+  exit 1
+}
+
 ensure_image() {
   mkdir -p "${DOWNLOAD_DIR}"
   # If user provided a local artifact, use it
@@ -37,10 +54,9 @@ ensure_image() {
   if [[ ! -f "${IMG}" ]]; then
     echo "Downloading ServoBox prebuilt RT VM image..."
 
-    # Try to derive the correct GitHub release asset URL
-    # 1) Prefer tag matching installed servobox version
-    # 2) Fallback to latest release
-    # 3) Fallback to legacy BASE_IMG_URL_FILE (if present)
+    # Try to derive the correct GitHub release asset URL.
+    # Prefer the tag matching the installed package version; source checkouts can
+    # fall back to the version in debian/changelog.
 
     GH_REPO="kvasios/servobox"
     PKG_VER=""
@@ -110,7 +126,7 @@ ensure_image() {
           grep -A 20 '"assets"' 2>/dev/null | \
           grep -B 5 -A 15 '\.qcow2\.xz' 2>/dev/null | \
           grep '"id"' 2>/dev/null | \
-          head -n1 | sed -E 's/.*"id"\s*:\s*([0-9]+).*/\1/')
+          head -n1 | sed -E 's/.*"id"\s*:\s*([0-9]+).*/\1/' || true)
         
         if [[ -n "${ASSET_ID}" ]]; then
           ASSET_URL="https://api.github.com/repos/${GH_REPO}/releases/assets/${ASSET_ID}"
@@ -124,7 +140,7 @@ ensure_image() {
         if echo "${RAW_RESPONSE}" | grep -q '"browser_download_url"' 2>/dev/null; then
           ASSET_URL=$(echo "${RAW_RESPONSE}" | \
             grep -Eo '"browser_download_url"\s*:\s*"[^"]+\.qcow2\.xz"' 2>/dev/null | \
-            head -n1 | sed -E 's/.*"(https:[^"]+)"/\1/')
+            head -n1 | sed -E 's/.*"(https:[^"]+)"/\1/' || true)
         fi
         if [[ -z "${ASSET_URL}" ]]; then
           echo "Warning: Could not find .qcow2.xz download URL in release response" >&2
@@ -135,6 +151,10 @@ ensure_image() {
         echo "Found version-specific release: ${URL}"
       else
         echo "Warning: No valid asset URL found for tag ${TAG}" >&2
+      fi
+
+      if [[ -z "${URL}" ]]; then
+        image_download_error "No ServoBox prebuilt VM image asset was found for release tag ${TAG}." "${TAG}"
       fi
     fi
 
@@ -195,7 +215,7 @@ ensure_image() {
           grep -A 20 '"assets"' 2>/dev/null | \
           grep -B 5 -A 15 '\.qcow2\.xz' 2>/dev/null | \
           grep '"id"' 2>/dev/null | \
-          head -n1 | sed -E 's/.*"id"\s*:\s*([0-9]+).*/\1/')
+          head -n1 | sed -E 's/.*"id"\s*:\s*([0-9]+).*/\1/' || true)
         if [[ -n "${ASSET_ID}" ]]; then
           ASSET_URL="https://api.github.com/repos/${GH_REPO}/releases/assets/${ASSET_ID}"
         else
@@ -207,7 +227,7 @@ ensure_image() {
         if echo "${RAW_RESPONSE}" | grep -q '"browser_download_url"' 2>/dev/null; then
           ASSET_URL=$(echo "${RAW_RESPONSE}" | \
             grep -Eo '"browser_download_url"\s*:\s*"[^"]+\.qcow2\.xz"' 2>/dev/null | \
-            head -n1 | sed -E 's/.*"(https:[^"]+)"/\1/')
+            head -n1 | sed -E 's/.*"(https:[^"]+)"/\1/' || true)
         fi
         if [[ -z "${ASSET_URL}" ]]; then
           echo "Warning: Could not find .qcow2.xz download URL in fallback release response" >&2
@@ -218,18 +238,13 @@ ensure_image() {
         echo "Found release ${DEFAULT_TAG}: ${URL}"
       else
         echo "Warning: No valid asset URL found for fallback tag ${DEFAULT_TAG}" >&2
+        image_download_error "No ServoBox prebuilt VM image asset was found for release tag ${DEFAULT_TAG}." "${DEFAULT_TAG}"
       fi
     fi
 
-      if [[ -z "${URL}" ]]; then
-        if [[ -f "${BASE_IMG_URL_FILE}" ]]; then
-          URL=$(cat "${BASE_IMG_URL_FILE}")
-        else
-          echo "Error: Could not determine the VM image download URL." >&2
-          echo "Please check your internet connection, or provide a local image with --image, or set a direct URL in ${BASE_IMG_URL_FILE}." >&2
-          exit 1
-        fi
-      fi
+    if [[ -z "${URL}" ]]; then
+      image_download_error "Could not determine the VM image download URL." "${DEFAULT_TAG:-}"
+    fi
 
     echo "Fetching: ${URL}"
     
@@ -258,15 +273,11 @@ ensure_image() {
     fi
     
     if [[ ${download_success} -eq 0 ]]; then
-        echo "Error: Failed to download VM image from ${URL}" >&2
-        echo "Please check your internet connection or provide a local image with --image." >&2
-        exit 1
+        image_download_error "Failed to download VM image from ${URL}" "${TAG:-${DEFAULT_TAG:-}}"
     fi
 
     if [[ ! -s "${IMG}" ]]; then
-      echo "Error: Download produced an empty file: ${IMG}" >&2
-      echo "Please check your internet connection or provide a local image with --image." >&2
-      exit 1
+      image_download_error "Download produced an empty file: ${IMG}" "${TAG:-${DEFAULT_TAG:-}}"
     fi
 
     # Check if downloaded file is compressed and decompress if needed
