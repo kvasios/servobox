@@ -74,20 +74,21 @@ Open `/etc/default/grub` and update `GRUB_CMDLINE_LINUX_DEFAULT`.
 sudo vim /etc/default/grub
 ```
 
-Example for an 8-core host:
+Example for ServoBox's default 4-vCPU VM layout on a host with 6 or more CPUs:
 
 ```text
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash isolcpus=managed_irq,domain,1-4 nohz_full=1-4 rcu_nocbs=1-4 irqaffinity=0-1"
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash clocksource=tsc tsc=reliable nmi_watchdog=0 nosoftlockup kthread_cpus=0-1 isolcpus=domain,managed_irq,2-5 rcu_nocb_poll rcu_nocbs=2-5 nohz=on nohz_full=2-5 irqaffinity=0-1"
 ```
 
 Meaning of the important parameters:
 
-- `isolcpus=managed_irq,domain,1-4`: reserves CPUs `1-4` away from normal scheduling
-- `nohz_full=1-4`: removes periodic scheduler ticks from those CPUs
-- `rcu_nocbs=1-4`: moves RCU work off those CPUs
+- `kthread_cpus=0-1`: keeps kernel threads on the housekeeping CPUs
+- `isolcpus=domain,managed_irq,2-5`: reserves CPUs `2-5` away from normal scheduling
+- `rcu_nocbs=2-5`: moves RCU work off those CPUs
+- `nohz_full=2-5`: removes periodic scheduler ticks from those CPUs
 - `irqaffinity=0-1`: keeps interrupts on the non-isolated host cores
 
-Adjust the CPU ranges to match your machine. Keep at least one or two non-isolated cores for the host.
+Adjust the CPU ranges to match your machine and VM size. ServoBox keeps CPUs `0-1` for host housekeeping on hosts with 4 or more CPUs, then pins VM vCPUs starting at CPU `2`. For example, a 4-vCPU VM uses host CPUs `2-5`, while an 8-vCPU VM uses `2-9`.
 
 ### 3. Apply and reboot
 
@@ -102,9 +103,10 @@ After reboot:
 
 ```console
 cat /sys/devices/system/cpu/isolated
+servobox rt-verify
 ```
 
-The output should match the CPU range you isolated, such as `1-4`.
+The isolated CPU output should match the VM RT CPU range, such as `2-5` for the default 4-vCPU VM. `servobox rt-verify` prints the exact suggested GRUB parameters if the host boot line does not match ServoBox's current CPU layout.
 
 ## Sanity Check
 
