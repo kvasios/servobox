@@ -128,13 +128,13 @@ first_cpulist_cpu() {
 
 parse_cyclictest_results() {
   local output="$1"
+  local normalized_output="${output//$'\r'/$'\n'}"
   local line
-  local found=0
-  local worst_max=""
-  local worst_line=""
-  local best_min=""
-  local avg_sum=0
-  local avg_count=0
+  local thread
+  declare -A min_by_thread=()
+  declare -A avg_by_thread=()
+  declare -A max_by_thread=()
+  local thread_order=()
 
   while IFS= read -r line; do
     [[ "${line}" == *"Max:"* ]] || continue
@@ -142,16 +142,35 @@ parse_cyclictest_results() {
     [[ "${line}" == *"Avg:"* ]] || continue
 
     local min avg max cpu_label
+    cpu_label=$(sed -n 's/^[[:space:]]*T:[[:space:]]*\([0-9]\+\).*/T:\1/p' <<< "${line}")
     min=$(sed -n 's/.*Min:[[:space:]]*\([0-9]\+\).*/\1/p' <<< "${line}")
     avg=$(sed -n 's/.*Avg:[[:space:]]*\([0-9]\+\).*/\1/p' <<< "${line}")
     max=$(sed -n 's/.*Max:[[:space:]]*\([0-9]\+\).*/\1/p' <<< "${line}")
-    cpu_label=$(sed -n 's/^T:[[:space:]]*\([0-9]\+\).*/T:\1/p' <<< "${line}")
-    [[ -n "${min}" && -n "${avg}" && -n "${max}" ]] || continue
+    [[ -n "${cpu_label}" && -n "${min}" && -n "${avg}" && -n "${max}" ]] || continue
 
-    found=1
-    min=$((10#${min}))
-    avg=$((10#${avg}))
-    max=$((10#${max}))
+    if [[ -z "${max_by_thread[${cpu_label}]+set}" ]]; then
+      thread_order+=("${cpu_label}")
+    fi
+    min_by_thread["${cpu_label}"]=$((10#${min}))
+    avg_by_thread["${cpu_label}"]=$((10#${avg}))
+    max_by_thread["${cpu_label}"]=$((10#${max}))
+  done <<< "${normalized_output}"
+
+  if [[ ${#thread_order[@]} -eq 0 ]]; then
+    echo "Warning: Could not parse cyclictest Min/Avg/Max results" >&2
+    return 1
+  fi
+
+  local worst_max=""
+  local worst_line=""
+  local best_min=""
+  local avg_sum=0
+  local avg_count=0
+
+  for thread in "${thread_order[@]}"; do
+    local min="${min_by_thread[${thread}]}"
+    local avg="${avg_by_thread[${thread}]}"
+    local max="${max_by_thread[${thread}]}"
     avg_sum=$((avg_sum + avg))
     avg_count=$((avg_count + 1))
 
@@ -160,14 +179,9 @@ parse_cyclictest_results() {
     fi
     if [[ -z "${worst_max}" || ${max} -gt ${worst_max} ]]; then
       worst_max="${max}"
-      worst_line="${cpu_label:-thread ${avg_count}}"
+      worst_line="${thread}"
     fi
-  done <<< "${output}"
-
-  if [[ ${found} -eq 0 ]]; then
-    echo "Warning: Could not parse cyclictest Min/Avg/Max results" >&2
-    return 1
-  fi
+  done
 
   local avg_of_avgs=$((avg_sum / avg_count))
   echo ""
@@ -197,6 +211,8 @@ run_latency_test() {
   echo "  Host stress: ${ENABLE_STRESS}"
   if [[ "${ENABLE_STRESS}" -eq 1 ]]; then
     echo "  Stress profile: ${STRESS_PROFILE}"
+  elif [[ "${STRESS_PROFILE:-safe}" != "safe" ]]; then
+    echo "  Stress profile: ${STRESS_PROFILE} (ignored unless --stress-ng is set)"
   fi
   
   # Ensure SSH is ready (gives cloud-init time to finalize sudoers as well)

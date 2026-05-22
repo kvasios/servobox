@@ -182,7 +182,7 @@ Usage:
   servobox network-setup [--name NAME] Interactive wizard to configure network (up to 2 host NICs)
   servobox test [--name NAME] [--duration SECONDS] [--stress-ng] [--stress-cpuset LIST] [--stress-profile MODE]
                                        Run cyclictest on the VM (--stress-ng enables host stress)
-                                       stress profiles: safe, balanced, aggressive, cyclic
+                                       stress profiles with --stress-ng: safe, balanced, aggressive, cyclic
   servobox rt-verify [--name NAME]    Verify RT configuration is properly applied
   servobox pkg-install <pkg|config> [--name NAME] [--verbose|-v] [--offline] [--list] [--custom PATH]
                                        Install a package or packages from a config (.conf/.config)
