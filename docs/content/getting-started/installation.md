@@ -66,18 +66,21 @@ nproc
 
 If you have fewer than 6 CPU cores, ServoBox may still run, but you will have very limited room for safe isolation.
 
-### 2. Edit the GRUB kernel command line
+### 2. Add a GRUB drop-in for host isolation
 
-Open `/etc/default/grub` and update `GRUB_CMDLINE_LINUX_DEFAULT`.
+Create a ServoBox-specific GRUB drop-in so the RT settings are separate from the distribution defaults:
 
 ```console
-sudo vim /etc/default/grub
+sudo install -d /etc/default/grub.d
+sudo tee /etc/default/grub.d/99-servobox-rt.cfg >/dev/null <<'EOF'
+GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT clocksource=tsc tsc=reliable nmi_watchdog=0 nosoftlockup kthread_cpus=0-1 isolcpus=domain,managed_irq,2-5 rcu_nocb_poll rcu_nocbs=2-5 nohz=on nohz_full=2-5 irqaffinity=0-1"
+EOF
 ```
 
 Example for ServoBox's default 4-vCPU VM layout on a host with 6 or more CPUs:
 
 ```text
-GRUB_CMDLINE_LINUX_DEFAULT="quiet splash clocksource=tsc tsc=reliable nmi_watchdog=0 nosoftlockup kthread_cpus=0-1 isolcpus=domain,managed_irq,2-5 rcu_nocb_poll rcu_nocbs=2-5 nohz=on nohz_full=2-5 irqaffinity=0-1"
+/etc/default/grub.d/99-servobox-rt.cfg
 ```
 
 Meaning of the important parameters:
@@ -88,7 +91,7 @@ Meaning of the important parameters:
 - `nohz_full=2-5`: removes periodic scheduler ticks from those CPUs
 - `irqaffinity=0-1`: keeps interrupts on the non-isolated host cores
 
-Adjust the CPU ranges to match your machine and VM size. ServoBox keeps CPUs `0-1` for host housekeeping on hosts with 4 or more CPUs, then pins VM vCPUs starting at CPU `2`. For example, a 4-vCPU VM uses host CPUs `2-5`, while an 8-vCPU VM uses `2-9`.
+Adjust the CPU ranges to match your machine and VM size before applying the file. ServoBox keeps CPUs `0-1` for host housekeeping on hosts with 4 or more CPUs, then pins VM vCPUs starting at CPU `2`. For example, a 4-vCPU VM uses host CPUs `2-5`, while an 8-vCPU VM uses `2-9`.
 
 ### 3. Apply and reboot
 
@@ -107,6 +110,8 @@ servobox rt-verify
 ```
 
 The isolated CPU output should match the VM RT CPU range, such as `2-5` for the default 4-vCPU VM. `servobox rt-verify` prints the exact suggested GRUB parameters if the host boot line does not match ServoBox's current CPU layout.
+
+To roll back the host boot isolation settings, delete `/etc/default/grub.d/99-servobox-rt.cfg`, run `sudo update-grub`, and reboot.
 
 ## Sanity Check
 

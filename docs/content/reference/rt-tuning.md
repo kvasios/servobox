@@ -57,10 +57,13 @@ ServoBox offers three RT performance modes (selected with `servobox start`):
 Removes CPU cores from the Linux scheduler and routes all interrupts to CPU 0, creating a "quiet zone" for RT workloads.
 
 **Configuration (user-applied):**  
-Edit `/etc/default/grub` and add to `GRUB_CMDLINE_LINUX_DEFAULT`:
+Create a ServoBox-specific GRUB drop-in under `/etc/default/grub.d/`:
 
-```text
-clocksource=tsc tsc=reliable nmi_watchdog=0 nosoftlockup kthread_cpus=0-1 isolcpus=domain,managed_irq,2-5 rcu_nocb_poll rcu_nocbs=2-5 nohz=on nohz_full=2-5 irqaffinity=0-1
+```console
+sudo install -d /etc/default/grub.d
+sudo tee /etc/default/grub.d/99-servobox-rt.cfg >/dev/null <<'EOF'
+GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT clocksource=tsc tsc=reliable nmi_watchdog=0 nosoftlockup kthread_cpus=0-1 isolcpus=domain,managed_irq,2-5 rcu_nocb_poll rcu_nocbs=2-5 nohz=on nohz_full=2-5 irqaffinity=0-1"
+EOF
 ```
 
 Then apply with:
@@ -83,6 +86,9 @@ Prevents kernel scheduler and interrupt activity from preempting RT vCPU threads
 
 !!! tip "Helper Command"
     ServoBox provides `servobox irqbalance-mask` to generate the correct `IRQBALANCE_BANNED_CPULIST` configuration for persistent IRQ isolation across reboots.
+
+!!! tip "Rollback"
+    To remove the ServoBox host boot isolation settings, delete `/etc/default/grub.d/99-servobox-rt.cfg`, run `sudo update-grub`, and reboot.
 
 ---
 
