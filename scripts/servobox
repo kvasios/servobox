@@ -182,6 +182,7 @@ Usage:
   servobox network-setup [--name NAME] Interactive wizard to configure network (up to 2 host NICs)
   servobox test [--name NAME] [--duration SECONDS] [--stress-ng] [--stress-cpuset LIST] [--stress-profile MODE]
                                        Run cyclictest on the VM (--stress-ng enables host stress)
+                                       stress profiles: safe, balanced, aggressive, cyclic
   servobox rt-verify [--name NAME]    Verify RT configuration is properly applied
   servobox pkg-install <pkg|config> [--name NAME] [--verbose|-v] [--offline] [--list] [--custom PATH]
                                        Install a package or packages from a config (.conf/.config)
@@ -248,7 +249,8 @@ Remote Target Mode (Jetson, NUC, etc.):
     servobox run polymetis                     # Run recipe on Jetson
 
 Notes:
-  - RT configuration (CPU isolation, pinning, IRQ affinity) is automatic on 'init' and 'start'
+  - VM pinning and runtime IRQ affinity are automatic on 'init' and 'start'
+  - Persistent host boot isolation is reported by 'rt-verify' and applied manually
   - Project defaults can live in .servobox/config; create one with 'servobox config init'
   - Base RT image is auto-downloaded or pre-cached at /var/lib/servobox
   - Images are stored in /var/lib/libvirt/images/servobox/<name> for libvirt
@@ -274,6 +276,7 @@ Examples:
   servobox test --duration 60
   servobox test --duration 60 --stress-ng --stress-cpuset 6-15
   servobox test --duration 60 --stress-ng --stress-profile balanced
+  servobox test --duration 60 --stress-ng --stress-profile cyclic
   servobox run polymetis                            # Run polymetis recipe
   servobox run "sudo pkill -9 run_server"           # Kill a process in VM
   servobox destroy --vm-image-too                   # Delete VM and downloaded base image
@@ -299,6 +302,7 @@ if [[ ${REMOTE_MODE} -eq 1 ]]; then
         case "$1" in
           --duration) TEST_DURATION="$2"; shift 2;;
           --stress-ng) ENABLE_STRESS=1; shift 1;;  # Note: stress on remote not implemented
+          --stress-profile) STRESS_PROFILE="$2"; shift 2;;
           *) shift;;
         esac
       done

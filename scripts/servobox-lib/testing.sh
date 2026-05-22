@@ -56,7 +56,7 @@ derive_stress_cpuset() {
 validate_stress_profile() {
   local profile="${STRESS_PROFILE:-safe}"
   case "${profile}" in
-    safe|balanced|aggressive)
+    safe|balanced|aggressive|cyclic)
       ;;
     *)
       echo "Warning: Unknown --stress-profile '${profile}', using 'safe'" >&2
@@ -116,6 +116,68 @@ derive_stress_settings() {
   echo "${workers} ${cpu_load} ${vm_workers} ${mem_target_mb}"
 }
 
+first_cpulist_cpu() {
+  local cpulist="$1"
+  local first="${cpulist%%,*}"
+  if [[ "${first}" == *-* ]]; then
+    echo "${first%-*}"
+  else
+    echo "${first}"
+  fi
+}
+
+parse_cyclictest_results() {
+  local output="$1"
+  local line
+  local found=0
+  local worst_max=""
+  local worst_line=""
+  local best_min=""
+  local avg_sum=0
+  local avg_count=0
+
+  while IFS= read -r line; do
+    [[ "${line}" == *"Max:"* ]] || continue
+    [[ "${line}" == *"Min:"* ]] || continue
+    [[ "${line}" == *"Avg:"* ]] || continue
+
+    local min avg max cpu_label
+    min=$(sed -n 's/.*Min:[[:space:]]*\([0-9]\+\).*/\1/p' <<< "${line}")
+    avg=$(sed -n 's/.*Avg:[[:space:]]*\([0-9]\+\).*/\1/p' <<< "${line}")
+    max=$(sed -n 's/.*Max:[[:space:]]*\([0-9]\+\).*/\1/p' <<< "${line}")
+    cpu_label=$(sed -n 's/^T:[[:space:]]*\([0-9]\+\).*/T:\1/p' <<< "${line}")
+    [[ -n "${min}" && -n "${avg}" && -n "${max}" ]] || continue
+
+    found=1
+    min=$((10#${min}))
+    avg=$((10#${avg}))
+    max=$((10#${max}))
+    avg_sum=$((avg_sum + avg))
+    avg_count=$((avg_count + 1))
+
+    if [[ -z "${best_min}" || ${min} -lt ${best_min} ]]; then
+      best_min="${min}"
+    fi
+    if [[ -z "${worst_max}" || ${max} -gt ${worst_max} ]]; then
+      worst_max="${max}"
+      worst_line="${cpu_label:-thread ${avg_count}}"
+    fi
+  done <<< "${output}"
+
+  if [[ ${found} -eq 0 ]]; then
+    echo "Warning: Could not parse cyclictest Min/Avg/Max results" >&2
+    return 1
+  fi
+
+  local avg_of_avgs=$((avg_sum / avg_count))
+  echo ""
+  echo "Latency summary (cyclictest, microseconds):"
+  echo "  Threads parsed: ${avg_count}"
+  echo "  Best Min: ${best_min} us"
+  echo "  Avg of Avg: ${avg_of_avgs} us"
+  echo "  Worst Max: ${worst_max} us (${worst_line})"
+}
+
 run_latency_test() {
   echo "Running 1kHz real-time latency test on VM ${NAME}..."
   
@@ -127,6 +189,15 @@ run_latency_test() {
   
   echo "VM IP: ${IP}"
   echo "Testing 1kHz timing requirements (1000μs cycle time) for ${TEST_DURATION} seconds..."
+  echo "Run context:"
+  echo "  VM: ${NAME}"
+  echo "  vCPUs: ${VCPUS}"
+  echo "  RT mode: ${RT_MODE:-balanced}"
+  echo "  Duration: ${TEST_DURATION}s"
+  echo "  Host stress: ${ENABLE_STRESS}"
+  if [[ "${ENABLE_STRESS}" -eq 1 ]]; then
+    echo "  Stress profile: ${STRESS_PROFILE}"
+  fi
   
   # Ensure SSH is ready (gives cloud-init time to finalize sudoers as well)
   wait_for_sshd "${IP}" 60 || true
@@ -141,7 +212,6 @@ run_latency_test() {
 
   # Create a temporary script to handle cloud-init wait and cyclictest installation
   local temp_script="/tmp/servobox-test-$$.sh"
-  local loops=$((TEST_DURATION * 1000))
   
   # Create the test script content
   cat > "${temp_script}" << 'EOF'
@@ -150,7 +220,7 @@ set -e
 
 echo "Real-time latency test (cyclictest) - 1kHz Application Focus"
 echo "Testing 1kHz timing requirements (1000μs cycle time)..."
-echo "Running for ${TEST_DURATION} seconds on isolated CPUs..."
+echo "Running for ${TEST_DURATION} seconds..."
 
 # Wait for cloud-init to complete (up to 60 seconds)
 echo "Waiting for cloud-init to complete..."
@@ -163,17 +233,30 @@ if ! command -v cyclictest >/dev/null 2>&1; then
   apt-get update && apt-get -y install rt-tests
 fi
 
+test_cpu="${SERVOBOX_TEST_CPU:-}"
+if [[ -z "${test_cpu}" ]]; then
+  isolated_cpus="$(cat /sys/devices/system/cpu/isolated 2>/dev/null || true)"
+  if [[ -n "${isolated_cpus}" ]]; then
+    first_range="${isolated_cpus%%,*}"
+    test_cpu="${first_range%%-*}"
+    echo "Using first guest isolated CPU: ${test_cpu}"
+  elif [[ "$(nproc)" -gt 1 ]]; then
+    test_cpu="1"
+    echo "Using guest CPU ${test_cpu} (no guest CPU isolation detected)"
+  else
+    test_cpu="0"
+    echo "Using guest CPU 0 (single-vCPU guest)"
+  fi
+fi
+
 # Run cyclictest with maximum RT optimizations:
 # -m: lock memory (prevent page faults)
 # --policy=fifo: explicit SCHED_FIFO  
-# Note: Don't use -a flag because isolated CPUs need special handling
-# The RT priority will ensure we get CPU time on isolated cores
-taskset -c 1 cyclictest -t1 -p 80 -m -i 1000 -l ${loops} --policy=fifo --duration=${TEST_DURATION}
+taskset -c "${test_cpu}" cyclictest -t1 -p 80 -m -i 1000 --policy=fifo --duration=${TEST_DURATION}
 EOF
 
   # Replace the placeholder variables in the script
   sed -i "s/\${TEST_DURATION}/${TEST_DURATION}/g" "${temp_script}"
-  sed -i "s/\${loops}/${loops}/g" "${temp_script}"
   
   # Make the script executable
   chmod +x "${temp_script}"
@@ -227,17 +310,30 @@ EOF
         echo "Host available memory: ${mem_available_mb:-unknown} MB"
         echo "Stress profile: ${STRESS_PROFILE}"
         echo "Stressing host cores: ${stress_cpuset} (${stress_cpu_count} CPUs)"
-        echo "Stress settings: workers=${stress_workers}, cpu-load=${stress_cpu_load}%, vm-workers=${stress_vm_workers}, vm-bytes=${stress_mem_mb}M"
+        if [[ "${STRESS_PROFILE}" == "cyclic" ]]; then
+          echo "Stress settings: stress-ng cyclic profile, dist=250, method=clock_ns, policy=rr"
+        else
+          echo "Stress settings: workers=${stress_workers}, cpu-load=${stress_cpu_load}%, vm-workers=${stress_vm_workers}, vm-bytes=${stress_mem_mb}M"
+        fi
       
         # Start stress only on designated non-RT host cores with conservative defaults.
         # nice lowers priority to reduce the chance of host lockups under heavy stress.
-        nice -n 10 taskset -c "${stress_cpuset}" stress-ng \
-          --cpu "${stress_workers}" \
-          --cpu-load "${stress_cpu_load}" \
-          --vm "${stress_vm_workers}" \
-          --vm-bytes "${stress_mem_mb}M" \
-          --vm-keep \
-          --timeout "${TEST_DURATION}" >/dev/null 2>&1 &
+        if [[ "${STRESS_PROFILE}" == "cyclic" ]]; then
+          nice -n 10 taskset -c "${stress_cpuset}" stress-ng \
+            --cyclic 1 \
+            --cyclic-dist 250 \
+            --cyclic-method clock_ns \
+            --cyclic-policy rr \
+            --timeout "${TEST_DURATION}" >/dev/null 2>&1 &
+        else
+          nice -n 10 taskset -c "${stress_cpuset}" stress-ng \
+            --cpu "${stress_workers}" \
+            --cpu-load "${stress_cpu_load}" \
+            --vm "${stress_vm_workers}" \
+            --vm-bytes "${stress_mem_mb}M" \
+            --vm-keep \
+            --timeout "${TEST_DURATION}" >/dev/null 2>&1 &
+        fi
         STRESS_PID=$!
         echo "Host stress test started (PID: ${STRESS_PID})"
       fi
@@ -341,6 +437,8 @@ EOF
     echo "This might indicate a problem with the test execution." >&2
     exit 1
   fi
+
+  parse_cyclictest_results "${cyclictest_output}" || true
   
   # Clean up temporary script
   rm -f "${temp_script}" 2>/dev/null || true

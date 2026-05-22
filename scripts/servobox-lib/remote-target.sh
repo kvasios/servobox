@@ -336,6 +336,9 @@ cmd_remote_test() {
   echo ""
   echo "Target: ${ip}"
   echo "Duration: ${duration} seconds"
+  if [[ "${ENABLE_STRESS:-0}" -eq 1 ]]; then
+    echo "Warning: --stress-ng is not implemented for remote targets; running cyclictest only."
+  fi
   echo ""
   
   if ! check_remote_connection; then
@@ -369,8 +372,6 @@ cmd_remote_test() {
     echo "Using CPU ${test_cpu} (no CPU isolation detected)"
   fi
 
-  local loops=$((duration * 1000))
-
   echo ""
   echo "Running cyclictest (this will take ${duration} seconds)..."
   echo "(You may be prompted for sudo password)"
@@ -380,7 +381,7 @@ cmd_remote_test() {
   local output_file="/tmp/servobox-remote-test-$$.log"
 
   ssh -t ${ssh_opts} -p "${port}" "${user}@${ip}" \
-    "sudo taskset -c ${test_cpu} cyclictest -t1 -p 80 -m -i 1000 -l ${loops} --policy=fifo --duration=${duration}" \
+    "sudo taskset -c ${test_cpu} cyclictest -t1 -p 80 -m -i 1000 --policy=fifo --duration=${duration}" \
     | tee "${output_file}"
 
   # Parse results

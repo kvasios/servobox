@@ -13,7 +13,7 @@ ServoBox achieves real-time performance through a **layered approach**:
 3. **Guest optimization** - PREEMPT_RT kernel with minimal jitter sources
 4. **Verification tools** - Built-in testing and diagnostics
 
-All optimizations are applied automatically during `servobox init` and `servobox start`.
+VM and runtime host optimizations are applied automatically during `servobox init` and `servobox start`. Persistent host boot isolation is intentionally manual because it changes the whole workstation and requires a reboot.
 
 ---
 
@@ -99,13 +99,13 @@ ServoBox's balanced mode already achieves the VM latency ceiling (~100-120μs ma
 ### Runtime IRQ Affinity Configuration
 
 **What it does:**  
-ServoBox sets IRQ affinity for all interrupt sources to CPU 0 during `servobox start`.
+ServoBox sets IRQ affinity for interrupt sources to the housekeeping CPU set during `servobox start`.
 
 **Implementation:**
 
 ```bash
 # For each IRQ in /proc/irq/*/smp_affinity_list
-echo "0" | sudo tee /proc/irq/*/smp_affinity_list
+echo "<housekeeping-cpus>" | sudo tee /proc/irq/*/smp_affinity_list
 ```
 
 **Why it matters:**  
@@ -116,7 +116,7 @@ Ensures hardware interrupts (network, disk, USB) don't disturb isolated RT cores
 ### CPU Frequency Governor
 
 **What it does:**  
-Forces CPU frequency governor to `performance` mode on CPU 0 and all RT cores.
+Forces CPU frequency governor to `performance` mode on the housekeeping CPUs and VM RT cores.
 
 **Why it matters:**  
 Prevents dynamic frequency scaling (Intel SpeedStep, AMD Cool'n'Quiet) that can introduce latency spikes of 100+μs during frequency transitions.

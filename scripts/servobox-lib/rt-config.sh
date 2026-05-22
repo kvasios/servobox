@@ -86,6 +86,57 @@ print(format(mask, "x"))
 PY
 }
 
+cpu_range_for_count() {
+  local start_cpu="$1"
+  local count="$2"
+  local end_cpu=$((start_cpu + count - 1))
+
+  if [[ ${count} -le 1 ]]; then
+    echo "${start_cpu}"
+  else
+    echo "${start_cpu}-${end_cpu}"
+  fi
+}
+
+print_host_boot_isolation_status() {
+  local host_cores
+  host_cores=$(nproc)
+  get_rt_cpu_layout "${host_cores}"
+
+  local vm_rt_count="${VCPUS}"
+  if [[ ${vm_rt_count} -gt ${RT_AVAILABLE} ]]; then
+    vm_rt_count="${RT_AVAILABLE}"
+  fi
+  local vm_rt_cpuset
+  vm_rt_cpuset=$(cpu_range_for_count "${RT_START_CPU}" "${vm_rt_count}")
+  local current_cmdline
+  current_cmdline=$(cat /proc/cmdline 2>/dev/null || echo "")
+  local current_isolated
+  current_isolated=$(cat /sys/devices/system/cpu/isolated 2>/dev/null || echo "")
+
+  echo "Host Boot Isolation:"
+  echo "  ServoBox housekeeping CPUs: ${HK_CPUSET}"
+  echo "  ServoBox VM RT CPUs: ${vm_rt_cpuset}"
+  echo "  Kernel isolated CPUs: ${current_isolated:-none}"
+
+  local missing=0
+  for param in isolcpus nohz_full rcu_nocbs kthread_cpus irqaffinity; do
+    if [[ "${current_cmdline}" != *"${param}="* ]]; then
+      missing=1
+      echo "  Missing boot parameter: ${param}"
+    fi
+  done
+
+  if [[ ${missing} -eq 1 || -z "${current_isolated}" ]]; then
+    echo "  Suggested GRUB parameters for manual host isolation:"
+    echo "    clocksource=tsc tsc=reliable nmi_watchdog=0 nosoftlockup kthread_cpus=${HK_CPUSET} isolcpus=domain,managed_irq,${vm_rt_cpuset} rcu_nocb_poll rcu_nocbs=${vm_rt_cpuset} nohz=on nohz_full=${vm_rt_cpuset} irqaffinity=${HK_CPUSET}"
+    echo "  Note: Apply host boot isolation manually; it requires sudo update-grub and reboot."
+  else
+    echo "  Host boot isolation parameters detected."
+  fi
+  echo ""
+}
+
 # Calculate IRQBALANCE_BANNED_CPUS mask for host RT isolation
 cmd_irqbalance_mask() {
   shift || true  # Remove the command name
@@ -223,6 +274,16 @@ apply_rt_xml_config() {
   
   # Use xmlstarlet if available, otherwise use sed
   if command -v xmlstarlet >/dev/null 2>&1; then
+    # Remove ServoBox-managed sections first so repeated applications stay idempotent.
+    xmlstarlet ed -L \
+      -d "/domain/iothreads" \
+      -d "/domain/cputune" \
+      -d "/domain/memoryBacking/locked" \
+      -d "/domain/memoryBacking/nosharepages" \
+      -d "/domain/features/pmu" \
+      -d "/domain/devices/memballoon" \
+      "${xml_file}" 2>/dev/null || true
+
     # Add iothreads
     xmlstarlet ed -L \
       -s "/domain" -t elem -n "iothreads" -v "1" \
@@ -233,10 +294,29 @@ apply_rt_xml_config() {
     # nosharepages: disables KSM (Kernel Same-page Merging) for determinism
     # Note: We don't use hugepages by default as they require host configuration
     # Users can manually configure hugepages if needed for extreme performance
+    if ! grep -q "<memoryBacking" "${xml_file}"; then
+      xmlstarlet ed -L \
+        -s "/domain" -t elem -n "memoryBacking" \
+        "${xml_file}" 2>/dev/null || true
+    fi
     xmlstarlet ed -L \
-      -s "/domain" -t elem -n "memoryBacking" \
       -s "/domain/memoryBacking" -t elem -n "locked" \
       -s "/domain/memoryBacking" -t elem -n "nosharepages" \
+      "${xml_file}" 2>/dev/null || true
+
+    # Disable PMU virtualization and memory ballooning to reduce jitter.
+    if ! grep -q "<features" "${xml_file}"; then
+      xmlstarlet ed -L \
+        -s "/domain" -t elem -n "features" \
+        "${xml_file}" 2>/dev/null || true
+    fi
+    xmlstarlet ed -L \
+      -s "/domain/features" -t elem -n "pmu" \
+      -i "/domain/features/pmu" -t attr -n "state" -v "off" \
+      "${xml_file}" 2>/dev/null || true
+    xmlstarlet ed -L \
+      -s "/domain/devices" -t elem -n "memballoon" \
+      -i "/domain/devices/memballoon" -t attr -n "model" -v "none" \
       "${xml_file}" 2>/dev/null || true
     
     # Add cputune section with pinning
@@ -285,12 +365,25 @@ apply_rt_xml_config() {
   else
     # Fallback: Use sed for basic XML manipulation
     # This is a simplified version - just add the sections
+    sed -i '/<iothreads>.*<\/iothreads>/d' "${xml_file}"
+    sed -i '/<cputune>/,/<\/cputune>/d' "${xml_file}"
+    sed -i '/<memoryBacking>/,/<\/memoryBacking>/d' "${xml_file}"
+    sed -i '/<memballoon /d' "${xml_file}"
+    sed -i '/<pmu /d' "${xml_file}"
     
     # Find the insertion point (before </domain>)
     sed -i '/<\/domain>/i\  <iothreads>1</iothreads>' "${xml_file}"
     
     # Add memoryBacking with RT optimizations
     sed -i '/<\/domain>/i\  <memoryBacking>\n    <locked/>\n    <nosharepages/>\n  </memoryBacking>' "${xml_file}"
+
+    # Disable PMU virtualization and memory ballooning to reduce jitter.
+    if grep -q "<features>" "${xml_file}"; then
+      sed -i '/<features>/a\    <pmu state="off"/>' "${xml_file}"
+    else
+      sed -i '/<\/domain>/i\  <features>\n    <pmu state="off"/>\n  </features>' "${xml_file}"
+    fi
+    sed -i '/<\/devices>/i\    <memballoon model="none"/>' "${xml_file}"
     
     # Add cputune section
     local cputune_xml="  <cputune>\n"
@@ -325,6 +418,7 @@ apply_rt_xml_config() {
     echo "  - Emulator thread pinned to CPUs ${HK_CPUSET}"
     echo "  - IOThread pinned to CPUs ${HK_CPUSET}"
     echo "  - Memory locking enabled"
+    echo "  - PMU disabled and memory ballooning disabled"
     echo "  - Enhanced clock configuration (kvmclock, TSC)"
   else
     echo "Warning: Failed to apply RT XML optimizations"
@@ -712,7 +806,7 @@ verify_rt_config() {
     fi
   else
     echo "  <cputune> section not found"
-    echo "    Run 'servobox rt-config-apply --name ${NAME}' to add RT optimizations to XML"
+    echo "    Run 'servobox start --name ${NAME}' to apply RT optimizations"
   fi
   
   # Check for iothreads
@@ -754,6 +848,18 @@ verify_rt_config() {
     echo "  TSC timer configured"
   else
     echo "  TSC timer not configured"
+  fi
+
+  if grep -q "<pmu .*state=['\"]off['\"]" "${xml_file}"; then
+    echo "  PMU virtualization disabled"
+  else
+    echo "  PMU virtualization not disabled"
+  fi
+
+  if grep -q "<memballoon .*model=['\"]none['\"]" "${xml_file}"; then
+    echo "  Memory ballooning disabled"
+  else
+    echo "  Memory ballooning not disabled"
   fi
   
   rm -f "${xml_file}"
@@ -828,6 +934,8 @@ verify_rt_config() {
     echo "  Warning: No IRQs isolated to housekeeping CPUs ${HK_CPUSET}."
   fi
   echo ""
+
+  print_host_boot_isolation_status
   
   # Check guest kernel parameters (if we can SSH in)
   echo "Guest RT Kernel Parameters:"
