@@ -184,12 +184,42 @@ parse_cyclictest_results() {
   done
 
   local avg_of_avgs=$((avg_sum / avg_count))
+  local headroom_1khz=$((1000 - worst_max))
+  local headroom_500hz=$((2000 - worst_max))
   echo ""
   echo "Latency summary (cyclictest, microseconds):"
   echo "  Threads parsed: ${avg_count}"
   echo "  Best Min: ${best_min} us"
   echo "  Avg of Avg: ${avg_of_avgs} us"
   echo "  Worst Max: ${worst_max} us (${worst_line})"
+
+  echo ""
+  echo "==============================================================="
+  echo "              TIMING INTERPRETATION"
+  echo "==============================================================="
+  echo "HEADROOM: 1kHz loop: ${headroom_1khz} us after Worst Max; 500Hz loop: ${headroom_500hz} us after Worst Max"
+  if [[ ${worst_max} -lt 200 ]]; then
+    echo "STATUS: Strong VM timing result for this run."
+    echo "        Large headroom for typical 1kHz and 500Hz control loops."
+  elif [[ ${worst_max} -lt 500 ]]; then
+    echo "STATUS: Reasonable VM timing result for many buffered or soft RT robot interfaces."
+    echo "        Validate the full application loop."
+  elif [[ ${worst_max} -lt 1000 ]]; then
+    echo "STATUS: Marginal for strict 1kHz hard RT work."
+    echo "        Often still within a 500Hz host-cycle budget."
+  elif [[ ${worst_max} -lt 2000 ]]; then
+    echo "STATUS: Exceeds a 1kHz cycle budget."
+    echo "        Only consider 500Hz or buffered interfaces if the full system can absorb the jitter."
+  else
+    echo "STATUS: Exceeds both 1kHz and 500Hz host-cycle budgets."
+    echo "        Not suitable for hard RT control without further tuning."
+  fi
+  echo "==============================================================="
+  echo "Note: Compare Worst Max with your robot interface's required update period."
+  echo "Buffered/servo interfaces often tolerate occasional jitter; strict low-level"
+  echo "torque or hard-deadline loops need tighter review."
+  echo "Safety: This is a host/VM timing check, not certification of the robot driver,"
+  echo "network path, or robot controller."
 }
 
 run_latency_test() {

@@ -42,7 +42,7 @@ ServoBox offers three RT performance modes (selected with `servobox start`):
     - **Hardware interrupts** (SMIs, IRQs bleeding through isolation)
     - **Memory subsystem** (cache misses, TLB flushes)
     
-    Frequency locking (Performance/Extreme modes) can reduce the *frequency* of spikes but cannot eliminate them. For latencies <50μs, bare-metal RT Linux is required.
+    Frequency locking (Performance/Extreme modes) can reduce the *frequency* of spikes but cannot eliminate them. If host GRUB isolation and `servobox rt-verify` are clean, see [BIOS and Firmware Tuning](#bios-and-firmware-tuning) for the next layer. For latencies <50μs, bare-metal RT Linux is usually required.
 
 !!! tip "Switching Modes"
     You can change modes by stopping and restarting the VM with a different flag. The mode only affects host CPU tuning, not the VM image.
@@ -121,6 +121,22 @@ Forces CPU frequency governor to `performance` mode on the housekeeping CPUs and
 
 **Why it matters:**  
 Prevents dynamic frequency scaling (Intel SpeedStep, AMD Cool'n'Quiet) that can introduce latency spikes of 100+μs during frequency transitions.
+
+---
+
+### BIOS and Firmware Tuning
+
+Once host GRUB isolation is correct and `servobox rt-verify` reports clean VM pinning, remaining max-latency spikes often come from machine-specific BIOS, firmware, thermal, or power-management behavior. These settings are platform-specific, so change one thing at a time and rerun the same `servobox test` command after each change.
+
+- Set BIOS power profile to `Performance` or `Maximum Performance`.
+- Disable deep CPU C-states, or limit the system to shallow C-states.
+- Disable Intel SpeedStep / Speed Shift, or the AMD equivalent, if available.
+- Disable Turbo Boost if you care more about determinism than peak speed.
+- Disable unused onboard devices that can generate firmware or interrupt noise.
+- Disable USB legacy support if you do not need it for boot or keyboard access.
+- Keep thermals stable so the platform does not throttle.
+
+On many laptops and workstations, System Management Interrupts (SMIs), embedded-controller activity, and thermal firmware behavior are not fully controllable. In that case, occasional ~100-130μs max latency in a VM can remain even when Linux and KVM are tuned correctly.
 
 ---
 
@@ -454,7 +470,16 @@ Runs `cyclictest` at 1kHz (1000μs interval) while optionally stressing the host
 | Performance | ~3μs | ~100μs | ~1 per 50k cycles | EXCELLENT |
 | Extreme | ~3μs | ~100μs | ~1 per 100k cycles | EXCELLENT |
 
-Results depend on host hardware and isolation configuration. **Balanced mode is recommended for all users** - it achieves the VM latency ceiling with normal power consumption. Performance/Extreme modes reduce spike *frequency* for applications needing 99.99% timing guarantees, but do not significantly reduce maximum latency.
+Results depend on host hardware, isolation configuration, and [BIOS/firmware behavior](#bios-and-firmware-tuning). **Balanced mode is recommended for all users** - it achieves the VM latency ceiling with normal power consumption. Performance/Extreme modes reduce spike *frequency* for applications needing 99.99% timing guarantees, but do not significantly reduce maximum latency.
+
+**How to interpret the result:**
+Use the `Worst Max` value as the main hard real-time signal. For a 1kHz loop, the cycle budget is 1000μs. For a 500Hz loop, the cycle budget is 2000μs.
+
+- `Worst Max` below ~100-200μs under stress is a strong result for a VM and leaves large timing headroom for typical 1kHz and 500Hz robot control loops.
+- Rare isolated spikes above the usual range are not automatically dangerous. Many robot interfaces tolerate occasional host-side jitter through buffering, watchdogs, interpolation, or lookahead behavior; for example, common 500Hz UR RTDE/servo-style command loops have a 2000μs host cycle and are usually forgiving in practice. Lower-level modes and 1kHz loops have less margin, and this is where VM latency limits matter most.
+- For soft or buffered interfaces, a rare late cycle may be acceptable if the robot controller and process can absorb it. For hard real-time contracts, the worst-case latency is the requirement; any over-budget cycle must be treated as a failure.
+- Before moving to expensive hardware, run a longer stressed test, then test at low speed and low force/torque limits with the robot's own safety configuration enabled.
+- Do not treat `servobox test` as a safety certification. It is a host/VM timing confidence check; the real control loop, network path, robot driver, and robot controller must still be validated together.
 
 ---
 
@@ -488,7 +513,7 @@ Results depend on host hardware and isolation configuration. **Balanced mode is 
 
 For extreme RT requirements (<20μs worst-case at all times), consider:
 
-1. **BIOS tuning**: Disable C-states, P-states, Turbo Boost
+1. **BIOS tuning**: See [BIOS and Firmware Tuning](#bios-and-firmware-tuning)
 2. **SMI analysis**: Use `hwlat` tracer to detect firmware interrupts
 3. **Bare metal**: Consider Ubuntu Pro RT kernel on dedicated hardware
 
